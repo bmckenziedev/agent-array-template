@@ -1,0 +1,106 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: '{{PROJECT_NAME}}-node-cluster'
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: alerts
+    release: kps
+spec:
+  groups:
+  - name: agent-array.node
+    rules:
+    - alert: AgentArrayDiskSpaceLow
+      expr: "(\n  (\n    100 * node_filesystem_avail_bytes{job=\"node-exporter\", fstype!=\"\", mountpoint=~\"/|/models\"\
+        }\n        / node_filesystem_size_bytes{job=\"node-exporter\", fstype!=\"\", mountpoint=~\"/|/models\"}\n\
+        \  ) < 10\n  and on (instance, device, mountpoint)\n  node_filesystem_readonly{job=\"node-exporter\", fstype!=\"\
+        \", mountpoint=~\"/|/models\"} == 0\n)\n* on (instance) group_left (nodename) node_uname_info{job=\"node-exporter\"\
+        }\n"
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentArrayDiskSpaceLow
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentArrayNodeMemoryStall
+      expr: 'rate(node_pressure_memory_stalled_seconds_total{job="node-exporter"}[5m])
+
+        * on (instance) group_left (nodename) node_uname_info{job="node-exporter"}
+
+        > 0.10
+
+        '
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentArrayNodeMemoryStall
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentArrayNodeMemoryExhausted
+      expr: "(\n  node_memory_MemAvailable_bytes{job=\"node-exporter\"}\n    / node_memory_MemTotal_bytes{job=\"\
+        node-exporter\"}\n)\n* on (instance) group_left (nodename) node_uname_info{job=\"node-exporter\"}\n< 0.05\n"
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: AgentArrayNodeMemoryExhausted
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentArrayContainerOOMKilled
+      expr: "(\n  max by (namespace, pod, container) (\n    increase(kube_pod_container_status_restarts_total{job=\"\
+        kube-state-metrics\", namespace!=\"{{NS_SESSION_JOBS}}\"}[15m])\n  ) > 0\n)\nand on (namespace, pod, container)\n\
+        max by (namespace, pod, container) (\n  kube_pod_container_status_last_terminated_reason{job=\"kube-state-metrics\"\
+        , reason=\"OOMKilled\"}\n) == 1\n"
+      for: 0m
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentArrayContainerOOMKilled
+        description: Inspect the alert labels and metric history before remediation.
+    - record: aa:node_cpu_package_temp:celsius
+      expr: "max by (instance) (\n  node_hwmon_temp_celsius{job=\"node-exporter\", sensor=\"temp1\"}\n  * on (instance,\
+        \ chip) group_left ()\n  max by (instance, chip) (node_hwmon_chip_names{job=\"node-exporter\", chip_name=~\"\
+        k10temp|zenpower|coretemp\"})\n)\n"
+      annotations: {}
+    - alert: NodeCPUTemperatureHigh
+      expr: 'aa:node_cpu_package_temp:celsius
+
+        * on (instance) group_left (nodename) max by (instance, nodename) (node_uname_info{job="node-exporter"})
+
+        > 90
+
+        '
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: NodeCPUTemperatureHigh
+        description: Inspect the alert labels and metric history before remediation.
+  - name: agent-array.k3s-control-plane
+    rules:
+    - alert: K3sEtcdRequestLatencyHigh
+      expr: "histogram_quantile(0.99,\n  sum by (le) (\n    rate(etcd_request_duration_seconds_bucket{job=\"apiserver\"\
+        , operation!~\"list|listWithCount|watch\"}[5m])\n  )\n) > 0.5\n"
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: K3sEtcdRequestLatencyHigh
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: K3sEtcdDatabaseNearQuota
+      expr: "max by (storage_cluster_id) (apiserver_storage_size_bytes{job=\"apiserver\"})\n  > 0.8 * 2 * 1024 *\
+        \ 1024 * 1024\n"
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: K3sEtcdDatabaseNearQuota
+        description: Inspect the alert labels and metric history before remediation.
+  - name: agent-array.node-info
+    rules:
+    - record: aa:node:info
+      expr: "label_replace(\n  max by (instance, nodename, node) (\n    node_uname_info{job=\"node-exporter\"}\n\
+        \    * on (namespace, pod) group_left (node)\n    max by (namespace, pod, node) (kube_pod_info{job=\"kube-state-metrics\"\
+        })\n  ) or on (instance) max by (instance, nodename) (node_uname_info{job=\"node-exporter\"}),\n  \"host\"\
+        , \"$1\", \"nodename\", \"(.+)\"\n)"
+      annotations: {}

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: wazuh-indexer
+  namespace: "{{PROJECT_NAME}}-wazuh"
+spec:
+  replicas: 1
+  template:
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        "{{LABEL_PREFIX}}/role-control-plane": "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
+      initContainers:
+        - name: volume-mount-hack
+          image: busybox:1.37.0          # upstream: unpinned "busybox"; digest added by kustomization.yml images:
+        # Upstream runs a PRIVILEGED init container that does
+        # `sysctl -w vm.max_map_count=262144` on the host -- on node-a that would
+        # LOWER the Ubuntu 26.04 default (1048576). Replace it with an
+        # unprivileged check that fails loudly if the host is below the minimum.
+        - name: increase-the-vm-max-map-count
+          $patch: delete
+        - name: check-vm-max-map-count
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              v="$(cat /proc/sys/vm/max_map_count)"
+              echo "host vm.max_map_count=$v"
+              if [ "$v" -lt 262144 ]; then
+                echo "vm.max_map_count must be >= 262144 for the indexer; set it on the host (/etc/sysctl.d/99-wazuh-indexer.conf) and restart this pod" >&2
+                exit 1
+              fi
+          securityContext:
+            runAsUser: 65534
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+      containers:
+        - name: wazuh-indexer
+          env:
+            - name: OPENSEARCH_JAVA_OPTS
+              value: "-Xms4g -Xmx4g -Dlog4j2.formatMsgNoLookups=true"
+          resources:
+            # upstream: limits 500m / 1564Mi with a 1g heap
+            requests:
+              cpu: 500m
+              memory: 6Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          readinessProbe:
+            tcpSocket:
+              port: 9200
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 60
+  volumeClaimTemplates:
+    - metadata:
+        name: wazuh-indexer
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "{{STORAGE_CLASS_DEFAULT}}"
+        resources:
+          requests:
+            storage: 100Gi             # upstream 500Mi

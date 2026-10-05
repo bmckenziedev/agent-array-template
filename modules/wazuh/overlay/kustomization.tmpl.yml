@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: "{{PROJECT_NAME}}-wazuh"
+
+resources:
+  - ../../wazuh
+  - networkpolicy.yaml
+
+patches:
+  - path: namespace.yaml
+  # StorageClass is supplied by the platform.
+  - path: delete-demo-secrets.yaml
+  - path: delete-workers.yaml
+  - path: services-clusterip.yaml
+  - path: manager-master.yaml
+  - path: indexer.yaml
+  - path: dashboard.yaml
+
+images:
+  - name: wazuh/wazuh-manager
+    newTag: "4.14.8"
+    digest: sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55
+  - name: wazuh/wazuh-indexer
+    newTag: "4.14.8"
+    digest: sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de
+  - name: wazuh/wazuh-dashboard
+    newTag: "4.14.8"
+    digest: sha256:dd338d22355e8f0cdf8cc97d5b928539d56061b83c3274a79059e60ad5b8ac14
+  - name: busybox
+    newTag: "1.37.0"
+    digest: sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+
+configMapGenerator:
+  - name: indexer-conf
+    behavior: replace
+    files:
+      - opensearch.yml
+      - internal_users.yml            # Supplied from a private, external bcrypt configuration.
+  - name: dashboard-conf
+    behavior: replace
+    files:
+      - opensearch_dashboards.yml

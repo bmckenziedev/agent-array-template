@@ -1,0 +1,134 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "StatefulSet",
+  "metadata": {
+    "name": "litellm-redis",
+    "namespace": "{{NS_LLM}}",
+    "labels": {
+      "app.kubernetes.io/name": "litellm-redis",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "llm"
+    }
+  },
+  "spec": {
+    "replicas": 1,
+    "selector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "litellm-redis"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/name": "litellm-redis",
+          "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+          "app.kubernetes.io/component": "llm"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 999,
+          "runAsGroup": 999,
+          "fsGroup": 999,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "litellm-redis",
+            "image": "redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+            "ports": [
+              {
+                "containerPort": 6379
+              }
+            ],
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "256Mi"
+              },
+              "limits": {
+                "cpu": "2",
+                "memory": "2Gi"
+              }
+            },
+            "volumeMounts": [
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              },
+              {
+                "name": "data",
+                "mountPath": "/data"
+              }
+            ],
+            "env": [
+              {
+                "name": "REDIS_PASSWORD",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "litellm-redis",
+                    "key": "REDIS_PASSWORD"
+                  }
+                }
+              }
+            ],
+            "command": [
+              "sh",
+              "-ec"
+            ],
+            "args": [
+              "case \"$REDIS_PASSWORD\" in \"\"|*[!A-Za-z0-9_-]*) echo \"Redis password must be nonempty URL-safe text\" >&2; exit 1;; esac; umask 077; printf \"requirepass %s\\nappendonly yes\\ndir /data\\n\" \"$REDIS_PASSWORD\" > /tmp/redis.conf; exec redis-server /tmp/redis.conf"
+            ],
+            "readinessProbe": {
+              "exec": {
+                "command": [
+                  "sh",
+                  "-ec",
+                  "REDISCLI_AUTH=\"$REDIS_PASSWORD\" redis-cli ping"
+                ]
+              }
+            }
+          }
+        ],
+        "volumes": [
+          {
+            "name": "tmp",
+            "emptyDir": {}
+          }
+        ]
+      }
+    },
+    "serviceName": "litellm-redis",
+    "volumeClaimTemplates": [
+      {
+        "metadata": {
+          "name": "data"
+        },
+        "spec": {
+          "accessModes": [
+            "ReadWriteOnce"
+          ],
+          "storageClassName": "{{STORAGE_CLASS_DEFAULT}}",
+          "resources": {
+            "requests": {
+              "storage": "1Gi"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

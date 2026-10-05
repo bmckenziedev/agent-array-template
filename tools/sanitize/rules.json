@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "windows-user-home",
+      "severity": "fail",
+      "regex": "(?i)[A-Z]:[\\\\/]+Users[\\\\/]+(?!(me|you|user|example|runneradmin|\\.\\.\\.|<[^>]+>|\\{\\{[A-Z_]+\\}\\})[\\\\/])[A-Za-z0-9._-]+[\\\\/]",
+      "why": "a real Windows user profile path"
+    },
+    {
+      "id": "posix-user-home",
+      "severity": "warn",
+      "regex": "(?<![A-Za-z0-9_])/(home|Users)/(?!(me|user|runner|example|ubuntu|claude|codex|kimi|node|app|hermes|\\$\\{?[A-Z_]+\\}?|<[^>]+>)/)[a-z][a-z0-9_-]+/",
+      "why": "a personal POSIX home path"
+    },
+    {
+      "id": "gmail-or-edu-email",
+      "severity": "fail",
+      "regex": "(?i)[A-Za-z0-9._%+-]+@(gmail\\.com|[a-z0-9-]+\\.edu)\\b",
+      "why": "personal email"
+    },
+    {
+      "id": "pem-body",
+      "severity": "fail",
+      "regex": "-----BEGIN [A-Z ]+-----\\s*[\\r\\n]+[A-Za-z0-9+/=]{40,}",
+      "why": "PEM material with a body"
+    },
+    {
+      "id": "sealed-ciphertext",
+      "severity": "fail",
+      "regex": "\\bAg[A-Za-z0-9+/=]{150,}",
+      "why": "SealedSecret ciphertext"
+    },
+    {
+      "id": "kubeconfig-cert-data",
+      "severity": "fail",
+      "regex": "(client-certificate-data|client-key-data|certificate-authority-data):\\s*[A-Za-z0-9+/=]{60,}",
+      "why": "kubeconfig credential data"
+    },
+    {
+      "id": "vendor-token",
+      "severity": "fail",
+      "regex": "\\b(sk-ant-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|gho_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|tskey-[a-z]+-[A-Za-z0-9]{10,}-[A-Za-z0-9]{10,}|xox[abp]-[A-Za-z0-9-]{20,}|sk-[A-Za-z0-9]{32,})\\b",
+      "why": "credential-shaped token"
+    },
+    {
+      "id": "mac-address",
+      "severity": "warn",
+      "regex": "\\b(?!00:00:00)(?!02:00:00)([0-9a-f]{2}:){5}[0-9a-f]{2}\\b",
+      "why": "hardware MAC address"
+    },
+    {
+      "id": "dated-live-observation",
+      "severity": "warn",
+      "regex": "\\b20\\d\\d-\\d\\d-\\d\\dT\\d\\d:\\d\\d",
+      "why": "timestamped live observation; prefer undated docs"
+    },
+    {
+      "id": "home-lan-host",
+      "severity": "fail",
+      "regex": "\\b192\\.168\\.0\\.(?!0/16\\b)\\d{1,3}\\b"
+    },
+    {
+      "id": "private-overlay-host",
+      "severity": "fail",
+      "regex": "\\b10\\.200\\.0\\.\\d{1,3}\\b"
+    },
+    {
+      "id": "private-access-host",
+      "severity": "fail",
+      "regex": "(?i)\\b(?!(?:example|[a-z0-9-]+\\.example)\\.)(?:[a-z0-9-]+\\.)+(?:ts\\.net|cloudflareaccess\\.com)\\b"
+    }
+  ],
+  "forbidden_paths": [
+    "**/*.sealed.yaml",
+    "**/pub-cert.pem",
+    "**/cluster.env",
+    "**/secrets.env",
+    "**/LIVE-REPORT*.md",
+    "**/proof/**",
+    "**/*-proof.json",
+    "**/*alerts-before.json",
+    "**/*alerts-after.json",
+    "**/previous/*.rev*.yaml",
+    "**/__pycache__/**"
+  ]
+}

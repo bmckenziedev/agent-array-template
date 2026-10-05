@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+"""Fail-closed lookups that namespace-scoped CEL cannot perform.
+
+HTTPS AdmissionReview endpoint. The service identity can read namespaces, pods,
+PVCs and PVs only; it never reads a login, Secret, exec command or transcript.
+Exit 1 on startup configuration errors. TLS and API access are mandatory.
+"""
+from __future__ import annotations
+
+import argparse
+import datetime
+import json
+import os
+import ssl
+import sys
+import urllib.parse
+import urllib.request
+import urllib.error
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+
+class Refused(Exception):
+    pass
+
+
+class Lookup:
+    def __init__(self):
+        self.url = os.environ["AA_APISERVER_URL"].rstrip("/")
+        if not self.url.startswith("https://"):
+            raise ValueError("API server URL must use TLS")
+        self.context = ssl.create_default_context(cafile=os.environ.get("AA_API_CA", "/var/run/lookup-api/ca.crt"))
+        self.token_file = Path(os.environ.get("AA_API_TOKEN", "/var/run/lookup-api/token"))
+
+    def __call__(self, path: str) -> dict:
+        token = self.token_file.read_text().strip()
+        if not token:
+            raise Refused("API identity unavailable")
+        request = urllib.request.Request(self.url + path, headers={"Authorization": "Bearer " + token})
+        try:
+            with urllib.request.urlopen(request, context=self.context, timeout=3) as response:
+                data = response.read(8 * 1024 * 1024 + 1)
+        except urllib.error.HTTPError as exc:
+            exc.close()
+            raise Refused("object lookup failed") from None
+        if len(data) > 8 * 1024 * 1024:
+            raise Refused("lookup response too large")
+        value = json.loads(data)
+        if not isinstance(value, dict):
+            raise Refused("lookup response malformed")
+        return value
+
+
+def segment(value: str) -> str:
+    if not isinstance(value, str) or not value or "/" in value:
+        raise Refused("invalid object identity")
+    return urllib.parse.quote(value, safe="")
+
+
+class Verifier:
+    def __init__(self, lookup, prefix: str, username_prefix: str, breakglass_group: str,
+                 storage_class: str, login_root: str):
+        self.lookup = lookup
+        self.prefix = prefix
+        self.username_prefix = username_prefix
+        self.breakglass_group = breakglass_group
+        self.storage_class = storage_class
+        self.login_root = login_root.rstrip("/")
+
+    def label(self, obj: dict, name: str) -> str:
+        value = obj.get("metadata", {}).get("labels", {}).get(self.prefix + "/" + name)
+        if not isinstance(value, str) or not value:
+            raise Refused("required ownership label missing")
+        return value
+
+    def namespace(self, name: str) -> tuple[dict, str]:
+        namespace = self.lookup("/api/v1/namespaces/" + segment(name))
+        if self.label(namespace, "kind") != "user-sessions":
+            raise Refused("namespace is not a user session namespace")
+        return namespace, self.label(namespace, "user")
+
+    def pv(self, obj: dict, namespace: str, claim_name: str, user: str, tool: str,
+           node: str | None = None) -> None:
+        spec = obj.get("spec", {})
+        reference = spec.get("claimRef", {})
+        if reference.get("namespace") != namespace or reference.get("name") != claim_name:
+            raise Refused("PV is bound to a different user or claim")
+        if self.label(obj, "user") != user or self.label(obj, "tool") != tool:
+            raise Refused("PV ownership mismatch")
+        if self.label(obj, "kind") != "user-login" or spec.get("storageClassName") != self.storage_class:
+            raise Refused("PV login class mismatch")
+        if spec.get("persistentVolumeReclaimPolicy") != "Retain":
+            raise Refused("login PV must retain until audited wipe")
+        path = spec.get("local", {}).get("path", "")
+        expected = self.login_root + "/" + segment(user) + "/" + tool + "/"
+        if not isinstance(path, str) or not path.startswith(expected):
+            raise Refused("login path outside the user's tool directory")
+        path_node = path[len(expected):]
+        if not path_node or "/" in path_node or path_node in (".", ".."):
+            raise Refused("invalid login home node directory")
+        if node is not None and path_node != node:
+            raise Refused("login home node mismatch")
+        terms = spec.get("nodeAffinity", {}).get("required", {}).get("nodeSelectorTerms", [])
+        if not terms:
+            raise Refused("login PV node affinity missing")
+        for term in terms:
+            hosts = [expression for expression in term.get("matchExpressions", [])
+                     if expression.get("key") == "kubernetes.io/hostname"]
+            if len(hosts) != 1 or hosts[0].get("operator") != "In" or hosts[0].get("values") != [path_node]:
+                raise Refused("login PV affinity does not pin its home node")
+
+    def pvc(self, obj: dict, namespace: str, user: str, tool: str,
+            node: str | None = None) -> None:
+        name = obj.get("metadata", {}).get("name", "")
+        if self.label(obj, "user") != user or self.label(obj, "tool") != tool:
+            raise Refused("PVC ownership mismatch")
+        if tool not in ("claude", "codex", "kimi") or not name.startswith(tool + "-home-"):
+            raise Refused("PVC tool name mismatch")
+        spec = obj.get("spec", {})
+        if spec.get("storageClassName") != self.storage_class:
+            raise Refused("PVC login class mismatch")
+        if spec.get("volumeName") != namespace + "-" + name:
+            raise Refused("PVC must be pre-bound to its user PV")
+        pv = self.lookup("/api/v1/persistentvolumes/" + segment(spec["volumeName"]))
+        self.pv(pv, namespace, name, user, tool, node)
+
+    def workload(self, obj: dict, namespace: str, user: str, kind: str) -> None:
+        template = obj.get("spec", {}).get("template", {}) if kind == "StatefulSet" else obj
+        if self.label(template, "user") != user:
+            raise Refused("pod user mismatch")
+        tool = self.label(template, "tool")
+        if tool not in ("claude", "codex", "kimi"):
+            raise Refused("unknown session tool")
+        spec = template.get("spec", {})
+        node = spec.get("nodeSelector", {}).get("kubernetes.io/hostname")
+        if not isinstance(node, str) or not node:
+            raise Refused("home node missing")
+        claims = [volume.get("persistentVolumeClaim", {}).get("claimName")
+                  for volume in spec.get("volumes", []) if "persistentVolumeClaim" in volume]
+        if len(claims) != 1:
+            raise Refused("exactly one login PVC is required")
+        claim = self.lookup("/api/v1/namespaces/" + segment(namespace) +
+                            "/persistentvolumeclaims/" + segment(claims[0]))
+        self.pvc(claim, namespace, user, tool, node)
+
+    def verify(self, request: dict) -> dict:
+        resource = request.get("resource", {}).get("resource")
+        namespace_name = request.get("namespace", "")
+        obj = request.get("object") or {}
+        detail = {"resource": resource, "operation": request.get("operation")}
+        if resource == "persistentvolumes":
+            reference = obj.get("spec", {}).get("claimRef", {})
+            namespace_name = reference.get("namespace", "")
+        namespace, user = self.namespace(namespace_name)
+        detail["user"] = user
+        if request.get("operation") == "CONNECT":
+            if request.get("subResource") not in ("exec", "attach") or resource != "pods":
+                raise Refused("unsupported connection")
+            pod = self.lookup("/api/v1/namespaces/" + segment(namespace_name) +
+                              "/pods/" + segment(request.get("name", "")))
+            self.workload(pod, namespace_name, user, "Pod")
+            owners = pod.get("metadata", {}).get("ownerReferences", [])
+            if len(owners) != 1 or owners[0].get("kind") != "StatefulSet" or owners[0].get("controller") is not True:
+                raise Refused("target is not a session StatefulSet pod")
+            info = request.get("userInfo", {})
+            subject = namespace.get("metadata", {}).get("annotations", {}).get(self.prefix + "/oidc-sub")
+            if not isinstance(subject, str) or not subject:
+                raise Refused("holder identity missing")
+            detail["pod_uid"] = pod.get("metadata", {}).get("uid")
+            if info.get("username") == self.username_prefix + subject:
+                return detail
+            if self.breakglass_group not in info.get("groups", []):
+                raise Refused("only the holder or audited break-glass may connect")
+            ticket = pod.get("metadata", {}).get("annotations", {}).get(self.prefix + "/breakglass-ticket")
+            if not isinstance(ticket, str) or not ticket.strip() or len(ticket) > 256:
+                raise Refused("break-glass ticket missing")
+            detail["ticket"] = ticket
+        elif resource == "pods":
+            self.workload(obj, namespace_name, user, "Pod")
+        elif resource == "statefulsets":
+            self.workload(obj, namespace_name, user, "StatefulSet")
+        elif resource == "persistentvolumeclaims":
+            self.pvc(obj, namespace_name, user, self.label(obj, "tool"))
+        elif resource == "persistentvolumes":
+            self.pv(obj, namespace_name, reference.get("name", ""), user, self.label(obj, "tool"))
+            old = request.get("oldObject")
+            if old:
+                before = old.get("spec", {}).get("claimRef", {})
+                after = obj.get("spec", {}).get("claimRef", {})
+                if any(before.get(key) != after.get(key) for key in ("name", "namespace")):
+                    raise Refused("login PV reassignment requires offboarding and a new PV")
+                if old.get("spec", {}).get("local") != obj.get("spec", {}).get("local"):
+                    raise Refused("login PV directory cannot move")
+        else:
+            raise Refused("unsupported admission resource")
+        return detail
+
+
+def review(body: dict, verifier: Verifier, audit) -> dict:
+    request = body.get("request", {})
+    uid = request.get("uid", "")
+    allowed = False
+    reason = "lookup unavailable or malformed request"
+    detail = {}
+    try:
+        if not isinstance(uid, str) or not uid:
+            raise Refused("request UID missing")
+        detail = verifier.verify(request)
+        allowed = True
+        reason = "ownership verified"
+    except Refused as exc:
+        reason = str(exc)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        pass
+    event = {"ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+             "component": "session-admission", "event": "admission.lookup",
+             "actor": {"user": detail.get("user"), "sa": None,
+                       "sub": request.get("userInfo", {}).get("username")},
+             "team": None, "target": {"namespace": request.get("namespace"), "name": request.get("name")},
+             "outcome": "allow" if allowed else "deny", "detail": {**detail, "reason": reason}}
+    try:
+        audit(event)
+    except (OSError, ValueError, TypeError):
+        allowed = False
+        reason = "audit sink unavailable"
+    response = {"uid": uid, "allowed": allowed}
+    if not allowed:
+        response["status"] = {"code": 403, "message": reason}
+    return {"apiVersion": "admission.k8s.io/v1", "kind": "AdmissionReview", "response": response}
+
+
+def stdout_audit(event: dict) -> None:
+    print(json.dumps(event, separators=(",", ":")), flush=True)
+
+
+def handler(verifier):
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+
+        def do_GET(self):
+            self.send_response(200 if self.path == "/healthz" else 404)
+            self.end_headers()
+
+        def do_POST(self):
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if self.path != "/validate" or not 0 < length <= 2 * 1024 * 1024:
+                    raise ValueError("invalid request size")
+                body = json.loads(self.rfile.read(length))
+                result = review(body, verifier, stdout_audit)
+                raw = json.dumps(result).encode()
+            except (ValueError, TypeError, AttributeError):
+                self.send_error(400)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+    return Handler
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", type=int, default=8443)
+    args = parser.parse_args(argv)
+    try:
+        verifier = Verifier(Lookup(), os.environ["AA_LABEL_PREFIX"], os.environ["AA_USERNAME_PREFIX"],
+                            os.environ["AA_BREAKGLASS_GROUP"], os.environ["AA_LOGIN_STORAGE_CLASS"],
+                            os.environ["AA_LOGIN_HOST_ROOT"])
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(os.environ.get("AA_TLS_CERT", "/etc/admission-tls/tls.crt"),
+                                os.environ.get("AA_TLS_KEY", "/etc/admission-tls/tls.key"))
+        with ThreadingHTTPServer(("0.0.0.0", args.port), handler(verifier)) as server:
+            server.socket = context.wrap_socket(server.socket, server_side=True)
+            server.serve_forever()
+    except (OSError, ValueError, KeyError):
+        print("aa-admission-webhook: startup refused", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,35 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: aa-session-sa
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - '*'
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - serviceaccounts
+      - serviceaccounts/token
+  validations:
+  - expression: request.subResource != 'token' && has(object.automountServiceAccountToken) && !object.automountServiceAccountToken
+      && object.metadata.name == 'session'
+    message: Only the session ServiceAccount with automount disabled is allowed; direct TokenRequests are forbidden.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: aa-session-sa
+spec:
+  policyName: aa-session-sa
+  validationActions:
+  - Deny
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        '{{LABEL_PREFIX}}/kind': user-sessions

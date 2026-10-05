@@ -1,0 +1,49 @@
+# VERIFY Prometheus selectors and its egress policy; both sides of default-deny must allow the scrape.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: <app-name>
+  namespace: <namespace>
+  labels:
+    app.kubernetes.io/name: <app-name>
+    app.kubernetes.io/part-of: <project-name>
+    app.kubernetes.io/component: application
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: <app-name>
+  namespaceSelector:
+    matchNames:
+    - <namespace>
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-metrics-scrape
+  namespace: <namespace>
+  labels:
+    app.kubernetes.io/name: <app-name>
+    app.kubernetes.io/part-of: <project-name>
+    app.kubernetes.io/component: application
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: <app-name>
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: <monitoring-namespace>
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: <prometheus-pod-app-label>
+    ports:
+    - protocol: TCP
+      port: 8080

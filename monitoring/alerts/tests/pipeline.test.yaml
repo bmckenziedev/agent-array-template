@@ -1,0 +1,123 @@
+rule_files:
+- ../rules/pipeline.rules.yaml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: kube_job_failed{job="kube-state-metrics",namespace="agent-array-jobs",job_name="task-abc",condition="true"}
+    values: 0x9 1x10 stale
+  - series: kube_job_failed{job="kube-state-metrics",namespace="agent-array-jobs",job_name="task-def",condition="true"}
+    values: 0x14 1x5 stale
+  - series: kube_job_failed{job="kube-state-metrics",namespace="agent-array-jobs",job_name="task-ghi",condition="true"}
+    values: 0x17 1x5 stale
+  alert_rule_test:
+  - alertname: AgentTaskJobFailed
+    eval_time: 30m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        namespace: agent-array-jobs
+        job_name: task-abc
+      exp_annotations:
+        summary: AgentTaskJobFailed
+        description: Inspect the alert labels and metric history before remediation.
+    - exp_labels:
+        severity: warning
+        namespace: agent-array-jobs
+        job_name: task-def
+      exp_annotations:
+        summary: AgentTaskJobFailed
+        description: Inspect the alert labels and metric history before remediation.
+    - exp_labels:
+        severity: warning
+        namespace: agent-array-jobs
+        job_name: task-ghi
+      exp_annotations:
+        summary: AgentTaskJobFailed
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: AgentTaskJobsFailingRepeatedly
+    eval_time: 30m
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        namespace: agent-array-jobs
+      exp_annotations:
+        summary: AgentTaskJobsFailingRepeatedly
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: AgentTaskJobFailed
+    eval_time: 40m
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: kube_job_status_start_time{job="kube-state-metrics",namespace="agent-array-jobs",job_name="task-stuck"}
+    values: '0x90'
+  - series: kube_job_spec_active_deadline_seconds{job="kube-state-metrics",namespace="agent-array-jobs",job_name="task-stuck"}
+    values: 3600x90
+  - series: kube_job_status_active{job="kube-state-metrics",namespace="agent-array-jobs",job_name="task-stuck"}
+    values: 1x90
+  - series: kube_job_status_start_time{job="kube-state-metrics",namespace="agent-array-jobs",job_name="task-young"}
+    values: 1800x90
+  - series: kube_job_spec_active_deadline_seconds{job="kube-state-metrics",namespace="agent-array-jobs",job_name="task-young"}
+    values: 3600x90
+  - series: kube_job_status_active{job="kube-state-metrics",namespace="agent-array-jobs",job_name="task-young"}
+    values: 1x90
+  alert_rule_test:
+  - alertname: AgentTaskJobPastDeadline
+    eval_time: 72m
+    exp_alerts: []
+  - alertname: AgentTaskJobPastDeadline
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        namespace: agent-array-jobs
+        job_name: task-stuck
+      exp_annotations:
+        summary: AgentTaskJobPastDeadline
+        description: Inspect the alert labels and metric history before remediation.
+- interval: 1m
+  input_series:
+  - series: kube_deployment_spec_replicas{job="kube-state-metrics",namespace="agent-array-llm",deployment="litellm"}
+    values: 1x15
+  - series: kube_deployment_status_replicas_available{job="kube-state-metrics",namespace="agent-array-llm",deployment="litellm"}
+    values: '0x15'
+  - series: kube_deployment_spec_replicas{job="kube-state-metrics",namespace="agent-array-llm",deployment="panel"}
+    values: 1x15
+  - series: kube_deployment_status_replicas_available{job="kube-state-metrics",namespace="agent-array-llm",deployment="panel"}
+    values: 1x15
+  - series: kube_deployment_spec_replicas{job="kube-state-metrics",namespace="agent-array-llm",deployment="claude-code"}
+    values: '0x15'
+  - series: kube_deployment_status_replicas_available{job="kube-state-metrics",namespace="agent-array-llm",deployment="claude-code"}
+    values: '0x15'
+  alert_rule_test:
+  - alertname: AgentArrayDeploymentUnavailable
+    eval_time: 10m
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        namespace: agent-array-llm
+        deployment: litellm
+      exp_annotations:
+        summary: AgentArrayDeploymentUnavailable
+        description: Inspect the alert labels and metric history before remediation.
+- interval: 1m
+  input_series:
+  - series: litellm_proxy_total_requests_metric_total{job="litellm",requested_model="local-coder"}
+    values: 0+10x40
+  - series: litellm_proxy_failed_requests_metric_total{job="litellm",requested_model="local-coder",exception_class="Openai.APIConnectionError",exception_status="500"}
+    values: 0+4x40
+  - series: litellm_proxy_failed_requests_metric_total{job="litellm",requested_model="kimi",exception_class="BudgetExceededError",exception_status="400"}
+    values: '0x40'
+  alert_rule_test:
+  - alertname: LiteLLMHighErrorRate
+    eval_time: 30m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        namespace: agent-array-llm
+      exp_annotations:
+        summary: LiteLLMHighErrorRate
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: LiteLLMBudgetExceeded
+    eval_time: 30m
+    exp_alerts: []

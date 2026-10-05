@@ -1,0 +1,214 @@
+# Complete values for chart 91.8.2; renderer plugin adds routing and team OIDC roles.
+# KSM sanitizes every non-alphanumeric character in label keys to underscore.
+# --metric-labels-allowlist is generated from metricLabelsAllowlist below.
+fullnameOverride: kps
+prometheusOperator:
+  namespaces:
+    releaseNamespace: true
+    additional: []
+  prometheusInstanceNamespaces:
+  - '{{NS_MONITORING}}'
+  alertmanagerInstanceNamespaces:
+  - '{{NS_MONITORING}}'
+  alertmanagerConfigNamespaces:
+  - '{{NS_MONITORING}}'
+  thanosRulerInstanceNamespaces:
+  - '{{NS_MONITORING}}'
+  extraArgs:
+  - --watch-referenced-objects-in-all-namespaces=false
+  nodeSelector:
+    '{{LABEL_PREFIX}}/role-control-plane': 'true'
+  image:
+    sha: 7c88d4e7bae63bd8d0f8da986054337c23b4472fa8d3c6817f5bc4b8407a2d6a
+  prometheusConfigReloader:
+    image:
+      sha: 06b52bd4dbe3ed6dd5905aadaf8b9987d9da4c31d37bb86deaadae68cee2d26b
+  admissionWebhooks:
+    patch:
+      image:
+        sha: 58e4ac2e15bf7785eb00ac90d03f9be1ff3f2fe0add6c71b54af6e5c80031148
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+prometheus:
+  prometheusSpec:
+    enableAdminAPI: false
+    image:
+      sha: b2a413d5a03ea6a76782a508d1c7947440bba3b973931a25676e278431891b01
+    retention: '{{C_MONITORING_RETENTION_DAYS}}d'
+    retentionSize: 40GB
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: {}
+    podMonitorNamespaceSelector: {}
+    ruleNamespaceSelector: {}
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        memory: 4Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: '{{STORAGE_CLASS_DEFAULT}}'
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 50Gi
+    nodeSelector:
+      '{{LABEL_PREFIX}}/role-control-plane': 'true'
+alertmanager:
+  alertmanagerSpec:
+    image:
+      sha: e9733bafb1bdef9b00e25a21f8f99dc26a22224bf16641ad754d1649f4c3357a
+    retention: 120h
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: '{{STORAGE_CLASS_DEFAULT}}'
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi
+    nodeSelector:
+      '{{LABEL_PREFIX}}/role-control-plane': 'true'
+  service:
+    type: ClusterIP
+  config:
+    route:
+      receiver: 'null'
+    receivers:
+    - name: 'null'
+grafana:
+  enabled: true
+  defaultDashboardsEnabled: true
+  image:
+    sha: 202e5d5b3f8499e70ccac7991eea6d7da72d2790eb2e0597e7987acf724e7180
+  initChownData:
+    image:
+      sha: fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
+    enabled: false
+  testFramework:
+    enabled: false
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  rbac:
+    namespaced: true
+  sidecar:
+    image:
+      sha: 2912be006f62f9ea080194cf6d3afcd90daead8d101d0ba686a137a849f6a4f6
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: '1'
+      searchNamespace: '{{NS_MONITORING}}'
+      resource: configmap
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
+    datasources:
+      enabled: true
+      searchNamespace: '{{NS_MONITORING}}'
+      resource: configmap
+  service:
+    type: ClusterIP
+  nodeSelector:
+    '{{LABEL_PREFIX}}/role-control-plane': 'true'
+  persistence:
+    enabled: true
+    storageClassName: '{{STORAGE_CLASS_DEFAULT}}'
+    size: 5Gi
+  envValueFrom:
+    GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+      secretKeyRef:
+        name: grafana-oidc
+        key: client-id
+    GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+      secretKeyRef:
+        name: grafana-oidc
+        key: client-secret
+  grafana.ini:
+    server:
+      root_url: https://{{HOST_GRAFANA}}
+    auth:
+      disable_login_form: true
+    auth.basic:
+      enabled: true
+    auth.generic_oauth:
+      enabled: true
+      name: Organization OIDC
+      allow_sign_up: true
+      client_id: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_ID}
+      client_secret: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}
+      scopes: openid profile email groups
+      auth_url: '{{OIDC_ISSUER_URL}}{{C_MONITORING_OIDC_AUTH_PATH}}'
+      token_url: '{{OIDC_ISSUER_URL}}{{C_MONITORING_OIDC_TOKEN_PATH}}'
+      api_url: '{{OIDC_ISSUER_URL}}{{C_MONITORING_OIDC_USERINFO_PATH}}'
+      login_attribute_path: '{{OIDC_USERNAME_CLAIM}}'
+      groups_attribute_path: '{{OIDC_GROUPS_CLAIM}}'
+      role_attribute_path: contains({{OIDC_GROUPS_CLAIM}} || `[]`, '{{GROUP_PLATFORM_ADMIN}}')
+        && 'Admin' || contains({{OIDC_GROUPS_CLAIM}} || `[]`, '{{GROUP_AUDITOR}}')
+        && 'Viewer'
+      role_attribute_strict: true
+      skip_org_role_sync: false
+      allow_assign_grafana_admin: false
+      use_pkce: true
+      use_refresh_token: true
+prometheus-node-exporter:
+  image:
+    digest: sha256:8c9bac11973b94b59be88d6e11fee4429aa743c8846cdc75d65b18db33f6a106
+  tolerations:
+  - operator: Exists
+  extraArgs:
+  - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+  - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|erofs)$
+  - --collector.textfile.directory=/host/root/var/lib/node_exporter/textfile_collector
+kube-state-metrics:
+  collectors:
+  - certificatesigningrequests
+  - configmaps
+  - cronjobs
+  - daemonsets
+  - deployments
+  - endpointslices
+  - horizontalpodautoscalers
+  - ingresses
+  - jobs
+  - leases
+  - limitranges
+  - mutatingwebhookconfigurations
+  - namespaces
+  - networkpolicies
+  - nodes
+  - persistentvolumeclaims
+  - persistentvolumes
+  - poddisruptionbudgets
+  - pods
+  - replicasets
+  - replicationcontrollers
+  - resourcequotas
+  - services
+  - statefulsets
+  - storageclasses
+  - validatingwebhookconfigurations
+  - volumeattachments
+  image:
+    sha: sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b
+  nodeSelector:
+    '{{LABEL_PREFIX}}/role-control-plane': 'true'
+  metricLabelsAllowlist:
+  - nodes=[{{LABEL_PREFIX}}/role-*,{{LABEL_PREFIX}}/runtime-*]
+  - namespaces=[{{LABEL_PREFIX}}/kind,{{LABEL_PREFIX}}/user,{{LABEL_PREFIX}}/team]
+  - pods=[{{LABEL_PREFIX}}/user,{{LABEL_PREFIX}}/team,{{LABEL_PREFIX}}/account]

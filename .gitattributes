@@ -1,4 +1,13 @@
 * text=auto eol=lf
-*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
 *.png binary
-*.gguf binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.woff binary
+*.woff2 binary

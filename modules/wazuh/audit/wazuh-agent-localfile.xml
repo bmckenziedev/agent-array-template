@@ -1,0 +1,5 @@
+  
+  <localfile>
+    <log_format>json</log_format>
+    <location>/host/var/log/kubernetes/audit/audit.log</location>
+  </localfile>

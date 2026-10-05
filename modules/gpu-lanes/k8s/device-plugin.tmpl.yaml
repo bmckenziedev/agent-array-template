@@ -1,0 +1,109 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "DaemonSet",
+  "metadata": {
+    "name": "nvidia-device-plugin",
+    "namespace": "gpu-system",
+    "labels": {
+      "app.kubernetes.io/name": "nvidia-device-plugin",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "gpu-lanes"
+    }
+  },
+  "spec": {
+    "selector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "nvidia-device-plugin"
+      }
+    },
+    "updateStrategy": {
+      "type": "RollingUpdate"
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/name": "nvidia-device-plugin",
+          "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+          "app.kubernetes.io/component": "gpu-lanes"
+        }
+      },
+      "spec": {
+        "runtimeClassName": "{{RUNTIME_CLASS_GPU}}",
+        "priorityClassName": "system-node-critical",
+        "nodeSelector": {
+          "{{LABEL_PREFIX}}/role-gpu": "true"
+        },
+        "tolerations": [
+          {
+            "key": "{{LABEL_PREFIX}}/gpu",
+            "operator": "Equal",
+            "value": "true",
+            "effect": "NoSchedule"
+          }
+        ],
+        "containers": [
+          {
+            "name": "nvidia-device-plugin-ctr",
+            "image": "nvcr.io/nvidia/k8s-device-plugin:v0.20.1@sha256:27c1b2553a690ca3d29889dcd61df97525d46f58272c0be8dc63c2b18f120075",
+            "env": [
+              {
+                "name": "FAIL_ON_INIT_ERROR",
+                "value": "true"
+              },
+              {
+                "name": "DEVICE_LIST_STRATEGY",
+                "value": "envvar"
+              },
+              {
+                "name": "NVIDIA_VISIBLE_DEVICES",
+                "value": "all"
+              },
+              {
+                "name": "NVIDIA_DRIVER_CAPABILITIES",
+                "value": "compute,utility"
+              }
+            ],
+            "securityContext": {
+              "privileged": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true
+            },
+            "volumeMounts": [
+              {
+                "name": "device-plugin",
+                "mountPath": "/var/lib/kubelet/device-plugins"
+              },
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              }
+            ]
+          }
+        ],
+        "volumes": [
+          {
+            "name": "device-plugin",
+            "hostPath": {
+              "path": "/var/lib/kubelet/device-plugins"
+            }
+          },
+          {
+            "name": "tmp",
+            "emptyDir": {}
+          }
+        ],
+        "automountServiceAccountToken": false,
+        "securityContext": {
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        }
+      }
+    }
+  }
+}

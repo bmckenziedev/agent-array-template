@@ -1,0 +1,49 @@
+# Remove API rules unless needed. Include ALL endpoint IPs (IPv6 /128).
+# kube-router evaluates post-DNAT endpoints; VERIFY Cilium/Calico service policy semantics.
+# VERIFY DNS labels or explicitly permit the configured NodeLocal DNS IP. No internet wildcard.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-explicit-egress
+  namespace: <namespace>
+  labels:
+    app.kubernetes.io/name: <app-name>
+    app.kubernetes.io/part-of: <project-name>
+    app.kubernetes.io/component: application
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: <app-name>
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  - to:
+    - ipBlock:
+        cidr: <apiserver-endpoint-ip>/32
+    ports:
+    - protocol: TCP
+      port: <apiserver-port>
+  - to:
+    - ipBlock:
+        cidr: <apiserver-service-ip>/32
+    ports:
+    - protocol: TCP
+      port: 443
+  - to:
+    - ipBlock:
+        cidr: <explicit-destination-cidr>
+    ports:
+    - protocol: TCP
+      port: <explicit-port>

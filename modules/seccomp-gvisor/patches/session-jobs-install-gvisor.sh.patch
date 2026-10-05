@@ -1,0 +1,11 @@
+--- a/modules/session-jobs/install-gvisor.sh
++++ b/modules/session-jobs/install-gvisor.sh
+@@ -1,4 +1,8 @@
+ #!/usr/bin/env bash
+ set -euo pipefail
+ # seccomp module preflight
++test -s "${KUBELET_ROOT:-/var/lib/kubelet}/seccomp/profiles/seccomp-gvisor/runtime-default-clone3-enosys.json" || {
++  echo "seccomp profile missing; refuse runtime labeling" >&2
++  exit 1
++}
+ # Node labeling is performed by the inventory task after validation.

@@ -1,0 +1,174 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: task-__TASK_ID__
+  namespace: '{{NS_SESSION_JOBS}}'
+  labels:
+    app.kubernetes.io/name: session-job
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: session-jobs
+    '{{LABEL_PREFIX}}/task': __TASK_ID__
+    '{{LABEL_PREFIX}}/user': __USER__
+    '{{LABEL_PREFIX}}/team': __TEAM__
+    '{{LABEL_PREFIX}}/account': __ACCOUNT__
+    '{{LABEL_PREFIX}}/llm-client': 'true'
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  activeDeadlineSeconds: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: session-job
+        app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+        app.kubernetes.io/component: session-jobs
+        '{{LABEL_PREFIX}}/task': __TASK_ID__
+        '{{LABEL_PREFIX}}/user': __USER__
+        '{{LABEL_PREFIX}}/team': __TEAM__
+        '{{LABEL_PREFIX}}/account': __ACCOUNT__
+        '{{LABEL_PREFIX}}/llm-client': 'true'
+    spec:
+      dnsPolicy: ClusterFirst
+      runtimeClassName: '{{M_SESSION_JOBS_RUNTIME}}'
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      shareProcessNamespace: false
+      nodeSelector:
+        '{{LABEL_PREFIX}}/runtime-{{M_SESSION_JOBS_RUNTIME}}': 'true'
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+      - name: '{{REGISTRY_PULL_SECRET}}'
+      initContainers:
+      - name: tester
+        image: '{{IMAGE_SESSION_RUNNER}}'
+        restartPolicy: Always
+        command:
+        - python3
+        - /usr/local/bin/tester.py
+        env:
+        - name: WORKSPACE
+          value: /workspace
+        - name: TESTBOX
+          value: /testbox
+        - name: TMPDIR
+          value: /tmp
+        - name: NPM_REGISTRY
+          value: http://npm.{{PROJECT_NAME}}-pkg-mirror.svc:4873/
+        - name: PIP_INDEX_URL
+          value: http://pypi.{{PROJECT_NAME}}-pkg-mirror.svc:3141/root/pypi/+simple/
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+          readOnly: true
+        - name: testbox
+          mountPath: /testbox
+        - name: tester-tmp
+          mountPath: /tmp
+        securityContext:
+          runAsUser: 1001
+          runAsGroup: 1001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+            ephemeral-storage: 256Mi
+          limits:
+            cpu: '3'
+            memory: 4Gi
+            ephemeral-storage: 1Gi
+      containers:
+      - name: session
+        image: '{{IMAGE_SESSION_RUNNER}}'
+        command:
+        - /usr/local/bin/entrypoint.sh
+        env:
+        - name: TASK_ID
+          value: __TASK_ID__
+        - name: PANEL_BASE
+          value: http://panel.{{NS_PORTAL}}.svc:8081
+        - name: LITELLM_BASE
+          value: http://litellm.{{NS_LLM}}.svc:4000
+        - name: WORKSPACE
+          value: /workspace
+        - name: TESTBOX
+          value: /testbox
+        - name: MAX_REPAIR
+          value: '2'
+        - name: TEST_TIMEOUT
+          value: '600'
+        - name: TASK_BUDGET_SECONDS
+          value: '3300'
+        - name: TEST_NPM_IGNORE_SCRIPTS
+          value: '1'
+        - name: TEST_PIP_ONLY_BINARY
+          value: '1'
+        - name: NPM_REGISTRY
+          value: http://npm.{{PROJECT_NAME}}-pkg-mirror.svc:4873/
+        - name: PIP_INDEX_URL
+          value: http://pypi.{{PROJECT_NAME}}-pkg-mirror.svc:3141/root/pypi/+simple/
+        - name: PYTEST_SPEC
+          value: pytest==9.1.1
+        - name: TASK_TOKEN
+          value: __TASK_TOKEN__
+        - name: LITELLM_KEY
+          value: __LITELLM_KEY__
+        - name: TASK_MODELS
+          value: __TASK_MODELS__
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: testbox
+          mountPath: /testbox
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: home
+          mountPath: /home/agent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+            ephemeral-storage: 256Mi
+          limits:
+            cpu: '1'
+            memory: 2Gi
+            ephemeral-storage: 1Gi
+      volumes:
+      - name: workspace
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi
+      - name: testbox
+        emptyDir:
+          medium: Memory
+          sizeLimit: 2Gi
+      - name: tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 512Mi
+      - name: home
+        emptyDir:
+          medium: Memory
+          sizeLimit: 256Mi
+      - name: tester-tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 512Mi

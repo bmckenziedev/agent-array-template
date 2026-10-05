@@ -1,0 +1,5 @@
+scope: components
+name: audit
+defaults:
+  log_path: /var/log/kubernetes/audit.log
+  retention_days: 30

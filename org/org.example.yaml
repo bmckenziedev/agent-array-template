@@ -1,0 +1,211 @@
+# agent-array organisation configuration (EXAMPLE).
+#
+# Copy to org/org.yaml, edit, then run:  python tools/render/render.py --org org/org.yaml
+# This is the ONLY place deployment-specific values live. No secrets here: a secret
+# is referenced by NAME (and key) only; values are sealed with platform/sealed-secrets.
+# YAML subset only (see tools/render/README.md): block maps/lists, single-line flow
+# lists/maps of scalars, comments, quoted or plain scalars. No anchors, no multi-line strings.
+version: 1
+
+project:
+  name: agent-array                       # PROJECT_NAME: brand; prefixes namespaces/objects
+  label_prefix: agent-array.example.org   # LABEL_PREFIX: DNS subdomain the org controls (labels/annotations)
+  image_prefix: agent-array               # IMAGE_PREFIX: image repo name prefix
+
+org:
+  name: Example Org
+  domain: example.org                     # ORG_DOMAIN
+  timezone: UTC                           # ORG_TIMEZONE (IANA name)
+  security_contact: security@example.org
+
+github:
+  org: example-org                        # ORG_GITHUB_ORG
+  repo: agent-array
+  git_remote: git@github.com:example-org/agent-array.git   # ORG_GIT_REMOTE (Argo repoURL)
+  revision: main                          # GIT_REVISION (Argo targetRevision)
+  platform_team_handle: "@example-org/platform"            # CODEOWNERS_PLATFORM
+
+registry:
+  host: ghcr.io
+  namespace: example-org
+  pull_secret: registry-pull              # Secret NAME in every namespace that pulls images
+
+# Image digests are written by CI (.github/workflows/images.yml). All-zero digests render
+# with a warning; `render.py --strict` refuses them.
+images:
+  session-claude: {tag: "0.1.0", digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+  session-codex: {tag: "0.1.0", digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+  session-kimi: {tag: "0.1.0", digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+  panel: {tag: "0.1.0", digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+  session-runner: {tag: "0.1.0", digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+  pace: {tag: "0.1.0", digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+  farm-mcp: {tag: "0.1.0", digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+  factory: {tag: "0.1.0", digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+  hermes-chat: {tag: "0.1.0", digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
+
+cluster:
+  distribution: k3s                       # k3s | generic
+  version: v1.36.5+k3s1                   # K8S_VERSION
+  provider: bare-metal                    # HOSTING_PROVIDER: bare-metal | aws | gcp | azure | other
+  cni: kube-router                        # kube-router | cilium | calico (changes the apiserver-endpoint rule)
+  apiserver:
+    endpoint_ips: [100.64.0.10]           # kube-apiserver endpoint IPs pods must reach on 6443 (post-DNAT)
+    port: 6443
+    service_ip: 10.43.0.1
+    url: https://100.64.0.10:6443
+  cidrs:
+    pod: 10.42.0.0/16
+    service: 10.43.0.0/16
+    overlay: 100.64.0.0/10
+    private: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+    session_egress_deny_extra: []         # extra CIDRs session pods may never reach (node public IPs are added automatically)
+  dns_service_ip: 10.43.0.10
+  storage:
+    default_class: local-path
+    login_class: agent-array-login-local  # node-local class for per-(user, tool, node) login dirs
+    login_host_root: /var/lib/agent-array/logins
+    login_storage: disk                   # disk (encrypted node volume, never backed up) | tmpfs
+  runtime_classes:
+    vm: kata                              # RUNTIME_CLASS_VM: session pods, factory, privileged CI
+    gvisor: gvisor
+    gpu: nvidia
+
+namespaces:
+  system: agent-array-system              # pace, controllers
+  llm: agent-array-llm                    # LiteLLM + Postgres + Redis
+  mcp: agent-array-mcp                    # deployed MCP servers
+  portal: agent-array-portal              # panel + SSO proxies
+  factory: agent-array-factory
+  models: agent-array-models              # GPU lanes
+  egress: agent-array-egress              # exact-host egress gateways
+  session_jobs: agent-array-jobs
+  ops: agent-array-ops                    # ops chat module
+  monitoring: monitoring
+  argocd: argocd
+  user_prefix: aa-u-                      # per-user session namespace = aa-u-<user slug>
+
+nodes:
+  - name: node-a                          # Kubernetes Node name
+    short: node-a                         # DNS-label alias used inside object names (<= 15 chars)
+    roles: [control-plane, sessions]      # control-plane | worker | sessions | factory | gpu | ci
+    overlay_ip: 100.64.0.10
+    public_ip: 203.0.113.10
+    runtime_classes: [kata]
+  - name: node-b
+    short: node-b
+    roles: [worker, sessions, factory, ci]
+    overlay_ip: 100.64.0.11
+    public_ip: 203.0.113.11
+    runtime_classes: [kata, gvisor]
+  - name: gpu-a
+    short: gpu-a
+    roles: [gpu]
+    overlay_ip: 100.64.0.12
+    lan_ip: 198.51.100.12
+    runtime_classes: [nvidia]
+    gpu: {model: example-24gb, vram_gb: 24, count: 1}
+
+network:
+  overlay: tailscale                      # tailscale | none
+  tailscale: {tailnet: example.ts.net, node_tag: "tag:k8s-node"}
+  access:
+    kind: oidc-proxy                      # oidc-proxy | cloudflare-access | none
+    cloudflare_team: example              # only used when kind = cloudflare-access
+
+identity:
+  oidc:
+    issuer_url: https://idp.example.org
+    client_id: agent-array
+    username_claim: sub
+    username_prefix: "oidc:"
+    groups_claim: groups
+    groups_prefix: "oidc:"
+  groups:
+    platform_admin: aa-platform-admins
+    auditor: aa-auditors
+    breakglass: aa-breakglass
+
+hostnames:
+  panel: panel.example.org
+  argocd: argocd.example.org
+  grafana: grafana.example.org
+  headlamp: k8s.example.org
+  wazuh: wazuh.example.org
+  mcp: mcp.example.org
+
+alerting:
+  default_receiver: platform-oncall
+  receivers:
+    - {name: platform-oncall, kind: webhook, secret: alertmanager-receivers, key: platform_oncall_url}
+  quiet_hours: {start: "22:00", end: "07:00", timezone: UTC}
+  heartbeat: {enabled: true, secret: alertmanager-receivers, key: heartbeat_url}
+
+backup:
+  kind: restic-sftp                       # restic-sftp | velero | none
+  schedule: "03:15"
+  restic: {sftp_host: backup.example.org, sftp_user: agent-array-backup, sftp_port: 22, repository_path: /agent-array, secret: backup-restic}
+  never_back_up: [/var/lib/agent-array/logins]
+
+vendors:
+  anthropic:
+    enabled: true
+    tool: claude
+    cli_version: 2.1.285
+    org_uuid: "00000000-0000-0000-0000-000000000000"      # managed forceLoginOrgUUID (string UUID, managed source only; blocks ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN and apiKeyHelper at startup)
+    egress: public-443                    # public-443 | gateway
+  openai:
+    enabled: true
+    tool: codex
+    cli_version: 0.160.0
+    workspace_id: "00000000-0000-0000-0000-000000000000"  # forced_chatgpt_workspace_id (string UUID, managed source only; blocks ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN and apiKeyHelper at startup)
+    egress: public-443
+  moonshot:
+    enabled: false                        # off for org code unless legal approves the vendor
+    tool: kimi
+    cli_version: 2.1.1
+    egress: gateway
+  local:
+    enabled: true                         # local GPU/CPU model lanes via LiteLLM
+
+sessions:
+  default_tier: standard
+  tiers:
+    standard: {pods: 4, statefulsets: 3, pvcs: 3, requests_cpu: "4", requests_memory: 16Gi, limits_cpu: "12", limits_memory: 48Gi, max_replicas_per_tool: 1}
+    power: {pods: 8, statefulsets: 3, pvcs: 3, requests_cpu: "8", requests_memory: 32Gi, limits_cpu: "24", limits_memory: 96Gi, max_replicas_per_tool: 2}
+  idle_stop_minutes: 120
+  lease_fail_closed: false                # true: refuse to start a session when the pace service is unreachable
+
+policy:
+  data_classes: [public, internal, confidential, restricted]
+  permission_modes_allowed: [default, acceptEdits, bypassPermissions]
+  default_permission_mode: default
+
+files:
+  teams: org/teams.example.yaml
+  users: org/users.example.yaml
+  accounts: org/accounts.example.yaml
+  estates: org/estates.example.yaml
+  mcp_registry: mcp/registry.example.yaml
+  context_sources: mcp/context-sources.example.yaml
+
+# Optional modules (directory modules/<name>/). Disabled modules render nothing.
+# Extra module settings: modules.<name>.<key> -> placeholder M_<NAME>_<KEY>; defaults live in
+# modules/<name>/org.component.defaults.yaml.
+modules:
+  factory: {enabled: false}
+  gpu-lanes: {enabled: false}
+  session-jobs: {enabled: false}
+  pkg-mirror: {enabled: false}
+  wazuh: {enabled: false}
+  hostwatch: {enabled: false}
+  seccomp-gvisor: {enabled: false}
+  hostguard: {enabled: false}
+  hermes-ops-chat: {enabled: false}
+  workstation-lane: {enabled: false, window_start: "19:00", window_stop: "08:00", drain_minutes: 5, timezone: UTC}
+  arc-ci: {enabled: false, runner_light: arc-light, runner_heavy: arc-heavy}
+  k3s-baremetal: {enabled: false}
+  k3s-maintenance: {enabled: false}
+
+# Core-component overrides: components.<name>.<key> -> placeholder C_<NAME>_<KEY>.
+# Defaults live in <component>/org.component.defaults.yaml.
+components: {}

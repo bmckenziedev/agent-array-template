@@ -1,0 +1,8 @@
+{
+  "name": "agent-array-frontier-kimi",
+  "private": true,
+  "description": "Pins Moonshot's official Kimi Code CLI (npm @moonshot-ai/kimi-code, MIT) for the frontier-kimi image. npm ci verifies every tarball against the sha512 integrity in package-lock.json.",
+  "dependencies": {
+    "@moonshot-ai/kimi-code": "2.1.1"
+  }
+}

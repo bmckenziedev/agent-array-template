@@ -1,0 +1,4 @@
+# Synthetic metadata-only events for vendor logtest.
+{"apiVersion": "audit.k8s.io/v1", "kind": "Event", "objectRef": {"name": "claude-node-a", "namespace": "aa-u-ana", "resource": "pods", "subresource": "exec"}, "stage": "ResponseStarted", "user": {"groups": ["oidc:aa-team-payments"], "username": "oidc:example-user"}, "verb": "create"}
+{"apiVersion": "audit.k8s.io/v1", "kind": "Event", "objectRef": {"name": "claude-node-a", "namespace": "aa-u-ana", "resource": "pods", "subresource": "attach"}, "stage": "ResponseStarted", "user": {"groups": ["oidc:aa-team-payments"], "username": "oidc:example-user"}, "verb": "create"}
+{"apiVersion": "audit.k8s.io/v1", "kind": "Event", "objectRef": {"name": "claude-node-a", "namespace": "aa-u-ana", "resource": "pods", "subresource": "exec"}, "stage": "ResponseStarted", "user": {"groups": ["oidc:aa-breakglass"], "username": "oidc:example-user"}, "verb": "create"}

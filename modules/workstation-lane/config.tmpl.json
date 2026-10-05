@@ -1,0 +1,7 @@
+{
+  "window_start": "{{M_WORKSTATION_LANE_WINDOW_START}}",
+  "window_stop": "{{M_WORKSTATION_LANE_WINDOW_STOP}}",
+  "timezone": "{{M_WORKSTATION_LANE_TIMEZONE}}",
+  "drain_minutes": {{M_WORKSTATION_LANE_DRAIN_MINUTES}},
+  "namespace": "{{NS_FACTORY}}"
+}

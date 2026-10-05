@@ -1,0 +1,11 @@
+{
+  "cluster_api_url": "{{APISERVER_URL}}",
+  "ca_bundle_path": "{{C_AA_CA_BUNDLE_PATH}}",
+  "oidc_issuer": "{{OIDC_ISSUER_URL}}",
+  "oidc_client_id": "{{OIDC_CLIENT_ID}}",
+  "label_prefix": "{{LABEL_PREFIX}}",
+  "user_namespace_prefix": "{{USER_NS_PREFIX}}",
+  "NS_SYSTEM": "{{NS_SYSTEM}}",
+  "panel_url": "{{C_AA_PANEL_URL}}",
+  "pace_service_path": "/api/v1/namespaces/{{NS_SYSTEM}}/services/pace:8080/proxy"
+}

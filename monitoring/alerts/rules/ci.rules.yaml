@@ -1,0 +1,54 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: '{{PROJECT_NAME}}-ci'
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: alerts
+    release: kps
+spec:
+  groups:
+  - name: agent-array.arc
+    rules:
+    - alert: ARCListenerDown
+      expr: 'absent(max(kube_pod_status_ready{job="kube-state-metrics", namespace="arc-systems", pod=~"arc-light-[a-z0-9]+-listener",
+        condition="true"}) == 1)
+
+        and on () count(up{job="kube-state-metrics"} == 1) > 0
+
+        '
+      for: 10m
+      labels:
+        severity: critical
+        namespace: arc-systems
+        scale_set: arc-light
+      annotations:
+        summary: ARCListenerDown
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: ARCListenerDown
+      expr: 'absent(max(kube_pod_status_ready{job="kube-state-metrics", namespace="arc-systems", pod=~"arc-heavy-[a-z0-9]+-listener",
+        condition="true"}) == 1)
+
+        and on () count(up{job="kube-state-metrics"} == 1) > 0
+
+        '
+      for: 10m
+      labels:
+        severity: critical
+        namespace: arc-systems
+        scale_set: arc-heavy
+      annotations:
+        summary: ARCListenerDown
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: ARCRunnerPodPending
+      expr: 'max by (namespace, pod) (kube_pod_status_phase{job="kube-state-metrics", namespace=~"arc-runners|arc-heavy",
+        phase="Pending"}) == 1
+
+        '
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: ARCRunnerPodPending
+        description: Inspect the alert labels and metric history before remediation.

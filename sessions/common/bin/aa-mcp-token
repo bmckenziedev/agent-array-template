@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+"""Read the rotated pod MCP token for Claude headersHelper; exit 1 if absent."""
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def main() -> int:
+    try:
+        token = Path(os.environ.get("AA_MCP_TOKEN_FILE", "/var/run/agent-array/mcp-token/token")).read_text().strip()
+        if not token or any(c.isspace() for c in token):
+            raise ValueError("invalid pod token")
+        print(json.dumps({"Authorization": "Bearer " + token}))
+    except (OSError, ValueError):
+        print("aa-mcp-token: pod token unavailable", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

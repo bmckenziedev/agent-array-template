@@ -1,0 +1,7 @@
+[Unit]
+Description=Cluster restore-drill schedule
+[Timer]
+OnCalendar=monthly
+Persistent=true
+[Install]
+WantedBy=timers.target

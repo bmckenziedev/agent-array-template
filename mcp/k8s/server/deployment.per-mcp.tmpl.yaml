@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{MCP_SERVICE_NAME}}"
+  namespace: "{{NS_MCP}}"
+  labels:
+    app.kubernetes.io/name: "{{MCP_SERVICE_NAME}}"
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+    app.kubernetes.io/component: mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "{{MCP_SERVICE_NAME}}"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "{{MCP_SERVICE_NAME}}"
+        app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+        app.kubernetes.io/component: mcp
+    spec:
+      serviceAccountName: "{{MCP_SERVICE_NAME}}"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mcp
+          image: "{{MCP_IMAGE}}"
+          ports:
+            - name: http
+              containerPort: {{MCP_PORT}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
+          env:
+            - {name: PROJECT_NAME, value: "{{PROJECT_NAME}}"}
+            - {name: LABEL_PREFIX, value: "{{LABEL_PREFIX}}"}
+            - {name: USER_NS_PREFIX, value: "{{USER_NS_PREFIX}}"}
+            - {name: APISERVER_URL, value: "{{APISERVER_URL}}"}
+            - {name: MCP_NAME, value: "{{MCP_NAME}}"}
+            - {name: MCP_PORT, value: "{{MCP_PORT}}"}
+            - {name: MCP_PATH, value: "{{MCP_PATH}}"}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+          volumeMounts:
+            - {name: directory, mountPath: /etc/agent-array/org, readOnly: true}
+            - {name: upstream, mountPath: /etc/agent-array/upstream, readOnly: true}
+      volumes:
+        - name: directory
+          configMap: {name: org-directory}
+        - name: upstream
+          secret:
+            secretName: "{{MCP_SERVER_SECRET_NAME}}"
+            items:
+              - {key: "{{MCP_SERVER_SECRET_KEY}}", path: credential}

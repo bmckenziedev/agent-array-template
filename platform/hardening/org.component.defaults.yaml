@@ -1,0 +1,28 @@
+scope: components
+name: hardening
+defaults:
+  psa_version: latest
+  psa:
+    system: restricted
+    mcp: restricted
+    portal: restricted
+    factory: restricted
+    egress: restricted
+    session_jobs: restricted
+    ops: restricted
+    argocd: restricted
+    kube-public: restricted
+    kube-node-lease: restricted
+    llm: baseline
+    models: baseline
+    kube-system: privileged
+    default: baseline
+    monitoring: privileged
+  apiserver_clients:
+  - system
+  - mcp
+  - portal
+  - factory
+  - ops
+  - monitoring
+  - argocd

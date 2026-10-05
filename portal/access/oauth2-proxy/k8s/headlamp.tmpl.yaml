@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-headlamp
+  namespace: '{{NS_PORTAL}}'
+  labels:
+    app.kubernetes.io/name: oauth2-proxy-headlamp
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: oauth2-proxy-headlamp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: oauth2-proxy-headlamp
+        app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+        app.kubernetes.io/component: portal
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: oauth2-proxy-headlamp
+        image: quay.io/oauth2-proxy/oauth2-proxy:v7.14.0@sha256:47b1db28264a646c5c07e1fb690e3deef7edbbb487030ad7c1f0b22f942d6837
+        args:
+        - --http-address=0.0.0.0:8080
+        - --provider=oidc
+        - --oidc-issuer-url={{OIDC_ISSUER_URL}}
+        - --client-id={{OIDC_CLIENT_ID}}
+        - --scope=openid profile email groups
+        - --email-domain=*
+        - --reverse-proxy=true
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --cookie-name=__Host-oauth2-proxy-headlamp
+        - --cookie-path=/
+        - --redirect-url=https://{{HOST_HEADLAMP}}/oauth2/callback
+        - --upstream=http://headlamp.{{NS_PORTAL}}.svc:80
+        - --pass-authorization-header=true
+        - --skip-provider-button=true
+        - --code-challenge-method=S256
+        env:
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: oidc-client
+              key: client_secret
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: oauth2-proxy
+              key: cookie_secret
+        ports:
+        - name: http
+          containerPort: 8080
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-headlamp
+  namespace: '{{NS_PORTAL}}'
+  labels:
+    app.kubernetes.io/name: oauth2-proxy-headlamp
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: portal
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: oauth2-proxy-headlamp
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080

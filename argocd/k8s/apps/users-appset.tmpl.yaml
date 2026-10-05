@@ -1,0 +1,93 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: '{{PROJECT_NAME}}-users'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - git:
+      repoURL: '{{ORG_GIT_REMOTE}}'
+      revision: '{{GIT_REVISION}}'
+      directories:
+      - path: rendered/users/*
+  syncPolicy:
+    preserveResourcesOnDeletion: true
+  template:
+    metadata:
+      name: user-{{.path.basename}}
+    spec:
+      project: users
+      source:
+        repoURL: '{{ORG_GIT_REMOTE}}'
+        targetRevision: '{{GIT_REVISION}}'
+        path: rendered/users/{{.path.basename}}
+        directory:
+          recurse: true
+          include: '*.yaml'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{USER_NS_PREFIX}}{{.path.basename}}'
+      ignoreDifferences:
+      - group: apps
+        kind: StatefulSet
+        jqPathExpressions: [.spec.replicas]
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - FailOnSharedResource=true
+        - PruneLast=true
+        - RespectIgnoreDifferences=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: '{{PROJECT_NAME}}-mcp'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - git:
+      repoURL: '{{ORG_GIT_REMOTE}}'
+      revision: '{{GIT_REVISION}}'
+      directories:
+      - path: rendered/mcp/*
+  syncPolicy:
+    preserveResourcesOnDeletion: true
+  template:
+    metadata:
+      name: mcp-{{.path.basename}}
+    spec:
+      project: services
+      source:
+        repoURL: '{{ORG_GIT_REMOTE}}'
+        targetRevision: '{{GIT_REVISION}}'
+        path: rendered/mcp/{{.path.basename}}
+        directory:
+          recurse: true
+          include: '*.yaml'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{NS_MCP}}'
+      ignoreDifferences:
+      - group: apps
+        kind: StatefulSet
+        jqPathExpressions: [.spec.replicas]
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - FailOnSharedResource=true
+        - PruneLast=true
+        - RespectIgnoreDifferences=true

@@ -1,0 +1,38 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: factory
+  namespace: "{{NS_FACTORY}}"
+spec:
+  jobLabel: "{{LABEL_PREFIX}}/metrics-job"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: factory-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: factory
+  namespace: "{{NS_FACTORY}}"
+spec:
+  groups:
+    - name: aa_factory
+      rules:
+        - alert: FactorySnapshotStale
+          expr: time() - aa_factory_snapshot_timestamp_seconds > 120
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Factory queue telemetry is stale
+        - alert: FactoryParseApplyFailures
+          expr: '(sum(rate(aa_factory_attempts_total{outcome=~"fail_parse|fail_apply"}[1h])) / sum(rate(aa_factory_attempts_total[1h])) > 0.3) and sum(increase(aa_factory_attempts_total[1h])) >= 10 and max(time() - aa_factory_snapshot_timestamp_seconds) < 120'
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Factory parse or apply failures exceed the approved threshold

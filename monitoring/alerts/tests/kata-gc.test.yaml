@@ -1,0 +1,124 @@
+rule_files:
+- ../rules/kata-gc.rules.yaml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: aa:node:info{instance="healthy:9100",host="healthy",nodename="healthy",node="healthy"}
+    values: 1x300
+  - series: aa_kata_gc_last_run_timestamp_seconds{job="node-exporter",instance="healthy:9100",node="healthy"}
+    values: 0+60x300
+  - series: aa_kata_gc_last_exit_code{job="node-exporter",instance="healthy:9100",node="healthy"}
+    values: '0x300'
+  - series: aa_kata_gc_last_errors{job="node-exporter",instance="healthy:9100",node="healthy",kind="inventory"}
+    values: '0x300'
+  - series: aa_kata_gc_last_errors{job="node-exporter",instance="healthy:9100",node="healthy",kind="remove"}
+    values: '0x300'
+  - series: aa_kata_gc_last_kept{job="node-exporter",instance="healthy:9100",node="healthy",root="sbs",reason="state"}
+    values: 2x300
+  - series: aa_kata_gc_last_kept{job="node-exporter",instance="healthy:9100",node="healthy",root="shared",reason="mounted"}
+    values: 1x300
+  - series: aa_kata_gc_last_kept{job="node-exporter",instance="healthy:9100",node="healthy",root="sbs",reason="other"}
+    values: 3x300
+  - series: aa_kata_gc_last_kept{job="node-exporter",instance="healthy:9100",node="healthy",root="sbs",reason="live"}
+    values: 0+1x300
+  - series: aa_kata_gc_last_kept{job="node-exporter",instance="healthy:9100",node="healthy",root="shared",reason="young"}
+    values: 300-1x300
+  alert_rule_test:
+  - alertname: KataGCStale
+    eval_time: 4h
+    exp_alerts: []
+  - alertname: KataGCFailing
+    eval_time: 4h
+    exp_alerts: []
+  - alertname: KataGCLeftoversPilingUp
+    eval_time: 4h
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: aa:node:info{instance="stale:9100",host="node-a",nodename="ubuntu-base",node="ubuntu-base"}
+    values: 1x240
+  - series: aa_kata_gc_last_run_timestamp_seconds{job="node-exporter",instance="stale:9100",node="ubuntu-base"}
+    values: '0x240'
+  alert_rule_test:
+  - alertname: KataGCStale
+    eval_time: 3h10m
+    exp_alerts: []
+  - alertname: KataGCStale
+    eval_time: 3h20m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: stale:9100
+        job: node-exporter
+        node: ubuntu-base
+        host: node-a
+      exp_annotations:
+        summary: KataGCStale
+        description: Inspect the alert labels and metric history before remediation.
+- interval: 1m
+  input_series:
+  - series: aa:node:info{instance="exit:9100",host="node-b",nodename="node-b",node="node-b"}
+    values: 1x240
+  - series: aa_kata_gc_last_exit_code{job="node-exporter",instance="exit:9100",node="node-b"}
+    values: 0x9 1x230
+  - series: aa_kata_gc_last_errors{job="node-exporter",instance="exit:9100",node="node-b",kind="inventory"}
+    values: '0x240'
+  - series: aa_kata_gc_last_errors{job="node-exporter",instance="exit:9100",node="node-b",kind="remove"}
+    values: '0x240'
+  - series: aa:node:info{instance="errors:9100",host="node-a",nodename="ubuntu-base",node="ubuntu-base"}
+    values: 1x240
+  - series: aa_kata_gc_last_exit_code{job="node-exporter",instance="errors:9100",node="ubuntu-base"}
+    values: '0x240'
+  - series: aa_kata_gc_last_errors{job="node-exporter",instance="errors:9100",node="ubuntu-base",kind="inventory"}
+    values: 0x9 1x230
+  - series: aa_kata_gc_last_errors{job="node-exporter",instance="errors:9100",node="ubuntu-base",kind="remove"}
+    values: '0x240'
+  alert_rule_test:
+  - alertname: KataGCFailing
+    eval_time: 2h
+    exp_alerts: []
+  - alertname: KataGCFailing
+    eval_time: 2h15m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: errors:9100
+        job: node-exporter
+        node: ubuntu-base
+        host: node-a
+      exp_annotations:
+        summary: KataGCFailing
+        description: Inspect the alert labels and metric history before remediation.
+    - exp_labels:
+        severity: warning
+        instance: exit:9100
+        job: node-exporter
+        node: node-b
+        host: node-b
+      exp_annotations:
+        summary: KataGCFailing
+        description: Inspect the alert labels and metric history before remediation.
+- interval: 1m
+  input_series:
+  - series: aa:node:info{instance="growth:9100",host="node-a",nodename="ubuntu-base",node="ubuntu-base"}
+    values: 1x300
+  - series: aa_kata_gc_last_kept{job="node-exporter",instance="growth:9100",node="ubuntu-base",root="sbs",reason="state"}
+    values: 0+1x300
+  - series: aa_kata_gc_last_kept{job="node-exporter",instance="growth:9100",node="ubuntu-base",root="shared",reason="mounted"}
+    values: 0+1x300
+  - series: aa_kata_gc_last_kept{job="node-exporter",instance="growth:9100",node="ubuntu-base",root="sbs",reason="other"}
+    values: 0+1x300
+  alert_rule_test:
+  - alertname: KataGCLeftoversPilingUp
+    eval_time: 4h
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: growth:9100
+        job: node-exporter
+        node: ubuntu-base
+        host: node-a
+      exp_annotations:
+        summary: KataGCLeftoversPilingUp
+        description: Inspect the alert labels and metric history before remediation.

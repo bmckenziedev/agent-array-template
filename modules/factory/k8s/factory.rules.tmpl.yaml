@@ -1,0 +1,73 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: '{{PROJECT_NAME}}-factory'
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    release: kps
+spec:
+  groups:
+  - name: agent-array.factory
+    interval: 1m
+    rules:
+    - record: aa_factory:telemetry:fresh
+      expr: max by (lane, node) (aa_factory_snapshot_timestamp_seconds) > time() - 120
+      annotations: {}
+    - record: aa_factory:model:up
+      expr: max by (node) ((up{namespace="{{NS_MODELS}}",job=~"lane-.*"} == 1) * on (namespace, pod) group_left
+        (node) max by (namespace, pod, node) (kube_pod_info{job="kube-state-metrics"}))
+      annotations: {}
+    - record: aa_factory:attempts:1h
+      expr: sum by (lane, node, kind) (increase(aa_factory_attempts_total[1h]))
+      annotations: {}
+    - record: aa_factory:format_failures:1h
+      expr: sum by (lane, node, kind) (increase(aa_factory_attempts_total{outcome=~"fail_parse|fail_apply"}[1h]))
+      annotations: {}
+    - alert: FactoryIdleWithReadyBacklog
+      expr: (max by (lane, node) (aa_factory_ready) > 0) and on (lane, node) (max by (lane, node) (aa_factory_inflight)
+        == 0) and on (lane, node) (sum by (lane, node) (rate(aa_factory_gpu_seconds_total[5m])) == 0) and on (lane,
+        node) aa_factory:telemetry:fresh and on (node) aa:gpu_node:active and on (node) aa_factory:model:up
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: FactoryIdleWithReadyBacklog
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: FactoryWaitingOnSuspendedNode
+      expr: (max by (lane, node) (aa_factory_ready) > 0) and on (lane, node) (max by (lane, node) (aa_factory_node_suspended)
+        == 1) and on (lane, node) aa_factory:telemetry:fresh
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: FactoryWaitingOnSuspendedNode
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: FactoryParseApplyFailureRateHigh
+      expr: (aa_factory:format_failures:1h / aa_factory:attempts:1h > 0.30) and on (lane, node, kind) (aa_factory:attempts:1h
+        >= 10) and on (lane, node) aa_factory:telemetry:fresh
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: FactoryParseApplyFailureRateHigh
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: KataNodeSwapEnabled
+      expr: (max by (node) (node_memory_SwapTotal_bytes{job="node-exporter"} * on (instance) group_left (node) aa:node:info)
+        > 0) and on (node) (max by (node) (kube_node_labels{job="kube-state-metrics",label_aa_example_org_runtime_kata="true"})
+        == 1)
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: KataNodeSwapEnabled
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: FactoryTeamQueueStarved
+      expr: (sum by (team) (aa_factory_ready{team!=""}) > 0) and on (team) (sum by (team) (aa_factory_inflight{team!=""})
+        == 0) and on (team) (min by (team) (aa_factory_snapshot_timestamp_seconds{team!=""}) > time() - 120)
+      for: '{{C_MONITORING_FACTORY_STARVATION_MINUTES}}m'
+      labels:
+        severity: warning
+      annotations:
+        summary: FactoryTeamQueueStarved
+        description: Inspect the alert labels and metric history before remediation.

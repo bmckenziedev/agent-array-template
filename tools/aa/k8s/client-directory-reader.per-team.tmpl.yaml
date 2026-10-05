@@ -1,0 +1,32 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "aa-client-directory-{{TEAM_ID}}"
+  namespace: "{{NS_SYSTEM}}"
+  labels:
+    app.kubernetes.io/name: aa
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+    app.kubernetes.io/component: user-client
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [aa-client-directory]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "aa-client-directory-{{TEAM_ID}}"
+  namespace: "{{NS_SYSTEM}}"
+  labels:
+    app.kubernetes.io/name: aa
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+    app.kubernetes.io/component: user-client
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: "aa-client-directory-{{TEAM_ID}}"
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: "{{TEAM_OIDC_GROUP}}"

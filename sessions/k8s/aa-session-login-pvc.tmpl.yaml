@@ -1,0 +1,43 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: aa-session-login-pvc
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - '*'
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - persistentvolumeclaims
+  validations:
+  - expression: has(object.metadata.labels) && has(namespaceObject.metadata.labels) && '{{LABEL_PREFIX}}/user'
+      in object.metadata.labels && '{{LABEL_PREFIX}}/user' in namespaceObject.metadata.labels && object.metadata.labels['{{LABEL_PREFIX}}/user']
+      == namespaceObject.metadata.labels['{{LABEL_PREFIX}}/user'] && '{{LABEL_PREFIX}}/tool' in object.metadata.labels
+      && object.metadata.labels['{{LABEL_PREFIX}}/tool'] in ['claude','codex','kimi'] && object.metadata.name.startsWith(object.metadata.labels['{{LABEL_PREFIX}}/tool']
+      + '-home-')
+    message: Login PVC tool and user labels must match its user namespace and claim name.
+  - expression: has(object.spec.storageClassName) && object.spec.storageClassName == '{{STORAGE_CLASS_LOGIN}}'
+      && has(object.spec.volumeName) && object.spec.volumeName == namespaceObject.metadata.name + '-' + object.metadata.name
+    message: Login claims require the node-local login storage class and a pre-bound user-specific PV.
+  - expression: '!has(object.spec.dataSource) && !has(object.spec.dataSourceRef) && object.spec.accessModes
+      == [''ReadWriteOnce''] && (!has(object.spec.volumeMode) || object.spec.volumeMode == ''Filesystem'')'
+    message: Login claims are filesystems; cloning, restoring and cross-node access are forbidden.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: aa-session-login-pvc
+spec:
+  policyName: aa-session-login-pvc
+  validationActions:
+  - Deny
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        '{{LABEL_PREFIX}}/kind': user-sessions

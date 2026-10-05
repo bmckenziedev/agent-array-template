@@ -1,0 +1,355 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: '{{PROJECT_NAME}}-session-jobs-job-sandbox'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - batch
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - jobs
+  matchConditions:
+  - name: not-being-deleted
+    expression: request.operation != 'UPDATE' || !has(object.metadata.deletionTimestamp)
+  variables:
+  - name: podSpec
+    expression: object.spec.template.spec
+  - name: taskId
+    expression: 'has(object.spec.template.metadata) && has(object.spec.template.metadata.labels)
+      && ''{{LABEL_PREFIX}}/task'' in object.spec.template.metadata.labels ? object.spec.template.metadata.labels[''{{LABEL_PREFIX}}/task'']
+      : '''''
+  - name: containers
+    expression: '(has(variables.podSpec.containers) ? variables.podSpec.containers : []) + (has(variables.podSpec.initContainers)
+      ? variables.podSpec.initContainers : [])'
+  validations:
+  - expression: variables.taskId.matches('^[0-9a-f]{16}$')
+    message: pod template needs label task label = 16 hex chars
+  - expression: has(variables.podSpec.dnsPolicy) && variables.podSpec.dnsPolicy == 'ClusterFirst'
+      && !has(variables.podSpec.dnsConfig)
+    message: use cluster DNS only
+  - expression: has(variables.podSpec.runtimeClassName) && variables.podSpec.runtimeClassName ==
+      '{{M_SESSION_JOBS_RUNTIME}}'
+    message: runtime must match module setting
+  - expression: has(variables.podSpec.nodeSelector) && '{{LABEL_PREFIX}}/runtime-{{M_SESSION_JOBS_RUNTIME}}'
+      in variables.podSpec.nodeSelector && variables.podSpec.nodeSelector['{{LABEL_PREFIX}}/runtime-{{M_SESSION_JOBS_RUNTIME}}']
+      == 'true'
+    message: sandbox runtime node selector is required
+  - expression: has(variables.podSpec.automountServiceAccountToken) && variables.podSpec.automountServiceAccountToken
+      == false
+    message: automountServiceAccountToken must be false
+  - expression: '!has(variables.podSpec.serviceAccountName) || variables.podSpec.serviceAccountName
+      == ''default'''
+    message: only the default ServiceAccount may be used
+  - expression: '!has(variables.podSpec.nodeName)'
+    message: nodeName is not allowed (the scheduler + nodeSelector pick the sandbox node)
+  - expression: (!has(variables.podSpec.hostNetwork) || !variables.podSpec.hostNetwork) && (!has(variables.podSpec.hostPID)
+      || !variables.podSpec.hostPID) && (!has(variables.podSpec.hostIPC) || !variables.podSpec.hostIPC)
+    message: hostNetwork / hostPID / hostIPC are not allowed
+  - expression: '!has(variables.podSpec.shareProcessNamespace) || !variables.podSpec.shareProcessNamespace'
+    message: shareProcessNamespace is not allowed (the tester must not see the orchestrator)
+  - expression: "has(variables.podSpec.volumes) && size(variables.podSpec.volumes) == 5 && variables.podSpec.volumes.all(v,\
+      \ has(v.emptyDir) && has(v.emptyDir.medium) && v.emptyDir.medium == 'Memory'\n  && v.name in\
+      \ ['workspace', 'testbox', 'tmp', 'home', 'tester-tmp'])\n&& ['workspace', 'testbox', 'tmp',\
+      \ 'home', 'tester-tmp'].all(n,\n  variables.podSpec.volumes.filter(v, v.name == n).size() ==\
+      \ 1)"
+    message: only emptyDir volumes are allowed (no hostPath, secret, projected, configMap, ...)
+  - expression: "has(variables.podSpec.containers) && (size(variables.podSpec.containers) == 1 &&\
+      \ variables.podSpec.containers[0].name == 'session' && has(variables.podSpec.initContainers)\
+      \ && size(variables.podSpec.initContainers) == 1 && variables.podSpec.initContainers[0].name\
+      \ == 'tester' && has(variables.podSpec.initContainers[0].restartPolicy) && variables.podSpec.initContainers[0].restartPolicy\
+      \ == 'Always' && (!has(variables.podSpec.ephemeralContainers)\n    || size(variables.podSpec.ephemeralContainers)\
+      \ == 0))"
+    message: exactly one session container and one restartable tester init sidecar are required;
+      ephemeral containers are forbidden
+  - expression: has(variables.podSpec.containers) && (size(variables.podSpec.containers) == 1 &&
+      has(variables.podSpec.initContainers) && size(variables.podSpec.initContainers) == 1 && has(variables.podSpec.containers[0].command)
+      && variables.podSpec.containers[0].command == ['/usr/local/bin/entrypoint.sh'] && !has(variables.podSpec.containers[0].args)
+      && has(variables.podSpec.initContainers[0].command) && variables.podSpec.initContainers[0].command
+      == ['python3', '/usr/local/bin/tester.py'] && !has(variables.podSpec.initContainers[0].args))
+    message: session and tester commands must match the session Job template
+  - expression: variables.containers.all(c, has(c.image) && c.image == '{{IMAGE_SESSION_RUNNER}}')
+    message: every container image must be the session runner pinned by sha256 digest
+  - expression: variables.containers.all(c, has(c.securityContext) && (!has(c.securityContext.privileged)
+      || !c.securityContext.privileged) && has(c.securityContext.allowPrivilegeEscalation) && !c.securityContext.allowPrivilegeEscalation)
+    message: containers must not be privileged and must set allowPrivilegeEscalation=false
+  - expression: has(variables.podSpec.securityContext) && has(variables.podSpec.securityContext.seccompProfile)
+      && has(variables.podSpec.securityContext.seccompProfile.type) && variables.podSpec.securityContext.seccompProfile.type
+      == 'RuntimeDefault'
+    message: pod must use approved seccomp profile
+  - expression: variables.containers.all(c, !has(c.securityContext) || !has(c.securityContext.seccompProfile))
+    message: containers must not set their own seccompProfile (the pod-level profile covers them
+      all)
+  - expression: variables.containers.all(c, has(c.securityContext) && has(c.securityContext.readOnlyRootFilesystem)
+      && c.securityContext.readOnlyRootFilesystem && has(c.securityContext.capabilities) && has(c.securityContext.capabilities.drop)
+      && c.securityContext.capabilities.drop == ['ALL'] && (!has(c.securityContext.capabilities.add)
+      || size(c.securityContext.capabilities.add) == 0))
+    message: all containers need read-only root filesystems and dropped capabilities
+  - expression: "has(variables.podSpec.securityContext) && has(variables.podSpec.securityContext.runAsNonRoot)\
+      \ && variables.podSpec.securityContext.runAsNonRoot && has(variables.podSpec.securityContext.runAsUser)\
+      \ && variables.podSpec.securityContext.runAsUser == 1000 && has(variables.podSpec.securityContext.runAsGroup)\
+      \ && variables.podSpec.securityContext.runAsGroup == 1000 && variables.containers.all(c, has(c.securityContext)\
+      \ && (c.name == 'tester'\n  ? (has(c.securityContext) && has(c.securityContext.runAsUser) &&\
+      \ c.securityContext.runAsUser == 1001\n     && has(c.securityContext.runAsGroup) && c.securityContext.runAsGroup\
+      \ == 1001)\n  : (!has(c.securityContext.runAsUser) && !has(c.securityContext.runAsGroup))))"
+    message: session and tester must retain distinct non-root identities
+  - expression: "variables.containers.all(c, has(c.volumeMounts)\n  && size(c.volumeMounts) == (c.name\
+      \ == 'tester' ? 3 : 4)\n  && c.volumeMounts.all(m, !has(m.subPath) && !has(m.subPathExpr) &&\
+      \ !has(m.mountPropagation)\n    && (c.name == 'tester'\n      ? ((m.name == 'workspace' &&\
+      \ m.mountPath == '/workspace' && has(m.readOnly) && m.readOnly)\n         || (m.name == 'testbox'\
+      \ && m.mountPath == '/testbox' && (!has(m.readOnly) || !m.readOnly))\n         || (m.name ==\
+      \ 'tester-tmp' && m.mountPath == '/tmp' && (!has(m.readOnly) || !m.readOnly)))\n      : ((m.name\
+      \ == 'workspace' && m.mountPath == '/workspace' && (!has(m.readOnly) || !m.readOnly))\n   \
+      \      || (m.name == 'testbox' && m.mountPath == '/testbox' && has(m.readOnly) && m.readOnly)\n\
+      \         || (m.name == 'tmp' && m.mountPath == '/tmp' && (!has(m.readOnly) || !m.readOnly))\n\
+      \         || (m.name == 'home' && m.mountPath == '/home/agent' && (!has(m.readOnly) || !m.readOnly)))))\n\
+      \  && c.volumeMounts.filter(m, m.name == 'workspace').size() == 1\n  && c.volumeMounts.filter(m,\
+      \ m.name == 'testbox').size() == 1\n  && c.volumeMounts.filter(m, m.mountPath == '/tmp').size()\
+      \ == 1)"
+    message: mounts must preserve the read-only tester source and isolated scratch volumes
+  - expression: variables.containers.all(c, !has(c.envFrom) || size(c.envFrom) == 0)
+    message: envFrom is not allowed (no injected credential or startup environment)
+  - expression: "variables.containers.all(c, !has(c.env) || c.env.all(e,\n  e.name in ['WORKSPACE',\
+      \ 'TESTBOX', 'TMPDIR', 'NPM_REGISTRY', 'PIP_INDEX_URL',\n    'TASK_ID', 'PANEL_BASE', 'LITELLM_BASE',\
+      \ 'MAX_REPAIR', 'TEST_TIMEOUT',\n    'TASK_BUDGET_SECONDS', 'TEST_NPM_IGNORE_SCRIPTS', 'TEST_PIP_ONLY_BINARY',\n\
+      \    'PYTEST_SPEC', 'TASK_MODELS',\n    'TEST_CMD', 'TASK_TOKEN', 'LITELLM_KEY']\n  && !has(e.valueFrom))\n\
+      \  && c.env.all(e, c.env.filter(other, other.name == e.name).size() == 1))"
+    message: only template environment names are allowed; non-credential values must be literals
+  - expression: "variables.containers.all(c, has(c.env)\n  && c.env.exists(e, e.name == 'WORKSPACE'\
+      \ && has(e.value) && e.value == '/workspace')\n  && c.env.exists(e, e.name == 'TESTBOX' &&\
+      \ has(e.value) && e.value == '/testbox'))\n&& size(variables.podSpec.containers) == 1 && has(variables.podSpec.containers[0].env)\
+      \ && variables.podSpec.containers[0].env.exists(e, e.name == 'TASK_ID' && has(e.value) && e.value\
+      \ == variables.taskId)"
+    message: workspace/testbox paths and session TASK_ID must match the template/task
+  - expression: has(variables.podSpec.containers) && (has(variables.podSpec.containers) && size(variables.podSpec.containers)
+      == 1 && has(variables.podSpec.containers[0].env) && ['TASK_TOKEN', 'LITELLM_KEY'].all(n, variables.podSpec.containers[0].env.exists(e,
+      e.name == n && has(e.value) && size(e.value) > 0)))
+    message: session requires scoped credentials as literal env values
+  - expression: '!has(variables.podSpec.initContainers) || variables.podSpec.initContainers.all(c,
+      !has(c.envFrom) && (!has(c.env) || c.env.all(e, !has(e.valueFrom) && !(e.name in [''TASK_TOKEN'',
+      ''LITELLM_KEY'']))))'
+    message: init/sidecar containers (the tester) must not reference Secrets or other env sources
+  - expression: '!has(variables.podSpec.tolerations) || variables.podSpec.tolerations.all(t, has(t.key)
+      && (t.key == ''node.kubernetes.io/not-ready'' || t.key == ''node.kubernetes.io/unreachable'')
+      && has(t.effect) && t.effect == ''NoExecute'')'
+    message: tolerations are not allowed (only the default not-ready/unreachable ones)
+  - expression: '!has(variables.podSpec.imagePullSecrets) || variables.podSpec.imagePullSecrets.all(s,
+      has(s.name) && s.name == ''{{REGISTRY_PULL_SECRET}}'')'
+    message: imagePullSecrets may only be registry pull Secret
+  - expression: object.metadata.name == 'task-' + variables.taskId
+    message: Job name must be task-<task id>
+  - expression: has(object.spec.activeDeadlineSeconds) && object.spec.activeDeadlineSeconds <= 3600
+    message: activeDeadlineSeconds is required and must be <= 3600
+  - expression: has(object.spec.template.metadata) && has(object.spec.template.metadata.labels) &&
+      ['{{LABEL_PREFIX}}/user', '{{LABEL_PREFIX}}/team', '{{LABEL_PREFIX}}/account'].all(k, k in
+      object.spec.template.metadata.labels && object.spec.template.metadata.labels[k].matches('^[a-z0-9][a-z0-9-]{0,62}$'))
+    message: user/team/account labels are required
+  - expression: has(object.spec.backoffLimit) && object.spec.backoffLimit == 0 && (!has(object.spec.parallelism)
+      || object.spec.parallelism == 1) && (!has(object.spec.completions) || object.spec.completions
+      == 1)
+    message: single-run Jobs only; retry, parallelism and multiple completions are forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: '{{PROJECT_NAME}}-session-jobs-job-sandbox'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+spec:
+  policyName: '{{PROJECT_NAME}}-session-jobs-job-sandbox'
+  validationActions:
+  - Deny
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: '{{NS_SESSION_JOBS}}'
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: '{{PROJECT_NAME}}-session-jobs-pod-sandbox'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      resources:
+      - pods
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      operations:
+      - UPDATE
+      resources:
+      - pods/ephemeralcontainers
+  variables:
+  - name: podSpec
+    expression: object.spec
+  - name: taskId
+    expression: 'has(object.metadata.labels) && ''{{LABEL_PREFIX}}/task'' in object.metadata.labels
+      ? object.metadata.labels[''{{LABEL_PREFIX}}/task''] : '''''
+  - name: containers
+    expression: '(has(variables.podSpec.containers) ? variables.podSpec.containers : []) + (has(variables.podSpec.initContainers)
+      ? variables.podSpec.initContainers : [])'
+  validations:
+  - expression: request.userInfo.username == 'system:serviceaccount:kube-system:job-controller'
+    message: session Pods may only be created by the Kubernetes Job controller
+  - expression: has(object.metadata.ownerReferences) && size(object.metadata.ownerReferences) ==
+      1 && object.metadata.ownerReferences[0].apiVersion == 'batch/v1' && object.metadata.ownerReferences[0].kind
+      == 'Job' && object.metadata.ownerReferences[0].name == 'task-' + variables.taskId && has(object.metadata.ownerReferences[0].controller)
+      && object.metadata.ownerReferences[0].controller && has(object.metadata.ownerReferences[0].uid)
+      && object.metadata.ownerReferences[0].uid != '' && has(object.metadata.labels) && 'batch.kubernetes.io/job-name'
+      in object.metadata.labels && object.metadata.labels['batch.kubernetes.io/job-name'] == 'task-'
+      + variables.taskId && 'batch.kubernetes.io/controller-uid' in object.metadata.labels && object.metadata.labels['batch.kubernetes.io/controller-uid']
+      == object.metadata.ownerReferences[0].uid && has(object.metadata.generateName) && object.metadata.generateName
+      == 'task-' + variables.taskId + '-' && object.metadata.name.startsWith('task-' + variables.taskId
+      + '-')
+    message: session Pods must have one matching Job controller owner
+  - expression: variables.taskId.matches('^[0-9a-f]{16}$')
+    message: pod needs label task label = 16 hex chars
+  - expression: has(variables.podSpec.dnsPolicy) && variables.podSpec.dnsPolicy == 'ClusterFirst'
+      && !has(variables.podSpec.dnsConfig)
+    message: use cluster DNS only
+  - expression: has(variables.podSpec.runtimeClassName) && variables.podSpec.runtimeClassName ==
+      '{{M_SESSION_JOBS_RUNTIME}}'
+    message: runtime must match module setting
+  - expression: has(variables.podSpec.nodeSelector) && '{{LABEL_PREFIX}}/runtime-{{M_SESSION_JOBS_RUNTIME}}'
+      in variables.podSpec.nodeSelector && variables.podSpec.nodeSelector['{{LABEL_PREFIX}}/runtime-{{M_SESSION_JOBS_RUNTIME}}']
+      == 'true'
+    message: sandbox runtime node selector is required
+  - expression: has(variables.podSpec.automountServiceAccountToken) && variables.podSpec.automountServiceAccountToken
+      == false
+    message: automountServiceAccountToken must be false
+  - expression: '!has(variables.podSpec.serviceAccountName) || variables.podSpec.serviceAccountName
+      == ''default'''
+    message: only the default ServiceAccount may be used
+  - expression: '!has(variables.podSpec.nodeName)'
+    message: nodeName is not allowed (the scheduler + nodeSelector pick the sandbox node)
+  - expression: (!has(variables.podSpec.hostNetwork) || !variables.podSpec.hostNetwork) && (!has(variables.podSpec.hostPID)
+      || !variables.podSpec.hostPID) && (!has(variables.podSpec.hostIPC) || !variables.podSpec.hostIPC)
+    message: hostNetwork / hostPID / hostIPC are not allowed
+  - expression: '!has(variables.podSpec.shareProcessNamespace) || !variables.podSpec.shareProcessNamespace'
+    message: shareProcessNamespace is not allowed (the tester must not see the orchestrator)
+  - expression: "has(variables.podSpec.volumes) && size(variables.podSpec.volumes) == 5 && variables.podSpec.volumes.all(v,\
+      \ has(v.emptyDir) && has(v.emptyDir.medium) && v.emptyDir.medium == 'Memory'\n  && v.name in\
+      \ ['workspace', 'testbox', 'tmp', 'home', 'tester-tmp'])\n&& ['workspace', 'testbox', 'tmp',\
+      \ 'home', 'tester-tmp'].all(n,\n  variables.podSpec.volumes.filter(v, v.name == n).size() ==\
+      \ 1)"
+    message: only emptyDir volumes are allowed (no hostPath, secret, projected, configMap, ...)
+  - expression: "has(variables.podSpec.containers) && (size(variables.podSpec.containers) == 1 &&\
+      \ variables.podSpec.containers[0].name == 'session' && has(variables.podSpec.initContainers)\
+      \ && size(variables.podSpec.initContainers) == 1 && variables.podSpec.initContainers[0].name\
+      \ == 'tester' && has(variables.podSpec.initContainers[0].restartPolicy) && variables.podSpec.initContainers[0].restartPolicy\
+      \ == 'Always' && (!has(variables.podSpec.ephemeralContainers)\n    || size(variables.podSpec.ephemeralContainers)\
+      \ == 0))"
+    message: exactly one session container and one restartable tester init sidecar are required;
+      ephemeral containers are forbidden
+  - expression: has(variables.podSpec.containers) && (size(variables.podSpec.containers) == 1 &&
+      has(variables.podSpec.initContainers) && size(variables.podSpec.initContainers) == 1 && has(variables.podSpec.containers[0].command)
+      && variables.podSpec.containers[0].command == ['/usr/local/bin/entrypoint.sh'] && !has(variables.podSpec.containers[0].args)
+      && has(variables.podSpec.initContainers[0].command) && variables.podSpec.initContainers[0].command
+      == ['python3', '/usr/local/bin/tester.py'] && !has(variables.podSpec.initContainers[0].args))
+    message: session and tester commands must match the session Job template
+  - expression: variables.containers.all(c, has(c.image) && c.image == '{{IMAGE_SESSION_RUNNER}}')
+    message: every container image must be the session runner pinned by sha256 digest
+  - expression: variables.containers.all(c, has(c.securityContext) && (!has(c.securityContext.privileged)
+      || !c.securityContext.privileged) && has(c.securityContext.allowPrivilegeEscalation) && !c.securityContext.allowPrivilegeEscalation)
+    message: containers must not be privileged and must set allowPrivilegeEscalation=false
+  - expression: has(variables.podSpec.securityContext) && has(variables.podSpec.securityContext.seccompProfile)
+      && has(variables.podSpec.securityContext.seccompProfile.type) && variables.podSpec.securityContext.seccompProfile.type
+      == 'RuntimeDefault'
+    message: pod must use approved seccomp profile
+  - expression: variables.containers.all(c, !has(c.securityContext) || !has(c.securityContext.seccompProfile))
+    message: containers must not set their own seccompProfile (the pod-level profile covers them
+      all)
+  - expression: variables.containers.all(c, has(c.securityContext) && has(c.securityContext.readOnlyRootFilesystem)
+      && c.securityContext.readOnlyRootFilesystem && has(c.securityContext.capabilities) && has(c.securityContext.capabilities.drop)
+      && c.securityContext.capabilities.drop == ['ALL'] && (!has(c.securityContext.capabilities.add)
+      || size(c.securityContext.capabilities.add) == 0))
+    message: all containers need read-only root filesystems and dropped capabilities
+  - expression: "has(variables.podSpec.securityContext) && has(variables.podSpec.securityContext.runAsNonRoot)\
+      \ && variables.podSpec.securityContext.runAsNonRoot && has(variables.podSpec.securityContext.runAsUser)\
+      \ && variables.podSpec.securityContext.runAsUser == 1000 && has(variables.podSpec.securityContext.runAsGroup)\
+      \ && variables.podSpec.securityContext.runAsGroup == 1000 && variables.containers.all(c, has(c.securityContext)\
+      \ && (c.name == 'tester'\n  ? (has(c.securityContext) && has(c.securityContext.runAsUser) &&\
+      \ c.securityContext.runAsUser == 1001\n     && has(c.securityContext.runAsGroup) && c.securityContext.runAsGroup\
+      \ == 1001)\n  : (!has(c.securityContext.runAsUser) && !has(c.securityContext.runAsGroup))))"
+    message: session and tester must retain distinct non-root identities
+  - expression: "variables.containers.all(c, has(c.volumeMounts)\n  && size(c.volumeMounts) == (c.name\
+      \ == 'tester' ? 3 : 4)\n  && c.volumeMounts.all(m, !has(m.subPath) && !has(m.subPathExpr) &&\
+      \ !has(m.mountPropagation)\n    && (c.name == 'tester'\n      ? ((m.name == 'workspace' &&\
+      \ m.mountPath == '/workspace' && has(m.readOnly) && m.readOnly)\n         || (m.name == 'testbox'\
+      \ && m.mountPath == '/testbox' && (!has(m.readOnly) || !m.readOnly))\n         || (m.name ==\
+      \ 'tester-tmp' && m.mountPath == '/tmp' && (!has(m.readOnly) || !m.readOnly)))\n      : ((m.name\
+      \ == 'workspace' && m.mountPath == '/workspace' && (!has(m.readOnly) || !m.readOnly))\n   \
+      \      || (m.name == 'testbox' && m.mountPath == '/testbox' && has(m.readOnly) && m.readOnly)\n\
+      \         || (m.name == 'tmp' && m.mountPath == '/tmp' && (!has(m.readOnly) || !m.readOnly))\n\
+      \         || (m.name == 'home' && m.mountPath == '/home/agent' && (!has(m.readOnly) || !m.readOnly)))))\n\
+      \  && c.volumeMounts.filter(m, m.name == 'workspace').size() == 1\n  && c.volumeMounts.filter(m,\
+      \ m.name == 'testbox').size() == 1\n  && c.volumeMounts.filter(m, m.mountPath == '/tmp').size()\
+      \ == 1)"
+    message: mounts must preserve the read-only tester source and isolated scratch volumes
+  - expression: variables.containers.all(c, !has(c.envFrom) || size(c.envFrom) == 0)
+    message: envFrom is not allowed (no injected credential or startup environment)
+  - expression: "variables.containers.all(c, !has(c.env) || c.env.all(e,\n  e.name in ['WORKSPACE',\
+      \ 'TESTBOX', 'TMPDIR', 'NPM_REGISTRY', 'PIP_INDEX_URL',\n    'TASK_ID', 'PANEL_BASE', 'LITELLM_BASE',\
+      \ 'MAX_REPAIR', 'TEST_TIMEOUT',\n    'TASK_BUDGET_SECONDS', 'TEST_NPM_IGNORE_SCRIPTS', 'TEST_PIP_ONLY_BINARY',\n\
+      \    'PYTEST_SPEC', 'TASK_MODELS',\n    'TEST_CMD', 'TASK_TOKEN', 'LITELLM_KEY']\n  && !has(e.valueFrom))\n\
+      \  && c.env.all(e, c.env.filter(other, other.name == e.name).size() == 1))"
+    message: only template environment names are allowed; non-credential values must be literals
+  - expression: "variables.containers.all(c, has(c.env)\n  && c.env.exists(e, e.name == 'WORKSPACE'\
+      \ && has(e.value) && e.value == '/workspace')\n  && c.env.exists(e, e.name == 'TESTBOX' &&\
+      \ has(e.value) && e.value == '/testbox'))\n&& size(variables.podSpec.containers) == 1 && has(variables.podSpec.containers[0].env)\
+      \ && variables.podSpec.containers[0].env.exists(e, e.name == 'TASK_ID' && has(e.value) && e.value\
+      \ == variables.taskId)"
+    message: workspace/testbox paths and session TASK_ID must match the template/task
+  - expression: has(variables.podSpec.containers) && (has(variables.podSpec.containers) && size(variables.podSpec.containers)
+      == 1 && has(variables.podSpec.containers[0].env) && ['TASK_TOKEN', 'LITELLM_KEY'].all(n, variables.podSpec.containers[0].env.exists(e,
+      e.name == n && has(e.value) && size(e.value) > 0)))
+    message: session requires scoped credentials as literal env values
+  - expression: '!has(variables.podSpec.initContainers) || variables.podSpec.initContainers.all(c,
+      !has(c.envFrom) && (!has(c.env) || c.env.all(e, !has(e.valueFrom) && !(e.name in [''TASK_TOKEN'',
+      ''LITELLM_KEY'']))))'
+    message: init/sidecar containers (the tester) must not reference Secrets or other env sources
+  - expression: '!has(variables.podSpec.tolerations) || variables.podSpec.tolerations.all(t, has(t.key)
+      && (t.key == ''node.kubernetes.io/not-ready'' || t.key == ''node.kubernetes.io/unreachable'')
+      && has(t.effect) && t.effect == ''NoExecute'')'
+    message: tolerations are not allowed (only the default not-ready/unreachable ones)
+  - expression: '!has(variables.podSpec.imagePullSecrets) || variables.podSpec.imagePullSecrets.all(s,
+      has(s.name) && s.name == ''{{REGISTRY_PULL_SECRET}}'')'
+    message: imagePullSecrets may only be registry pull Secret
+  - expression: has(object.metadata) && has(object.metadata.labels) && ['{{LABEL_PREFIX}}/user',
+      '{{LABEL_PREFIX}}/team', '{{LABEL_PREFIX}}/account'].all(k, k in object.metadata.labels &&
+      object.metadata.labels[k].matches('^[a-z0-9][a-z0-9-]{0,62}$'))
+    message: user/team/account labels are required
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: '{{PROJECT_NAME}}-session-jobs-pod-sandbox'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+spec:
+  policyName: '{{PROJECT_NAME}}-session-jobs-pod-sandbox'
+  validationActions:
+  - Deny
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: '{{NS_SESSION_JOBS}}'

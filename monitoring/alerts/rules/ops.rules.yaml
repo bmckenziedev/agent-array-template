@@ -1,0 +1,110 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: '{{PROJECT_NAME}}-ops'
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: alerts
+    release: kps
+spec:
+  groups:
+  - name: agent-array.sealed-secrets
+    rules:
+    - alert: SealedSecretsNewKeyNeedsBackup
+      expr: "(\n  time() - max(kube_secret_created{job=\"kube-state-metrics\", namespace=\"{{NS_SYSTEM}}\", secret=~\"\
+        sealed-secrets-key.+\"})\n) < 3 * 86400\nand on ()\ncount(kube_secret_created{job=\"kube-state-metrics\"\
+        , namespace=\"{{NS_SYSTEM}}\", secret=~\"sealed-secrets-key.+\"}) > 1\n"
+      for: 10m
+      labels:
+        severity: info
+        namespace: '{{NS_SYSTEM}}'
+      annotations:
+        summary: SealedSecretsNewKeyNeedsBackup
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: SealedSecretsKeyRotationOverdue
+      expr: "time() - max(kube_secret_created{job=\"kube-state-metrics\", namespace=\"{{NS_SYSTEM}}\", secret=~\"\
+        sealed-secrets-key.+\"})\n  > 31 * 86400\n"
+      for: 1h
+      labels:
+        severity: warning
+        namespace: '{{NS_SYSTEM}}'
+      annotations:
+        summary: SealedSecretsKeyRotationOverdue
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: SealedSecretUnsealFailed
+      expr: 'max by (exported_namespace, name) (sealed_secrets_controller_condition_info{condition="Synced"}) ==
+        -1
+
+        '
+      for: 15m
+      labels:
+        severity: warning
+        namespace: '{{NS_SYSTEM}}'
+      annotations:
+        summary: SealedSecretUnsealFailed
+        description: Inspect the alert labels and metric history before remediation.
+  - name: agent-array.backup
+    rules:
+    - alert: AgentArrayBackupFailed
+      expr: aa_backup_last_exit_code != 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentArrayBackupFailed
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentArrayBackupStale
+      expr: time() - aa_backup_last_success_timestamp_seconds > 36 * 3600
+      for: 30m
+      labels:
+        severity: critical
+      annotations:
+        summary: AgentArrayBackupStale
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentArrayBackupCheckFailing
+      expr: 'aa_backup_check_last_exit_code != 0
+
+        or time() - aa_backup_check_last_success_timestamp_seconds > 8 * 86400
+
+        '
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentArrayBackupCheckFailing
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentArrayBackupMetricsMissing
+      expr: 'absent(aa_backup_last_run_timestamp_seconds)
+
+        and on () (count(aa_backup_enabled == 1) > 0)'
+      for: 2h
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentArrayBackupMetricsMissing
+        description: Inspect the alert labels and metric history before remediation.
+  - name: agent-array.argocd
+    rules:
+    - alert: ArgoCDAppOutOfSync
+      expr: 'max by (name, project, dest_namespace) (argocd_app_info{sync_status="OutOfSync", autosync_enabled="true"})
+        == 1
+
+        '
+      for: 30m
+      labels:
+        severity: warning
+        namespace: argocd
+      annotations:
+        summary: ArgoCDAppOutOfSync
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: ArgoCDAppUnhealthy
+      expr: "max by (name, project, dest_namespace, health_status) (\n  argocd_app_info{health_status=\"Degraded\"\
+        }\n  or\n  argocd_app_info{health_status=\"Missing\", autosync_enabled=\"true\"}\n) == 1\n"
+      for: 15m
+      labels:
+        severity: warning
+        namespace: argocd
+      annotations:
+        summary: ArgoCDAppUnhealthy
+        description: Inspect the alert labels and metric history before remediation.

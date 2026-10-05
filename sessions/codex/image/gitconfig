@@ -1,0 +1,19 @@
+# /etc/gitconfig for aa-codex (system level; repo config can only add).
+# Nothing in this pod may talk to a git remote: every network transport is off,
+# only local paths (worktrees, local clones of /work/snap) work.
+[protocol]
+	allow = never
+[protocol "file"]
+	allow = always
+[core]
+	hooksPath = /dev/null
+	fsmonitor = false
+[credential]
+	helper =
+[init]
+	defaultBranch = main
+[user]
+	name = aa-codex
+	email = aa-codex@agent-array.invalid
+[advice]
+	detachedHead = false

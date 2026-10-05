@@ -1,0 +1,68 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: aa-session-login-pv
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - '*'
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - persistentvolumes
+  validations:
+  - expression: has(object.spec.claimRef) && has(object.spec.claimRef.namespace) && object.spec.claimRef.namespace.startsWith('{{USER_NS_PREFIX}}')
+      && has(object.metadata.labels) && '{{LABEL_PREFIX}}/user' in object.metadata.labels && object.spec.claimRef.namespace
+      == '{{USER_NS_PREFIX}}' + object.metadata.labels['{{LABEL_PREFIX}}/user']
+    message: Login PVs bind to the declared user namespace; webhook verifies its user-sessions label.
+  - expression: has(object.spec.storageClassName) && object.spec.storageClassName == '{{STORAGE_CLASS_LOGIN}}'
+      && has(object.spec.persistentVolumeReclaimPolicy) && object.spec.persistentVolumeReclaimPolicy == 'Retain'
+      && has(object.spec.local) && object.spec.local.path.startsWith('{{LOGIN_HOST_ROOT}}/') && !has(object.spec.hostPath)
+    message: Login storage is node-local disk or configured tmpfs, encrypted and excluded from backups; retain
+      until explicit offboarding wipe.
+  - expression: has(object.spec.nodeAffinity) && has(object.spec.nodeAffinity.required) && object.spec.nodeAffinity.required.nodeSelectorTerms.size()
+      > 0 && object.spec.nodeAffinity.required.nodeSelectorTerms.all(t, has(t.matchExpressions) && t.matchExpressions.exists(e,
+      e.key == 'kubernetes.io/hostname' && e.operator == 'In' && has(e.values) && e.values.size() == 1))
+    message: Login PVs require exact home-node affinity.
+  - expression: has(object.metadata.labels) && '{{LABEL_PREFIX}}/kind' in object.metadata.labels && object.metadata.labels['{{LABEL_PREFIX}}/kind']
+      == 'user-login' && '{{LABEL_PREFIX}}/tool' in object.metadata.labels && object.metadata.labels['{{LABEL_PREFIX}}/tool']
+      in ['claude','codex','kimi'] && has(object.spec.claimRef) && has(object.spec.claimRef.name) && object.spec.claimRef.name.startsWith(object.metadata.labels['{{LABEL_PREFIX}}/tool']
+      + '-home-')
+    message: Login PV identity labels and tool claim names are mandatory and cannot be bypassed by omitting
+      labels.
+  - expression: has(object.spec.local) && has(object.metadata.labels) && '{{LABEL_PREFIX}}/user' in object.metadata.labels
+      && '{{LABEL_PREFIX}}/tool' in object.metadata.labels && object.spec.local.path.startsWith('{{LOGIN_HOST_ROOT}}/'
+      + object.metadata.labels['{{LABEL_PREFIX}}/user'] + '/' + object.metadata.labels['{{LABEL_PREFIX}}/tool']
+      + '/')
+    message: The login directory belongs exclusively to its user and tool, never another seat.
+  matchConditions:
+  - name: user-login
+    expression: (has(object.spec.storageClassName) && object.spec.storageClassName == '{{STORAGE_CLASS_LOGIN}}')
+      || (has(object.metadata.labels) && '{{LABEL_PREFIX}}/kind' in object.metadata.labels && object.metadata.labels['{{LABEL_PREFIX}}/kind']
+      == 'user-login')
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: aa-session-login-pv
+spec:
+  policyName: aa-session-login-pv
+  validationActions:
+  - Deny
+  matchResources:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - persistentvolumes
+      scope: Cluster

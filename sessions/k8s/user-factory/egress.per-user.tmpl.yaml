@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: factory-egress
+  labels:
+    app.kubernetes.io/name: factory-egress
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: sessions
+  namespace: '{{USER_NS}}'
+spec:
+  podSelector:
+    matchLabels:
+      '{{LABEL_PREFIX}}/user': '{{USER_SLUG}}'
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress: []
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: '{{NS_FACTORY}}'
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: factory-api
+    ports:
+    - protocol: TCP
+      port: 8080

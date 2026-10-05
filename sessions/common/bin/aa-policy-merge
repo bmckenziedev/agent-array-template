@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Merge trusted base policy with hash-verified renderer MCP fragments.
+
+Exit 0 on success, 1 on invalid policy. No MCP ConfigMap means no MCP servers.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+try:
+    import tomllib
+except ImportError:
+    tomllib = None
+
+
+def read_json(path: Path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def validate_fragment(text: str, servers: list[str]) -> set[str]:
+    """Accept only renderer MCP tables, never general CLI policy overrides."""
+    if tomllib is not None:
+        parsed = tomllib.loads(text)
+        if set(parsed) - {"mcp_servers"}:
+            raise ValueError("fragment contains a non-MCP setting")
+        definitions = parsed.get("mcp_servers", {})
+        if not isinstance(definitions, dict) or set(definitions) - set(servers) or any(
+            not isinstance(value, dict) for value in definitions.values()
+        ):
+            raise ValueError("invalid MCP table or server outside rendered allowlist")
+        return set(definitions)
+    # Python 3.10 has no TOML parser; accept a deliberately narrow, fail-closed
+    # scalar/table subset. Images use Python 3.11 and the full stdlib parser.
+    found: set[str] = set()
+    table = False
+    keys: set[str] = set()
+    tables: set[str] = set()
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = re.fullmatch(r'\[mcp_servers\.([a-zA-Z0-9_-]+)(?:\.(identity|env|http_headers))?\]', line)
+        if match:
+            name = match[1]
+            if name not in servers:
+                raise ValueError("MCP table outside rendered allowlist")
+            if line in tables:
+                raise ValueError("duplicate MCP table")
+            tables.add(line)
+            table = True
+            found.add(name)
+            keys = set()
+            continue
+        if line == "[mcp_servers]":
+            if line in tables:
+                raise ValueError("duplicate MCP table")
+            tables.add(line)
+            table = False
+            continue
+        if not table or "=" not in line:
+            raise ValueError("fragment contains a non-MCP setting")
+        key, value = (part.strip() for part in line.split("=", 1))
+        if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_-]*', key) or key in keys:
+            raise ValueError("invalid or duplicate MCP key")
+        keys.add(key)
+        # The renderer emits single-line scalars and scalar arrays, never TOML code.
+        if not value or value.startswith(('"""', "'''", "{")):
+            raise ValueError("unsupported MCP value")
+        if value not in ("true", "false") and not re.fullmatch(r'[0-9]+', value):
+            try:
+                parsed = json.loads(value)
+            except ValueError as exc:
+                raise ValueError("malformed MCP value") from exc
+            if not isinstance(parsed, (str, list)) or (
+                isinstance(parsed, list) and not all(isinstance(v, (str, int)) for v in parsed)
+            ):
+                raise ValueError("unsupported MCP value")
+    return found
+
+
+def merge(tool: str, base: Path, mcp: Path, out: Path) -> None:
+    files: dict[str, bytes] = {}
+    names = {"claude": ["managed-settings.base.json"],
+             "codex": ["requirements.base.toml", "managed_config.base.toml"],
+             "kimi": ["policy.base.toml"]}[tool]
+    for name in names:
+        files[name.replace(".base", "")] = (base / name).read_bytes()
+    manifest = mcp / "mcp-rendered.json"
+    fragments: dict[str, bytes] = {}
+    servers: list[str] = []
+    if manifest.exists():
+        if tool == "kimi":
+            raise ValueError("Kimi MCP is disabled in v1")
+        metadata = read_json(manifest)
+        if not isinstance(metadata, dict) or set(metadata) != {"servers", "sha256"}:
+            raise ValueError("invalid MCP render manifest")
+        servers = metadata["servers"]
+        if not isinstance(servers, list) or any(
+            not isinstance(s, str) or not re.fullmatch(r'[a-zA-Z0-9_-]+', s) for s in servers
+        ) or len(set(servers)) != len(servers):
+            raise ValueError("invalid rendered server list")
+        wanted = {"managed-mcp.json", "allowed-mcp-servers.json"} if tool == "claude" else {
+            "requirements.mcp.toml", "managed_config.mcp.toml"}
+        hashes = metadata["sha256"]
+        if not isinstance(hashes, dict) or set(hashes) != wanted:
+            raise ValueError("fragment hash set must be exact")
+        for name in sorted(wanted):
+            raw = (mcp / name).read_bytes()
+            if hashlib.sha256(raw).hexdigest() != hashes[name]:
+                raise ValueError("MCP fragment hash mismatch")
+            fragments[name] = raw
+    elif mcp.is_dir() and any(p.is_file() for p in mcp.iterdir()):
+        raise ValueError("MCP fragments without render manifest")
+    if tool == "claude":
+        settings = json.loads(files["managed-settings.json"])
+        settings["allowManagedMcpServersOnly"] = True
+        settings["disableClaudeAiConnectors"] = True
+        allowed = [{"serverName": name} for name in servers]
+        if fragments:
+            if json.loads(fragments["allowed-mcp-servers.json"]) != allowed:
+                raise ValueError("MCP allowlist is not the exact rendered list")
+            config = json.loads(fragments["managed-mcp.json"])
+            if not isinstance(config, dict) or set(config) != {"mcpServers"} or (
+                not isinstance(config["mcpServers"], dict) or set(config["mcpServers"]) != set(servers)
+            ):
+                raise ValueError("MCP definitions differ from rendered allowlist")
+            files["managed-mcp.json"] = fragments["managed-mcp.json"]
+        # managed-mcp.json exclusively loads entitlement; this list is redundant.
+        settings["allowedMcpServers"] = allowed
+        files.setdefault("managed-mcp.json", b'{"mcpServers":{}}\n')
+        files["managed-settings.json"] = (json.dumps(settings, indent=2, sort_keys=True) + "\n").encode()
+    elif tool == "codex":
+        configured = files["managed_config.toml"].decode("utf-8")
+        selected = re.search(r'(?m)^approval_policy\s*=\s*"([^"]+)"', configured)
+        mode = selected[1] if selected else "default"
+        native = {"default": "on-request", "acceptEdits": "on-request", "plan": "on-request",
+                  "bypassPermissions": "never", "on-request": "on-request", "never": "never"}
+        if mode not in native:
+            raise ValueError("unsupported Codex team permission mode")
+        bypass = mode in ("bypassPermissions", "never")
+        sandbox = "danger-full-access" if bypass else "read-only" if mode == "plan" else "workspace-write"
+        for name in ("requirements", "managed_config"):
+            fragment = fragments.get(name + ".mcp.toml", b"").decode("utf-8")
+            if validate_fragment(fragment, servers) != set(servers):
+                raise ValueError("Codex fragment server set differs from allowlist")
+            original = files[name + ".toml"].decode("utf-8")
+            workspace = tomllib.loads(files["managed_config.toml"].decode("utf-8")).get("forced_chatgpt_workspace_id", "")
+            if name == "requirements":
+                if workspace:
+                    original = 'allowed_chatgpt_workspaces = ' + json.dumps([workspace]) + '\n' + original
+                original = re.sub(r'(?m)^allowed_approval_policies\s*=\s*\[[^\n]*\]',
+                                  'allowed_approval_policies = ' + json.dumps([native[mode]]), original)
+                sandboxes = ["read-only"] if mode == "plan" else ["read-only", "workspace-write"]
+                if bypass:
+                    sandboxes.append("danger-full-access")
+                original = re.sub(r'(?m)^allowed_sandbox_modes\s*=\s*\[[^\n]*\]',
+                                  'allowed_sandbox_modes = ' + json.dumps(sandboxes), original)
+            else:
+                if not workspace:
+                    original = re.sub(r'(?m)^forced_chatgpt_workspace_id\s*=\s*""\n?', '', original)
+                original = re.sub(r'(?m)^approval_policy\s*=\s*"[^\n]*"',
+                                  'approval_policy = ' + json.dumps(native[mode]), original)
+                original = re.sub(r'(?m)^sandbox_mode\s*=\s*"[^\n]*"\n?', '', original)
+            modes = {"default": "on-request", "acceptEdits": "on-request",
+                     "plan": "on-request", "bypassPermissions": "never"}
+            for common, vendor in modes.items():
+                original = re.sub(r'(?m)^(approval_policy\s*=\s*)"' + common + r'"\s*$',
+                                  lambda m: m[1] + json.dumps(vendor), original)
+                original = re.sub(r'(?m)^(allowed_approval_policies\s*=\s*)\["' + common + r'"\]\s*$',
+                                  lambda m: m[1] + '[' + json.dumps(vendor) + ']', original)
+            # Only an empty MCP table is allowed in the trusted base.
+            sections = re.split(r'(?m)(?=^\[)', original)
+            clean = []
+            for section in sections:
+                if section.startswith("[mcp_servers"):
+                    remaining = [s for s in section.splitlines()[1:] if s.strip() and not s.lstrip().startswith("#")]
+                    if remaining:
+                        raise ValueError("base policy must not contain MCP definitions")
+                else:
+                    clean.append(section)
+            files[name + ".toml"] = ("".join(clean).rstrip() + "\n\n" +
+                                      (fragment or "[mcp_servers]\n")).encode()
+            if tomllib is not None:
+                tomllib.loads(files[name + ".toml"].decode("utf-8"))
+    elif tool == "kimi":
+        text = files["policy.toml"].decode("utf-8")
+        selected = re.search(r'(?m)^default_permission_mode\s*=\s*"([^"]+)"', text)
+        if not selected:
+            raise ValueError("Kimi team permission mode missing")
+        mode = selected[1]
+        native = {"default": "manual", "acceptEdits": "manual", "plan": "manual",
+                  "bypassPermissions": "auto", "manual": "manual", "auto": "auto"}
+        if mode not in native:
+            raise ValueError("unsupported Kimi team permission mode")
+        text = re.sub(r'(?m)^default_permission_mode\s*=\s*"[^\n]*"',
+                      'default_permission_mode = ' + json.dumps(native[mode]), text)
+        text = re.sub(r'(?m)^default_plan_mode\s*=\s*(true|false)',
+                      'default_plan_mode = ' + ('true' if mode == 'plan' else 'false'), text)
+        if tomllib is not None:
+            tomllib.loads(text)
+        files["policy.toml"] = text.encode()
+    for name in ("AGENTS.md", "CLAUDE.md"):
+        if (base / name).is_file():
+            files[name] = (base / name).read_bytes()
+    out.mkdir(parents=True, exist_ok=True)
+    if any(out.iterdir()):
+        raise ValueError("managed output must be an empty directory")
+    for name, raw in sorted(files.items()):
+        (out / name).write_bytes(raw)
+        os.chmod(out / name, 0o444)
+    hashes = "".join(f"{hashlib.sha256(raw).hexdigest()}  {name}\n" for name, raw in sorted(files.items()))
+    (out / ".rendered.sha256").write_text(hashes, encoding="utf-8", newline="\n")
+    os.chmod(out / ".rendered.sha256", 0o444)
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tool", choices=("claude", "codex", "kimi"), required=True)
+    parser.add_argument("--base", type=Path, required=True)
+    parser.add_argument("--mcp", type=Path, default=Path("/policy/mcp"))
+    parser.add_argument("--out", type=Path, required=True)
+    args = parser.parse_args(argv)
+    try:
+        merge(args.tool, args.base, args.mcp, args.out)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        print(f"aa-policy-merge: refused: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

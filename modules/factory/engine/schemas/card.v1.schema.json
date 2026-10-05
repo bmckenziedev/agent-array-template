@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-array.local/factory/card.v1.schema.json",
+  "title": "Factory work-unit card v1",
+  "description": "CARD v1 from docs/FACTORY-DESIGN.md ('Work-unit card schema'), narrowed by the corrected plan: risk R0|R1 only (R2 is never carded), difficulty easy|normal ('hard' is invalid), at most 3 generations, no Kimi. The packer, never the frontier, fills budget and target.slice_sha256. The engine implements kind doc_map, and test_gen behind the test_gen flag; other kinds validate here but are refused at submit.",
+  "type": "object",
+  "required": ["card", "unit_id", "task_id", "repo", "kind", "difficulty", "target", "instruction", "output", "verify"],
+  "additionalProperties": false,
+  "properties": {
+    "card": {"const": 1},
+    "unit_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+    "task_id": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+    "snapshot": {"type": ["string", "null"], "maxLength": 80},
+    "repo": {"$ref": "#/$defs/name"},
+    "group": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$"},
+    "risk": {"enum": ["R0", "R1"]},
+    "kind": {"enum": ["test_gen", "add_function", "modify_body", "insert_case", "doc_map", "callsite_edit", "text_edit", "new_file"]},
+    "difficulty": {"enum": ["easy", "normal"]},
+    "target": {"$ref": "#/$defs/target"},
+    "instruction": {"type": "string", "minLength": 1, "maxLength": 1200},
+    "acceptance": {"type": "array", "maxItems": 12, "items": {"type": "string", "minLength": 1, "maxLength": 400}},
+    "provides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "doc_symbols": {"type": "array", "items": {"$ref": "#/$defs/qname"}, "maxItems": 8},
+        "test_file": {"$ref": "#/$defs/relpath"},
+        "signature": {"type": "string", "maxLength": 400},
+        "returns": {"type": "string", "maxLength": 200},
+        "export": {"type": "boolean"}
+      }
+    },
+    "context": {"type": "array", "maxItems": 24, "items": {"$ref": "#/$defs/contextItem"}},
+    "exemplar": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": {"type": "string", "maxLength": 400},
+        "symbol": {"$ref": "#/$defs/qname"},
+        "text": {"type": "string", "maxLength": 6000}
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": {"type": ["string", "array", "boolean"], "maxLength": 300, "maxItems": 20}
+    },
+    "output": {"enum": ["replace_symbol", "insert_symbol", "insert_block", "doc_map_json", "search_replace", "new_file", "whole_small_file"]},
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "files": {"type": "array", "maxItems": 20, "items": {"$ref": "#/$defs/relpath"}},
+        "related": {"type": "boolean"},
+        "min_tests": {"type": "integer", "minimum": 0, "maximum": 200},
+        "kill_check": {"type": "boolean"},
+        "mutants": {"type": "array", "maxItems": 30, "items": {"$ref": "#/$defs/mutant"}}
+      }
+    },
+    "verify": {"enum": ["tests", "docs_tsc", "docs_ast", "syntax_only"]},
+    "deps": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "required": ["unit", "type"],
+        "additionalProperties": false,
+        "properties": {
+          "unit": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+          "type": {"enum": ["oracle", "needs_contract", "needs_code", "same_file", "scc_group"]}
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prompt_tokens": {"type": "integer", "minimum": 1},
+        "max_tokens": {"type": "integer", "minimum": 1},
+        "pack_cap": {"type": "integer", "minimum": 1},
+        "lane_fit": {"type": "array", "items": {"type": "string", "maxLength": 64}},
+        "counted_by": {"type": "string", "maxLength": 120},
+        "dropped": {"type": "array", "items": {"type": "string", "maxLength": 120}}
+      }
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_generations": {"type": "integer", "minimum": 1, "maximum": 3},
+        "gpu_seconds": {"type": "integer", "minimum": 1, "maximum": 600},
+        "kimi": {"const": false}
+      }
+    },
+    "priority": {"type": "integer", "minimum": -100, "maximum": 100},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "author": {"type": "string", "pattern": "^(claude|codex|frontier|generator:[a-z0-9][a-z0-9-]{1,40})$"},
+        "packer": {"type": "string", "maxLength": 40},
+        "template_id": {"type": "string", "maxLength": 64},
+        "selection": {"type": "array", "items": {"type": "object"}}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "doc_map"}}, "required": ["kind"]},
+      "then": {
+        "properties": {
+          "output": {"const": "doc_map_json"},
+          "verify": {"enum": ["docs_tsc", "docs_ast"]},
+          "target": {"required": ["symbols"], "properties": {"symbols": {"minItems": 1, "maxItems": 8}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "test_gen"}}, "required": ["kind"]},
+      "then": {
+        "required": ["provides", "tests"],
+        "properties": {
+          "output": {"const": "new_file"},
+          "verify": {"const": "tests"},
+          "provides": {"required": ["test_file"]},
+          "tests": {"required": ["min_tests"]},
+          "target": {"required": ["symbols"], "properties": {"symbols": {"minItems": 1, "maxItems": 4}}}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"},
+    "relpath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?!(.*/)?\\.\\.(/|$))(?!(.*/)?\\.git(/|$))[^\\\\\\u0000-\\u001f]+$"
+    },
+    "qname": {"type": "string", "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*(\\.((get|set):)?[A-Za-z_$#][A-Za-z0-9_$]*)?$"},
+    "target": {
+      "type": "object",
+      "required": ["file"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {"$ref": "#/$defs/relpath"},
+        "symbol": {"$ref": "#/$defs/qname"},
+        "symbols": {"type": "array", "items": {"$ref": "#/$defs/qname"}, "uniqueItems": true},
+        "occurrence": {"type": "integer", "minimum": 1, "maximum": 50},
+        "anchor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {"enum": ["replace_symbol", "after_symbol", "before_symbol", "in_region"]},
+            "ref": {"$ref": "#/$defs/qname"},
+            "region_match": {"type": "string", "maxLength": 400}
+          }
+        },
+        "slice_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "contextItem": {
+      "type": "object",
+      "required": ["file", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {"$ref": "#/$defs/relpath"},
+        "kind": {"enum": ["imports", "class_outline", "bindings", "symbols", "callers", "test_setup"]},
+        "class": {"type": "string", "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$"},
+        "symbols": {"type": "array", "maxItems": 40, "items": {"$ref": "#/$defs/qname"}},
+        "full": {"type": "array", "maxItems": 40, "items": {"$ref": "#/$defs/qname"}},
+        "detail": {"enum": ["full", "head", "signature"]},
+        "max": {"type": "integer", "minimum": 0, "maximum": 20}
+      }
+    },
+    "mutant": {
+      "type": "object",
+      "required": ["id", "op", "start", "end", "original", "replacement"],
+      "properties": {
+        "id": {"type": "string", "maxLength": 200},
+        "symbol": {"$ref": "#/$defs/qname"},
+        "op": {"enum": ["ret", "cond", "bound", "call"]},
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 0},
+        "line": {"type": "integer", "minimum": 0},
+        "original": {"type": "string", "maxLength": 4000},
+        "replacement": {"type": "string", "maxLength": 4000}
+      }
+    }
+  }
+}

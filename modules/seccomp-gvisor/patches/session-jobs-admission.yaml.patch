@@ -1,0 +1,36 @@
+--- a/modules/session-jobs/admission.yaml
++++ b/modules/session-jobs/admission.yaml
+@@ -22,6 +22,16 @@
+   validations:
+     - expression: variables.containers.all(c, !has(c.securityContext) || !has(c.securityContext.privileged) || !c.securityContext.privileged)
+       message: "containers must not be privileged"
++    - expression: >-
++        has(variables.podSpec.securityContext)
++        && has(variables.podSpec.securityContext.seccompProfile)
++        && variables.podSpec.securityContext.seccompProfile.type == 'Localhost'
++        && has(variables.podSpec.securityContext.seccompProfile.localhostProfile)
++        && variables.podSpec.securityContext.seccompProfile.localhostProfile == 'profiles/seccomp-gvisor/runtime-default-clone3-enosys.json'
++      message: "pod must use the exact module profile"
++    - expression: >-
++        variables.containers.all(c, !has(c.securityContext) || !has(c.securityContext.seccompProfile))
++      message: "container seccomp overrides are forbidden"
+ ---
+ apiVersion: admissionregistration.k8s.io/v1
+ kind: ValidatingAdmissionPolicyBinding
+@@ -62,6 +72,16 @@
+   validations:
+     - expression: variables.containers.all(c, !has(c.securityContext) || !has(c.securityContext.privileged) || !c.securityContext.privileged)
+       message: "containers must not be privileged"
++    - expression: >-
++        has(variables.podSpec.securityContext)
++        && has(variables.podSpec.securityContext.seccompProfile)
++        && variables.podSpec.securityContext.seccompProfile.type == 'Localhost'
++        && has(variables.podSpec.securityContext.seccompProfile.localhostProfile)
++        && variables.podSpec.securityContext.seccompProfile.localhostProfile == 'profiles/seccomp-gvisor/runtime-default-clone3-enosys.json'
++      message: "pod must use the exact module profile"
++    - expression: >-
++        variables.containers.all(c, !has(c.securityContext) || !has(c.securityContext.seccompProfile))
++      message: "container seccomp overrides are forbidden"
+ ---
+ apiVersion: admissionregistration.k8s.io/v1
+ kind: ValidatingAdmissionPolicyBinding

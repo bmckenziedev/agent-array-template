@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: heavy-defaults
+  namespace: {{PROJECT_NAME}}-arc-heavy
+spec:
+  limits:
+  - type: Container
+    defaultRequest:
+      cpu: 250m
+      memory: 512Mi
+      ephemeral-storage: 1Gi
+    default:
+      cpu: '1'
+      memory: 2Gi
+      ephemeral-storage: 10Gi
+    max:
+      cpu: 2500m
+      memory: 5Gi
+      ephemeral-storage: 40Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: heavy-quota
+  namespace: {{PROJECT_NAME}}-arc-heavy
+spec:
+  hard:
+    pods: '5'
+    requests.cpu: '5'
+    requests.memory: 10Gi
+    requests.ephemeral-storage: 25Gi
+    limits.cpu: 21250m
+    limits.memory: 43520Mi
+    limits.ephemeral-storage: 300Gi

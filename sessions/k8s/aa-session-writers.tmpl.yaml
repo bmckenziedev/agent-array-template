@@ -1,0 +1,51 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: aa-session-writers
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - '*'
+      apiVersions:
+      - '*'
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+      - configmaps
+      - persistentvolumeclaims
+      - serviceaccounts
+      - rolebindings
+      - networkpolicies
+      - statefulsets
+      - secrets
+      - resourcequotas
+      - limitranges
+  validations:
+  - expression: request.userInfo.username == 'system:serviceaccount:{{NS_ARGOCD}}:argocd-application-controller'
+      || (has(request.userInfo.groups) && '{{OIDC_GROUP_PLATFORM_ADMIN}}' in request.userInfo.groups)
+      || request.userInfo.username == 'system:kube-controller-manager'
+      || request.userInfo.username.startsWith('system:serviceaccount:kube-system:')
+      || (request.kind.kind == 'Secret' && request.userInfo.username == 'system:serviceaccount:{{NS_SYSTEM}}:sealed-secrets-controller')
+      || (request.kind.kind == 'PersistentVolumeClaim' && request.userInfo.username == 'system:serviceaccount:{{PROJECT_NAME}}-login-storage:login-local-path')
+    message: Only GitOps and platform admins write session objects; the StatefulSet controller may materialize
+      its validated pod template.
+  matchConditions:
+  - name: not-root-ca
+    expression: request.kind.kind != 'ConfigMap' || object.metadata.name != 'kube-root-ca.crt'
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: aa-session-writers
+spec:
+  policyName: aa-session-writers
+  validationActions:
+  - Deny
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        '{{LABEL_PREFIX}}/kind': user-sessions

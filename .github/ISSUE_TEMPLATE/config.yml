@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security reporting
+    url: https://github.com/example-org/agent-array/blob/main/SECURITY.md
+    about: Follow SECURITY.md to report security issues privately. Replace this URL during adoption.

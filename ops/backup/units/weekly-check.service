@@ -1,0 +1,6 @@
+[Unit]
+Description=Cluster weekly-check
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/opt/cluster-ops/backup/weekly-check.sh --yes

@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: oauth2-proxy-argocd-ingress
+  namespace: '{{NS_ARGOCD}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: portal
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-server
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: oauth2-proxy-argocd
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: '{{NS_PORTAL}}'
+    ports:
+    - protocol: TCP
+      port: 8080

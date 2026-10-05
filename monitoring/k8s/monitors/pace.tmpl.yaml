@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pace
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pace
+  namespaceSelector:
+    matchNames:
+    - '{{NS_SYSTEM}}'
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    honorLabels: true

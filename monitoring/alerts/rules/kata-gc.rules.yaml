@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: '{{PROJECT_NAME}}-kata-gc'
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: alerts
+    release: kps
+spec:
+  groups:
+  - name: agent-array.kata-gc
+    rules:
+    - alert: KataGCStale
+      expr: '(time() - aa_kata_gc_last_run_timestamp_seconds{job="node-exporter"})
+
+        * on (instance) group_left (host) aa:node:info
+
+        > 3 * 3600
+
+        '
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: KataGCStale
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: KataGCFailing
+      expr: "(\n  max by (instance, job, node) (\n    aa_kata_gc_last_exit_code{job=\"node-exporter\"}\n  )\n  +\n\
+        \  sum by (instance, job, node) (\n    aa_kata_gc_last_errors{job=\"node-exporter\"}\n  )\n)\n* on (instance)\
+        \ group_left (host) aa:node:info\n> 0\n"
+      for: 2h
+      labels:
+        severity: warning
+      annotations:
+        summary: KataGCFailing
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: KataGCLeftoversPilingUp
+      expr: "sum by (instance, job, node) (\n  delta(aa_kata_gc_last_kept{job=\"node-exporter\",reason=~\"state|mounted|other\"\
+        }[3h])\n)\n* on (instance) group_left (host) aa:node:info\n> 0\n"
+      labels:
+        severity: warning
+      annotations:
+        summary: KataGCLeftoversPilingUp
+        description: Inspect the alert labels and metric history before remediation.

@@ -1,0 +1,16 @@
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: "{{RUNTIME_CLASS_VM}}"
+  labels:
+    app.kubernetes.io/name: kata
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+    app.kubernetes.io/component: runtime
+handler: kata
+overhead:
+  podFixed:
+    memory: 160Mi
+    cpu: 250m
+scheduling:
+  nodeSelector:
+    "{{LABEL_PREFIX}}/runtime-{{RUNTIME_CLASS_VM}}": "true"

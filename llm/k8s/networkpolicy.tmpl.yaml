@@ -1,0 +1,302 @@
+{
+  "apiVersion": "networking.k8s.io/v1",
+  "kind": "NetworkPolicy",
+  "metadata": {
+    "name": "llm-default-deny",
+    "namespace": "{{NS_LLM}}",
+    "labels": {
+      "app.kubernetes.io/name": "llm-default-deny",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "llm"
+    }
+  },
+  "spec": {
+    "podSelector": {
+      "matchLabels": {}
+    },
+    "policyTypes": [
+      "Ingress",
+      "Egress"
+    ],
+    "ingress": [],
+    "egress": []
+  }
+}
+---
+{
+  "apiVersion": "networking.k8s.io/v1",
+  "kind": "NetworkPolicy",
+  "metadata": {
+    "name": "litellm-allow",
+    "namespace": "{{NS_LLM}}",
+    "labels": {
+      "app.kubernetes.io/name": "litellm-allow",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "llm"
+    }
+  },
+  "spec": {
+    "podSelector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "litellm"
+      }
+    },
+    "policyTypes": [
+      "Ingress",
+      "Egress"
+    ],
+    "ingress": [
+      {
+        "from": [
+          {
+            "namespaceSelector": {
+              "matchLabels": {
+                "kubernetes.io/metadata.name": "{{NS_PORTAL}}"
+              }
+            },
+            "podSelector": {
+              "matchLabels": {
+                "{{LABEL_PREFIX}}/llm-client": "true"
+              }
+            }
+          },
+          {
+            "namespaceSelector": {
+              "matchLabels": {
+                "kubernetes.io/metadata.name": "{{NS_SYSTEM}}"
+              }
+            },
+            "podSelector": {
+              "matchLabels": {
+                "{{LABEL_PREFIX}}/llm-client": "true"
+              }
+            }
+          },
+          {
+            "namespaceSelector": {
+              "matchLabels": {
+                "kubernetes.io/metadata.name": "{{NS_FACTORY}}"
+              }
+            },
+            "podSelector": {
+              "matchLabels": {
+                "{{LABEL_PREFIX}}/llm-client": "true"
+              }
+            }
+          },
+          {
+            "namespaceSelector": {
+              "matchLabels": {
+                "kubernetes.io/metadata.name": "{{NS_SESSION_JOBS}}"
+              }
+            },
+            "podSelector": {
+              "matchLabels": {
+                "{{LABEL_PREFIX}}/llm-client": "true"
+              }
+            }
+          },
+          {
+            "namespaceSelector": {
+              "matchLabels": {
+                "kubernetes.io/metadata.name": "{{NS_OPS}}"
+              }
+            },
+            "podSelector": {
+              "matchLabels": {
+                "{{LABEL_PREFIX}}/llm-client": "true"
+              }
+            }
+          }
+        ],
+        "ports": [
+          {
+            "port": 4000,
+            "protocol": "TCP"
+          }
+        ]
+      }
+    ],
+    "egress": [
+      {
+        "to": [
+          {
+            "podSelector": {
+              "matchLabels": {
+                "app.kubernetes.io/name": "litellm-pg"
+              }
+            }
+          }
+        ],
+        "ports": [
+          {
+            "port": 5432,
+            "protocol": "TCP"
+          }
+        ]
+      },
+      {
+        "to": [
+          {
+            "podSelector": {
+              "matchLabels": {
+                "app.kubernetes.io/name": "litellm-redis"
+              }
+            }
+          }
+        ],
+        "ports": [
+          {
+            "port": 6379,
+            "protocol": "TCP"
+          }
+        ]
+      },
+      {
+        "to": [
+          {
+            "namespaceSelector": {
+              "matchLabels": {
+                "kubernetes.io/metadata.name": "{{NS_MODELS}}"
+              }
+            },
+            "podSelector": {
+              "matchLabels": {
+                "{{LABEL_PREFIX}}/model-lane": "true"
+              }
+            }
+          }
+        ],
+        "ports": [
+          {
+            "port": 8080,
+            "protocol": "TCP"
+          }
+        ]
+      },
+      {
+        "to": [
+          {
+            "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}}, "podSelector": {"matchLabels": {"k8s-app": "kube-dns"}}
+          }
+        ],
+        "ports": [
+          {
+            "port": 53,
+            "protocol": "UDP"
+          },
+          {
+            "port": 53,
+            "protocol": "TCP"
+          }
+        ]
+      },
+      {
+        "to": [
+          {
+            "ipBlock": {
+              "cidr": "0.0.0.0/0",
+              "except": {{PRIVATE_CIDRS_JSON}}
+            }
+          }
+        ],
+        "ports": [
+          {
+            "port": 443,
+            "protocol": "TCP"
+          }
+        ]
+      }
+    ]
+  }
+}
+---
+{
+  "apiVersion": "networking.k8s.io/v1",
+  "kind": "NetworkPolicy",
+  "metadata": {
+    "name": "litellm-pg-allow",
+    "namespace": "{{NS_LLM}}",
+    "labels": {
+      "app.kubernetes.io/name": "litellm-pg-allow",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "llm"
+    }
+  },
+  "spec": {
+    "podSelector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "litellm-pg"
+      }
+    },
+    "policyTypes": [
+      "Ingress",
+      "Egress"
+    ],
+    "ingress": [
+      {
+        "from": [
+          {
+            "podSelector": {
+              "matchLabels": {
+                "app.kubernetes.io/name": "litellm"
+              }
+            }
+          }
+        ],
+        "ports": [
+          {
+            "port": 5432,
+            "protocol": "TCP"
+          }
+        ]
+      }
+    ],
+    "egress": []
+  }
+}
+---
+{
+  "apiVersion": "networking.k8s.io/v1",
+  "kind": "NetworkPolicy",
+  "metadata": {
+    "name": "litellm-redis-allow",
+    "namespace": "{{NS_LLM}}",
+    "labels": {
+      "app.kubernetes.io/name": "litellm-redis-allow",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "llm"
+    }
+  },
+  "spec": {
+    "podSelector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "litellm-redis"
+      }
+    },
+    "policyTypes": [
+      "Ingress",
+      "Egress"
+    ],
+    "ingress": [
+      {
+        "from": [
+          {
+            "podSelector": {
+              "matchLabels": {
+                "app.kubernetes.io/name": "litellm"
+              }
+            }
+          }
+        ],
+        "ports": [
+          {
+            "port": 6379,
+            "protocol": "TCP"
+          }
+        ]
+      }
+    ],
+    "egress": []
+  }
+}

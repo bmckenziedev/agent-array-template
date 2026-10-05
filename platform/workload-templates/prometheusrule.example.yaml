@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: <app-name>
+  namespace: <namespace>
+  labels:
+    app.kubernetes.io/name: <app-name>
+    app.kubernetes.io/part-of: <project-name>
+    app.kubernetes.io/component: application
+spec:
+  groups:
+  - name: app.availability
+    rules:
+    - alert: ApplicationUnavailable
+      expr: kube_deployment_spec_replicas{namespace="<namespace>",deployment="<app-name>"}
+        > 0 unless on(namespace,deployment) kube_deployment_status_replicas_available{namespace="<namespace>",deployment="<app-name>"}
+        > 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Application has no available replicas

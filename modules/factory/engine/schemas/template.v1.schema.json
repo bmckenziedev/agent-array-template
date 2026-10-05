@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-array.local/factory/template.v1.schema.json",
+  "title": "Factory generator template v1",
+  "description": "GENERATOR from docs/FACTORY-DESIGN.md: the frontier writes one template; the index expands it deterministically into cards, with no frontier tokens per unit. Corrected plan, phase 1: generator-only sweeps, targets filtered and grouped per module, capped per repo per bundle.",
+  "type": "object",
+  "required": ["template", "template_id", "kind", "expand"],
+  "additionalProperties": false,
+  "properties": {
+    "template": {"const": 1},
+    "template_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,40}$"},
+    "kind": {"enum": ["doc_map", "test_gen"]},
+    "description": {"type": "string", "maxLength": 600},
+    "expand": {
+      "type": "object",
+      "required": ["via", "repo"],
+      "additionalProperties": false,
+      "properties": {
+        "via": {"enum": ["find_undocumented", "find_untested"]},
+        "repo": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"},
+        "roots": {"type": "array", "maxItems": 20, "items": {"type": "string", "pattern": "^(?![/\\\\])(?!.*\\.\\.)[A-Za-z0-9._/-]{1,200}$"}},
+        "include": {"type": "array", "maxItems": 40, "items": {"type": "string", "maxLength": 200}},
+        "exclude": {"type": "array", "maxItems": 40, "items": {"type": "string", "maxLength": 200}},
+        "filter": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "exported_only": {"type": "boolean"},
+            "include_private": {"type": "boolean"},
+            "min_params": {"type": "integer", "minimum": 0, "maximum": 20},
+            "kinds": {"type": "array", "items": {"enum": ["function", "arrow", "method", "constructor"]}, "uniqueItems": true},
+            "skip_io": {"type": "boolean"},
+            "min_branches": {"type": "integer", "minimum": 0, "maximum": 100},
+            "min_loc": {"type": "integer", "minimum": 0, "maximum": 1000},
+            "max_loc": {"type": "integer", "minimum": 1, "maximum": 2000},
+            "symbols": {"type": "array", "maxItems": 500, "items": {"type": "string", "maxLength": 200}}
+          }
+        },
+        "group": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_symbols": {"type": "integer", "minimum": 1, "maximum": 8},
+            "max_chars": {"type": "integer", "minimum": 200, "maximum": 20000}
+          }
+        },
+        "cap": {"type": "integer", "minimum": 1, "maximum": 1000}
+      }
+    },
+    "card": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "difficulty": {"enum": ["easy", "normal"]},
+        "risk": {"enum": ["R0", "R1"]},
+        "instruction": {"type": "string", "minLength": 1, "maxLength": 1200},
+        "acceptance": {"type": "array", "maxItems": 12, "items": {"type": "string", "maxLength": 400}},
+        "priority": {"type": "integer", "minimum": -100, "maximum": 100},
+        "retry": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_generations": {"type": "integer", "minimum": 1, "maximum": 3},
+            "gpu_seconds": {"type": "integer", "minimum": 1, "maximum": 600}
+          }
+        },
+        "tests": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {"min_tests": {"type": "integer", "minimum": 0, "maximum": 200}, "test_dir": {"type": "string", "maxLength": 200}}
+        },
+        "callers_per_symbol": {"type": "integer", "minimum": 0, "maximum": 20}
+      }
+    },
+    "profile": {"type": ["string", "object"]},
+    "exemplar": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": {"type": "string", "maxLength": 400},
+        "text": {"type": "string", "maxLength": 6000}
+      }
+    }
+  }
+}

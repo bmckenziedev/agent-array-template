@@ -1,0 +1,36 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: aa-session-kinds
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - '*'
+      apiVersions:
+      - '*'
+      operations:
+      - CREATE
+      resources:
+      - '*'
+  validations:
+  - expression: "!(request.kind.kind in ['Job','CronJob','Deployment','ReplicaSet','DaemonSet','Service','ReplicationController','Ingress'])"
+    message: Queued and service workloads are forbidden in session namespaces.
+  - expression: request.kind.kind != 'Secret' || (has(object.type) && object.type == 'kubernetes.io/dockerconfigjson'
+      && object.metadata.name == '{{REGISTRY_PULL_SECRET}}') || (request.kind.kind == 'Secret' && has(namespaceObject.metadata.annotations) && '{{LABEL_PREFIX}}/git-secret' in namespaceObject.metadata.annotations && object.metadata.name == namespaceObject.metadata.annotations['{{LABEL_PREFIX}}/git-secret'] && object.metadata.name != '')
+    message: Only the registry pull Secret is permitted; vendor credentials must originate in the official
+      login flow.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: aa-session-kinds
+spec:
+  policyName: aa-session-kinds
+  validationActions:
+  - Deny
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        '{{LABEL_PREFIX}}/kind': user-sessions

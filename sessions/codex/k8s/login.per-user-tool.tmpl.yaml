@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: '{{TOOL_HOME_CLAIM}}'
+  labels:
+    app.kubernetes.io/name: '{{TOOL_HOME_CLAIM}}'
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: sessions
+    '{{LABEL_PREFIX}}/user': '{{USER_SLUG}}'
+    '{{LABEL_PREFIX}}/team': '{{USER_PRIMARY_TEAM}}'
+    '{{LABEL_PREFIX}}/tool': '{{TOOL}}'
+    '{{LABEL_PREFIX}}/account': '{{TOOL_ACCOUNT_ID}}'
+  namespace: '{{USER_NS}}'
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: '{{STORAGE_CLASS_LOGIN}}'
+  volumeName: '{{USER_NS}}-{{TOOL_HOME_CLAIM}}'
+  resources:
+    requests:
+      storage: 4Gi

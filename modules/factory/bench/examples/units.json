@@ -1,0 +1,57 @@
+[
+  {
+    "id": "DM-1",
+    "kind": "doc_map",
+    "target": "arithmetic.cjs",
+    "exports": [
+      "clamp"
+    ],
+    "reference": {
+      "clamp": "/** Clamp a number within inclusive bounds.\n * @param {number} value Input number.\n * @param {number} low Lower bound.\n * @param {number} high Upper bound.\n * @returns {number} Bounded number.\n */"
+    }
+  },
+  {
+    "id": "DM-2",
+    "kind": "doc_map",
+    "target": "labels.cjs",
+    "exports": [
+      "label"
+    ],
+    "reference": {
+      "label": "/** Normalise a label.\n * @param {string} value Input label.\n * @returns {string} Uppercase label or empty marker.\n */"
+    }
+  },
+  {
+    "id": "DM-3",
+    "kind": "doc_map",
+    "target": "collection.cjs",
+    "exports": [
+      "unique"
+    ],
+    "reference": {
+      "unique": "/** Remove duplicate numeric values.\n * @param {number[]} values Input values.\n * @returns {number[]} Distinct values in insertion order.\n */"
+    }
+  },
+  {
+    "id": "TG-1",
+    "kind": "test_gen",
+    "target": "arithmetic.cjs",
+    "symbol": "clamp",
+    "mutation": [
+      "Math.max(low, Math.min(value, high))",
+      "value"
+    ],
+    "reference": "const assert = require('node:assert/strict');\nconst {clamp} = require('./arithmetic.cjs');\nassert.equal(clamp(9, 0, 5), 5);\nassert.equal(clamp(-1, 0, 5), 0);\nassert.throws(() => clamp(1, 5, 0), RangeError);\n"
+  },
+  {
+    "id": "TG-2",
+    "kind": "test_gen",
+    "target": "labels.cjs",
+    "symbol": "label",
+    "mutation": [
+      "text.toUpperCase()",
+      "text"
+    ],
+    "reference": "const assert = require('node:assert/strict');\nconst {label} = require('./labels.cjs');\nassert.equal(label(' ab '), 'AB');\nassert.equal(label(' '), 'EMPTY');\n"
+  }
+]

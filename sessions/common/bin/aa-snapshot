@@ -1,0 +1,662 @@
+#!/usr/bin/env python3
+"""aa-snapshot: the in-pod side of `aa snapshot` (runs in the `estate`
+container of a user session pod; the CLI container sees /work/snap read-only).
+
+  receive ID --ttl-hours H --manifest-sha256 HEX   tar(.gz) of the snapshot on stdin
+  ls [--json]                                      live snapshots + pending receipts
+  extend ID --hours N                              push the expiry out (never past created + 24 h)
+  down ID                                          delete now; prints the deletion receipt
+  ack ID...                                        drop receipts the client has saved
+  reap [--json]                                    one reaper pass (expired, orphaned, stale uploads)
+  serve                                            reaper loop (the container's main process)
+
+Layout under $AA_SNAP_ROOT (default /work/snap, a Memory emptyDir):
+  <id>/                 the extracted snapshot: <repo>/... + MANIFEST.json
+  .meta/<id>.json       created / expires / manifest digest / repos (no file content)
+  .receipts/<id>.json   deletion receipts not yet collected by `aa snapshot ls|down`
+  .incoming/<id>/       an upload in progress (renamed to <id>/ once verified)
+
+Rules enforced here (not only in aa): the TTL is at most 24 h from creation and is
+never refreshed by anything but an explicit `extend`; only regular files and
+directories are extracted, with no absolute, `..` or backslash paths; every file
+must match the MANIFEST (size + git blob id) and nothing else may be in the tar;
+MANIFEST.json must match the sha256 the client computed. Python 3.11 stdlib only.
+"""
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import fnmatch
+from urllib.parse import urlsplit
+import json
+import os
+import re
+import shutil
+import signal
+import socket
+import sys
+import tarfile
+import time
+from pathlib import Path
+
+ID_RE = re.compile(r"^s-[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$")
+HARD_MAX_TTL_HOURS = 24.0          # design rule: 24 h at most, whatever the env says
+DEFAULT_TTL_HOURS = 12.0
+STALE_INCOMING_S = 3600
+MAX_RECEIPTS = 50
+
+
+def _env_num(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except ValueError:
+        return default
+
+
+ROOT = Path(os.environ.get("AA_SNAP_ROOT", "/work/snap"))
+MAX_TTL_HOURS = min(_env_num("AA_SNAP_TTL_MAX_HOURS", HARD_MAX_TTL_HOURS), HARD_MAX_TTL_HOURS)
+MAX_BYTES = int(_env_num("AA_SNAP_MAX_BYTES", 1024 ** 3))          # uncompressed, per snapshot
+MAX_FILES = int(_env_num("AA_SNAP_MAX_FILES", 200_000))
+MAX_COUNT = int(_env_num("AA_SNAP_MAX_COUNT", 3))                  # live snapshots at once
+REAP_SECONDS = max(_env_num("AA_SNAP_REAP_SECONDS", 60), 1.0)
+REQUIRE_TMPFS = os.environ.get("AA_SNAP_REQUIRE_TMPFS", "0") == "1"
+HOST = os.environ.get("HOSTNAME") or socket.gethostname()
+
+
+class SnapError(Exception):
+    def __init__(self, msg: str, code: int = 1):
+        super().__init__(msg)
+        self.code = code
+
+
+# --------------------------------------------------------------------------- #
+# small helpers
+# --------------------------------------------------------------------------- #
+def now() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+
+
+def iso(t: dt.datetime) -> str:
+    return t.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def parse_iso(s: str) -> dt.datetime:
+    return dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def meta_dir() -> Path:
+    return ROOT / ".meta"
+
+
+def receipts_dir() -> Path:
+    return ROOT / ".receipts"
+
+
+def incoming_dir() -> Path:
+    return ROOT / ".incoming"
+
+
+def check_id(sid: str) -> str:
+    if not ID_RE.match(sid or ""):
+        raise SnapError(f"bad snapshot id {sid!r} (want s-YYYYMMDD-HHMMSS-xxxxxx)", 2)
+    return sid
+
+
+def write_json_atomic(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+    os.replace(tmp, path)
+
+
+def read_json(path: Path) -> dict | None:
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def rmtree(path: Path) -> None:
+    def _fix(func, p, _exc):
+        try:
+            os.chmod(p, 0o700)
+            func(p)
+        except OSError:
+            pass
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.exists():
+        if sys.version_info >= (3, 12):
+            shutil.rmtree(path, onexc=_fix)
+        else:  # Debian bookworm: python 3.11
+            shutil.rmtree(path, onerror=_fix)
+
+
+def git_blob_id(size: int, chunks) -> str:
+    h = hashlib.sha1(b"blob %d\0" % size)
+    for c in chunks:
+        h.update(c)
+    return h.hexdigest()
+
+
+def storage_info(path: Path) -> dict:
+    """Filesystem type backing `path` (from /proc/mounts) and free space."""
+    fstype = "unknown"
+    try:
+        best = ""
+        real = os.path.realpath(path)
+        with open("/proc/mounts", encoding="utf-8") as fh:
+            for line in fh:
+                parts = line.split()
+                if len(parts) < 3:
+                    continue
+                mnt = parts[1].replace("\\040", " ")
+                if (real == mnt or real.startswith(mnt.rstrip("/") + "/")) and len(mnt) >= len(best):
+                    best, fstype = mnt, parts[2]
+    except OSError:
+        pass
+    try:
+        du = shutil.disk_usage(path)
+        free, total = du.free, du.total
+    except OSError:
+        free = total = -1
+    return {"fstype": fstype, "free_bytes": free, "total_bytes": total, "path": str(path)}
+
+
+class Lock:
+    """Cross-process lock via an atomic mkdir (works on tmpfs and in the tests on Windows)."""
+
+    def __init__(self, timeout: float = 30.0):
+        self.path = ROOT / ".lock"
+        self.timeout = timeout
+
+    def __enter__(self):
+        ROOT.mkdir(parents=True, exist_ok=True)
+        deadline = time.monotonic() + self.timeout
+        while True:
+            try:
+                self.path.mkdir()
+                return self
+            except FileExistsError:
+                try:
+                    if time.time() - self.path.stat().st_mtime > 600:   # stale (crashed holder)
+                        self.path.rmdir()
+                        continue
+                except OSError:
+                    pass
+                if time.monotonic() > deadline:
+                    raise SnapError("snapshot store is busy (lock held); retry")
+                time.sleep(0.2)
+
+    def __exit__(self, *exc):
+        try:
+            self.path.rmdir()
+        except OSError:
+            pass
+
+
+def live_metas() -> list[dict]:
+    out = []
+    md = meta_dir()
+    if md.is_dir():
+        for p in sorted(md.glob("*.json")):
+            m = read_json(p)
+            if m and ID_RE.match(str(m.get("id", ""))):
+                out.append(m)
+    return out
+
+
+def pending_receipts() -> list[dict]:
+    rd = receipts_dir()
+    if not rd.is_dir():
+        return []
+    out = [r for r in (read_json(p) for p in sorted(rd.glob("*.json"))) if r]
+    return sorted(out, key=lambda r: r.get("destroyed", ""))
+
+
+def digest(obj: dict) -> str:
+    body = {k: v for k, v in obj.items() if k != "digest"}
+    return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+# --------------------------------------------------------------------------- #
+# receive
+# --------------------------------------------------------------------------- #
+def _safe_member_path(name: str) -> str:
+    if not name or "\x00" in name or "\\" in name or name.startswith("/"):
+        raise SnapError(f"refusing archive member {name!r}: absolute, NUL or backslash path")
+    parts = [p for p in name.split("/") if p not in ("", ".")]
+    if not parts or any(p == ".." for p in parts):
+        raise SnapError(f"refusing archive member {name!r}: '..' or empty path")
+    if any(p.lower() in (".git", ".mcp.json", ".claude", ".codex", ".kimi-code", ".agents") for p in parts):
+        raise SnapError(f"refusing archive member {name!r}: agent configuration and .git are never part of a snapshot")
+    if any(ord(c) < 32 for c in name):
+        raise SnapError(f"refusing archive member {name!r}: control character")
+    if len(name) > 4096:
+        raise SnapError("refusing archive member: path too long")
+    return "/".join(parts)
+
+
+def _extract(stream, dest: Path) -> dict[str, dict]:
+    """Stream-extract regular files/dirs into dest. Returns {path: {size, blob, mode}}."""
+    files: dict[str, dict] = {}
+    total = 0
+    with tarfile.open(fileobj=stream, mode="r|*") as tar:
+        for m in tar:
+            rel = _safe_member_path(m.name)
+            target = dest.joinpath(*rel.split("/"))
+            if m.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            if not m.isreg():
+                raise SnapError(f"refusing archive member {m.name!r}: only regular files and "
+                                "directories are allowed (no links, devices or fifos)")
+            if rel in files:
+                raise SnapError(f"duplicate archive member {rel!r}")
+            if len(files) >= MAX_FILES:
+                raise SnapError(f"more than {MAX_FILES} files (AA_SNAP_MAX_FILES)")
+            total += m.size
+            if total > MAX_BYTES:
+                raise SnapError(f"snapshot larger than {MAX_BYTES} bytes uncompressed (AA_SNAP_MAX_BYTES)")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            src = tar.extractfile(m)
+            h = hashlib.sha1(b"blob %d\0" % m.size)
+            sha256 = hashlib.sha256()
+            written = 0
+            with open(target, "xb") as out:
+                while True:
+                    chunk = src.read(1 << 20)
+                    if not chunk:
+                        break
+                    h.update(chunk)
+                    sha256.update(chunk)
+                    out.write(chunk)
+                    written += len(chunk)
+            if written != m.size:
+                raise SnapError(f"truncated archive member {rel!r}")
+            mode = 0o755 if (m.mode & 0o111) else 0o644
+            os.chmod(target, mode)
+            files[rel] = {"size": m.size, "blob": h.hexdigest(), "sha256": sha256.hexdigest(),
+                          "mode": "100755" if mode == 0o755 else "100644"}
+    return files
+
+
+def _verify(sid: str, files: dict[str, dict], manifest_sha256: str) -> dict:
+    mf = files.pop("MANIFEST.json", None)
+    if mf is None:
+        raise SnapError("MANIFEST.json is missing from the archive")
+    if mf["sha256"] != manifest_sha256.lower():
+        raise SnapError("MANIFEST.json does not match the sha256 the client sent (transport corrupted?)")
+    return mf
+
+
+def authorize_manifest(manifest: dict, files: dict) -> None:
+    """Entitlement is managed policy; client manifest assertions are untrusted."""
+    policy_path = Path(os.environ.get("AA_CONTEXT_POLICY", "/etc/aa-context/estates.json"))
+    try:
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise SnapError("context-policy absent or malformed; refusing push") from exc
+    estates = policy.get("estates", []) if isinstance(policy, dict) else policy
+    if not isinstance(estates, list):
+        raise SnapError("context-policy estates must be a list")
+    tool = os.environ.get("AA_TOOL", "")
+    matches = [e for e in estates if isinstance(e, dict) and e.get("id") == manifest.get("estate")]
+    if len(matches) != 1 or tool not in matches[0].get("snapshot_targets", []):
+        raise SnapError("estate is not entitled for this user and tool")
+    estate = matches[0]
+    targets = estate.get("snapshot_targets")
+    if not isinstance(targets, list) or not all(isinstance(t, str) for t in targets):
+        raise SnapError("context-policy targets must be a list of tools")
+    if manifest.get("target") != tool or manifest.get("data_class", estate.get("data_class")) != estate.get("data_class"):
+        raise SnapError("snapshot tool or classification mismatch")
+    allowed = estate.get("repos", [])
+    denies = estate.get("deny_globs", [])
+    if not isinstance(allowed, list) or not isinstance(denies, list) or not all(
+        isinstance(value, str) for value in allowed + denies
+    ):
+        raise SnapError("context-policy repo/deny lists malformed")
+    repos = manifest.get("repos", [])
+    if not isinstance(repos, list) or not repos:
+        raise SnapError("snapshot must name repositories")
+    names = set()
+    for repo in repos:
+        if not isinstance(repo, dict):
+            raise SnapError("malformed repository record")
+        origin = repo.get("origin", "")
+        name = repo.get("name", "")
+        if not isinstance(origin, str):
+            raise SnapError("malformed repository identity")
+        identity = origin
+        if origin.startswith("git@"):
+            identity = origin[4:].replace(":", "/", 1)
+        elif "://" in origin:
+            parts = urlsplit(origin)
+            if parts.username or parts.password or parts.query or parts.fragment:
+                raise SnapError("repository URL contains credentials or extra components")
+            identity = (parts.hostname or "") + parts.path
+        identity = identity.removesuffix(".git").rstrip("/")
+        # A repository identity must match its managed URL, never merely a basename.
+        if identity not in allowed or not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+", name):
+            raise SnapError("repository not in managed estate")
+        if name in names:
+            raise SnapError("duplicate repository")
+        names.add(name)
+        if any(fnmatch.fnmatchcase(str(origin).lower(), str(p).lower()) for p in denies):
+            raise SnapError("repository denied by context-policy")
+    for path in files:
+        if path.split("/", 1)[0] not in names:
+            raise SnapError("snapshot file outside declared repositories")
+        if any(fnmatch.fnmatchcase(path.lower(), str(p).lower()) for p in denies):
+            raise SnapError("snapshot path denied by context-policy")
+
+
+def cmd_receive(args) -> dict:
+    sid = check_id(args.id)
+    ttl = float(args.ttl_hours if args.ttl_hours is not None else DEFAULT_TTL_HOURS)
+    if not (0 < ttl <= MAX_TTL_HOURS):
+        raise SnapError(f"--ttl-hours must be in (0, {MAX_TTL_HOURS:g}]", 2)
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", args.manifest_sha256 or ""):
+        raise SnapError("--manifest-sha256 must be 64 hex characters", 2)
+    ROOT.mkdir(parents=True, exist_ok=True)
+    store = storage_info(ROOT)
+    if REQUIRE_TMPFS and store["fstype"] != "tmpfs":
+        raise SnapError(f"{ROOT} is on {store['fstype']}, not tmpfs: refusing to write code there "
+                        "(the volume must be an emptyDir with medium: Memory; under gVisor also the "
+                        "pod's dev.gvisor.spec.mount.snap.* annotations, else it shows as 9p)")
+    with Lock():
+        if (ROOT / sid).exists() or (meta_dir() / f"{sid}.json").exists():
+            raise SnapError(f"snapshot {sid} already exists")
+        if len(live_metas()) >= MAX_COUNT:
+            raise SnapError(f"already {MAX_COUNT} live snapshots (AA_SNAP_MAX_COUNT); "
+                            "take one down first (aa snapshot down ID)")
+        incoming = incoming_dir() / sid
+        if incoming.exists():
+            raise SnapError(f"an upload of {sid} is already in progress")
+        incoming.mkdir(parents=True)
+    try:
+        files = _extract(sys.stdin.buffer, incoming)
+        _verify(sid, files, args.manifest_sha256)
+        manifest = read_json(incoming / "MANIFEST.json")
+        if not manifest or manifest.get("snapshot_id") != sid:
+            raise SnapError("MANIFEST.json is unreadable or names another snapshot id")
+        rows = manifest.get("files", [])
+        if not isinstance(rows, list) or any(not isinstance(f, dict) or "path" not in f for f in rows):
+            raise SnapError("malformed manifest file list")
+        listed = {f["path"]: f for f in rows}
+        if len(listed) != len(rows):
+            raise SnapError("duplicate manifest file path")
+        extra = sorted(set(files) - set(listed))
+        missing = sorted(set(listed) - set(files))
+        if extra or missing:
+            raise SnapError(f"archive and MANIFEST disagree: {len(extra)} unlisted file(s) "
+                            f"{extra[:3]}, {len(missing)} missing {missing[:3]}")
+        for path, got in files.items():
+            want = listed[path]
+            if int(want.get("size", -1)) != got["size"] or want.get("blob") != got["blob"]:
+                raise SnapError(f"{path}: size or git blob id differs from MANIFEST")
+        authorize_manifest(manifest, files)
+        created = now()
+        expires = created + dt.timedelta(hours=ttl)
+        meta = {
+            "id": sid,
+            "estate": manifest.get("estate"),
+            "created": iso(created),
+            "expires": iso(expires),
+            "max_expires": iso(created + dt.timedelta(hours=MAX_TTL_HOURS)),
+            "ttl_hours": ttl,
+            "manifest_sha256": args.manifest_sha256.lower(),
+            "repos": [{"name": r.get("name"), "commit": r.get("commit"), "files": r.get("files"),
+                       "dirty": bool(r.get("dirty")), "worktree": bool(r.get("worktree"))}
+                      for r in manifest.get("repos", []) if isinstance(r, dict)],
+            "files": len(files),
+            "bytes": sum(f["size"] for f in files.values()),
+            "host": HOST,
+            "storage": store["fstype"],
+            "extends": [],
+        }
+        with Lock():
+            if (ROOT / sid).exists():
+                raise SnapError(f"snapshot {sid} appeared during the upload")
+            # counted again: two uploads that started together both passed the first check
+            if len(live_metas()) >= MAX_COUNT:
+                raise SnapError(f"already {MAX_COUNT} live snapshots (AA_SNAP_MAX_COUNT); "
+                                "another upload finished first; take one down first (aa snapshot down ID)")
+            write_json_atomic(meta_dir() / f"{sid}.json", meta)
+            os.replace(incoming, ROOT / sid)
+    except BaseException:
+        rmtree(incoming)
+        raise
+    log(f"received {sid}: {meta['files']} files, {meta['bytes']} bytes, expires {meta['expires']}")
+    return {"ok": True, "path": str(ROOT / sid), **meta}
+
+
+# --------------------------------------------------------------------------- #
+# destroy / reap
+# --------------------------------------------------------------------------- #
+def _destroy(sid: str, event: str, meta: dict | None) -> dict:
+    """Delete snapshot `sid` (caller holds the lock) and return its receipt."""
+    path = ROOT / sid
+    existed = path.exists()
+    rmtree(path)
+    mp = meta_dir() / f"{sid}.json"
+    if mp.exists():
+        mp.unlink()
+    leftovers = [p.name for p in ROOT.iterdir() if sid in p.name] if ROOT.is_dir() else []
+    receipt = {
+        "receipt": 1,
+        "snapshot_id": sid,
+        "event": event,                      # down | expired | orphan
+        "estate": (meta or {}).get("estate"),
+        "manifest_sha256": (meta or {}).get("manifest_sha256"),
+        "repos": [{"name": r.get("name"), "commit": r.get("commit")} for r in (meta or {}).get("repos", [])],
+        "files": (meta or {}).get("files"),
+        "bytes": (meta or {}).get("bytes"),
+        "created": (meta or {}).get("created"),
+        "expires": (meta or {}).get("expires"),
+        "destroyed": iso(now()),
+        "host": HOST,
+        "method": "recursive delete of the snapshot tree on a memory-backed emptyDir "
+                  "(tmpfs: no disk copy to erase); metadata file removed",
+        "checks": {
+            "tree_existed": existed,
+            "tree_absent": not path.exists(),
+            "meta_absent": not mp.exists(),
+            "no_entries_named_like_id": not leftovers,
+            "storage": storage_info(ROOT)["fstype"],
+        },
+        "not_covered": "copies outside this pod: Anthropic-side transcripts/retention of anything "
+                       "a session read, and the client-side MANIFEST copy in the aa config dir",
+    }
+    receipt["digest"] = digest(receipt)
+    write_json_atomic(receipts_dir() / f"{sid}.json", receipt)
+    _trim_receipts()
+    log(f"destroyed {sid} ({event})")
+    return receipt
+
+
+def _trim_receipts() -> None:
+    rd = receipts_dir()
+    if not rd.is_dir():
+        return
+    items = sorted(rd.glob("*.json"), key=lambda p: p.stat().st_mtime)
+    for p in items[:-MAX_RECEIPTS]:
+        p.unlink(missing_ok=True)
+
+
+def cmd_down(args) -> dict:
+    sid = check_id(args.id)
+    with Lock():
+        meta = read_json(meta_dir() / f"{sid}.json")
+        if meta is None and not (ROOT / sid).exists():
+            raise SnapError(f"no snapshot {sid}", 3)
+        return _destroy(sid, "down", meta)
+
+
+def reap_once() -> list[dict]:
+    done = []
+    with Lock():
+        t = now()
+        for meta in live_metas():
+            try:
+                expired = parse_iso(meta["expires"]) <= t
+                capped = parse_iso(meta.get("max_expires", meta["expires"])) <= t
+            except (KeyError, ValueError):
+                expired = capped = True
+            if expired or capped:
+                done.append(_destroy(meta["id"], "expired", meta))
+        if ROOT.is_dir():
+            known = {m["id"] for m in live_metas()}
+            for p in ROOT.iterdir():
+                if ID_RE.match(p.name) and p.name not in known:      # tree without metadata
+                    done.append(_destroy(p.name, "orphan", None))
+        inc = incoming_dir()
+        if inc.is_dir():
+            for p in inc.iterdir():
+                try:
+                    if time.time() - p.stat().st_mtime > STALE_INCOMING_S:
+                        rmtree(p)
+                        log(f"removed stale upload {p.name}")
+                except OSError:
+                    pass
+    return done
+
+
+def cmd_reap(args) -> dict:
+    return {"reaped": reap_once()}
+
+
+def cmd_extend(args) -> dict:
+    sid = check_id(args.id)
+    hours = float(args.hours)
+    if not (0 < hours <= HARD_MAX_TTL_HOURS):
+        raise SnapError("--hours must be in (0, 24]", 2)
+    with Lock():
+        mp = meta_dir() / f"{sid}.json"
+        meta = read_json(mp)
+        if meta is None:
+            raise SnapError(f"no snapshot {sid}", 3)
+        t = now()
+        old = parse_iso(meta["expires"])
+        cap = parse_iso(meta["max_expires"])
+        if old <= t:
+            raise SnapError(f"snapshot {sid} has already expired; the reaper deletes it", 3)
+        want = t + dt.timedelta(hours=hours)
+        new = min(want, cap)
+        capped = want > cap
+        if new > old:
+            meta["expires"] = iso(new)
+            meta.setdefault("extends", []).append({"at": iso(t), "hours": hours, "to": iso(new)})
+            write_json_atomic(mp, meta)
+            log(f"extended {sid} to {meta['expires']}" + (" (capped at created + 24 h)" if capped else ""))
+        return {"ok": True, "id": sid, "expires": meta["expires"], "previous": iso(old),
+                "changed": new > old, "capped": capped, "max_expires": meta["max_expires"]}
+
+
+def cmd_ls(args) -> dict:
+    t = now()
+    snaps = []
+    for m in live_metas():
+        try:
+            left = int((parse_iso(m["expires"]) - t).total_seconds())
+        except (KeyError, ValueError):
+            left = 0
+        snaps.append({**m, "seconds_left": max(left, 0), "present": (ROOT / m["id"]).is_dir()})
+    return {"snapshots": snaps, "receipts": pending_receipts(), "host": HOST,
+            "limits": {"max_ttl_hours": MAX_TTL_HOURS, "max_count": MAX_COUNT,
+                       "max_bytes": MAX_BYTES, "max_files": MAX_FILES},
+            "storage": storage_info(ROOT) if ROOT.exists() else {"path": str(ROOT)}}
+
+
+def cmd_ack(args) -> dict:
+    gone = []
+    for sid in args.ids:
+        check_id(sid)
+        p = receipts_dir() / f"{sid}.json"
+        if p.exists():
+            p.unlink()
+            gone.append(sid)
+    return {"acked": gone}
+
+
+def log(msg: str) -> None:
+    print(f"{iso(now())} aa-snapshot: {msg}", file=sys.stderr, flush=True)
+
+
+def cmd_serve(args) -> dict:
+    stop = {"flag": False}
+
+    def _term(*_):
+        stop["flag"] = True
+    signal.signal(signal.SIGTERM, _term)
+    signal.signal(signal.SIGINT, _term)
+    ROOT.mkdir(parents=True, exist_ok=True)
+    st = storage_info(ROOT)
+    log(f"reaper up: root {ROOT} on {st['fstype']}, max TTL {MAX_TTL_HOURS:g} h, "
+        f"pass every {REAP_SECONDS:g} s")
+    if REQUIRE_TMPFS and st["fstype"] != "tmpfs":
+        log(f"WARNING: {ROOT} is not tmpfs; `receive` will refuse uploads")
+    while not stop["flag"]:
+        try:
+            reap_once()
+        except Exception as exc:  # keep reaping; report
+            log(f"reap pass failed: {exc}")
+        end = time.monotonic() + REAP_SECONDS
+        while not stop["flag"] and time.monotonic() < end:
+            time.sleep(min(1.0, REAP_SECONDS))
+    log("reaper stopping (snapshots live only as long as this pod's memory)")
+    return {}
+
+
+# --------------------------------------------------------------------------- #
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="aa-snapshot", description=__doc__.split("\n\n")[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("receive", help="read a snapshot tar(.gz) from stdin")
+    r.add_argument("id")
+    r.add_argument("--ttl-hours", type=float, default=None)
+    r.add_argument("--manifest-sha256", required=True)
+    r.set_defaults(func=cmd_receive)
+    ls = sub.add_parser("ls")
+    ls.add_argument("--json", action="store_true")
+    ls.set_defaults(func=cmd_ls)
+    e = sub.add_parser("extend")
+    e.add_argument("id")
+    e.add_argument("--hours", type=float, default=4.0)
+    e.set_defaults(func=cmd_extend)
+    d = sub.add_parser("down")
+    d.add_argument("id")
+    d.set_defaults(func=cmd_down)
+    a = sub.add_parser("ack")
+    a.add_argument("ids", nargs="+")
+    a.set_defaults(func=cmd_ack)
+    rp = sub.add_parser("reap")
+    rp.add_argument("--json", action="store_true")
+    rp.set_defaults(func=cmd_reap)
+    s = sub.add_parser("serve")
+    s.set_defaults(func=cmd_serve)
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        out = args.func(args)
+    except SnapError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}), file=sys.stderr)
+        return exc.code
+    except (tarfile.TarError, OSError, EOFError) as exc:
+        print(json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), file=sys.stderr)
+        return 1
+    if args.cmd != "serve":
+        print(json.dumps(out, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

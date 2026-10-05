@@ -1,0 +1,11 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: ci-runner
+  labels:
+    app.kubernetes.io/part-of: {{PROJECT_NAME}}-arc-runners
+value: -100
+globalDefault: false
+preemptionPolicy: Never
+description: GitHub Actions ARC runner pods (arc-light, {{PROJECT_NAME}}-arc-heavy). Lower than default
+  so system pods win under pressure; never preempts.

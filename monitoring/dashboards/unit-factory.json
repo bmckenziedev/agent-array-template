@@ -1,0 +1,508 @@
+{
+  "uid": "agent-array-unit-factory",
+  "title": "Agent-array / useful unit factory",
+  "description": "Contract v1: empty ready queue, absent/stale telemetry, scrape outage and actual useful work stay distinct. No producer or telemetry deployment is implied.",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "tags": [
+    "agent-array",
+    "factory"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "Prometheus",
+          "value": "Prometheus"
+        }
+      },
+      {
+        "name": "node",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "label_values(kube_node_info, node)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Producer scrape: healthy / outage / absent",
+      "type": "stat",
+      "description": "No target (2) differs from a known failed scrape (0). Snapshot freshness is checked separately.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min(up{job=\"aa-factory\"}) or on() vector(2)",
+          "legendFormat": "{{lane}} {{node}} {{kind}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / absent telemetry",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OUTAGE: scrape failed"
+                },
+                "1": {
+                  "text": "Scrape healthy"
+                },
+                "2": {
+                  "text": "ABSENT: no producer target"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Queue snapshot freshness",
+      "type": "stat",
+      "description": "Fresh snapshot <=120 seconds old. Absent or stale is never displayed as an empty queue.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max(time() - aa_factory_snapshot_timestamp_seconds) < bool 120) or on() vector(2)",
+          "legendFormat": "{{lane}} {{node}} {{kind}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / absent telemetry",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "STALE telemetry"
+                },
+                "1": {
+                  "text": "Fresh snapshot"
+                },
+                "2": {
+                  "text": "ABSENT telemetry"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Ready work (0 = empty ready queue)",
+      "type": "stat",
+      "description": "Zero is a reported measurement. Total queued work may still be blocked.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (lane,node) (aa_factory_ready) and on (lane, node) aa_factory:telemetry:fresh",
+          "legendFormat": "{{lane}} {{node}} {{kind}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / absent telemetry"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Model serving scrape (awake nodes)",
+      "type": "stat",
+      "description": "Awake node with no healthy model scrape = outage/absent model telemetry; does not prove sleep.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "aa_factory:model:up or on(node) (0 * aa:gpu_node:active)",
+          "legendFormat": "{{lane}} {{node}} {{kind}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / absent telemetry",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "MODEL OUTAGE / no healthy scrape"
+                },
+                "1": {
+                  "text": "Model scrape healthy"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Queue / ready / inflight",
+      "type": "timeseries",
+      "description": "Total queue includes ready, inflight and waiting dependencies/retries. Legend includes metric name.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"aa_factory_queue_depth|aa_factory_ready|aa_factory_inflight\"} and on (lane, node) aa_factory:telemetry:fresh",
+          "legendFormat": "{{__name__}} {{lane}} {{node}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / absent telemetry"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Suspended state (owner-confirmed)",
+      "type": "stat",
+      "description": "Unknown power state omits the metric; cordoned/unreachable alone must not set it to one.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "aa_factory_node_suspended and on (lane, node) aa_factory:telemetry:fresh",
+          "legendFormat": "{{lane}} {{node}} {{kind}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / absent telemetry",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Confirmed awake"
+                },
+                "1": {
+                  "text": "Confirmed suspended"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Accepted / bounced / applied units per hour",
+      "type": "timeseries",
+      "description": "Organization service and host telemetry; missing optional exporters remain visible as unknown.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (lane,node,kind,event) (rate(aa_factory_units_total[1h])) * 3600",
+          "legendFormat": "{{event}} {{lane}} {{kind}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / absent telemetry"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Parse/apply failure share (>=10 attempts)",
+      "type": "timeseries",
+      "description": "No-data at zero or low denominator is intentional; no fabricated 0% success.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(aa_factory:format_failures:1h / aa_factory:attempts:1h) and on(lane,node,kind) (aa_factory:attempts:1h >= 10) and on (lane, node) aa_factory:telemetry:fresh",
+          "legendFormat": "{{lane}} {{node}} {{kind}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / absent telemetry",
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Attributed GPU seconds / second",
+      "type": "timeseries",
+      "description": "Exclusive lane occupancy time, not utilization or billed device time. Failures consume time too.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (lane,node) (rate(aa_factory_gpu_seconds_total[5m])) and on (lane, node) aa_factory:telemetry:fresh",
+          "legendFormat": "{{lane}} {{node}} {{kind}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / absent telemetry"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Accepted units per attributed GPU hour",
+      "type": "timeseries",
+      "description": "Output yield; accepted is not applied. No-data when no GPU time was observed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum by(lane,node) (increase(aa_factory_units_total{event=\"accepted\"}[1h])) / (sum by(lane,node) (increase(aa_factory_gpu_seconds_total[1h])) / 3600)) and on(lane,node) (sum by(lane,node) (increase(aa_factory_gpu_seconds_total[1h])) > 0) and on (lane, node) aa_factory:telemetry:fresh",
+          "legendFormat": "{{lane}} {{node}} {{kind}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / absent telemetry"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Owner-applied work, last 7d",
+      "type": "stat",
+      "description": "Organization service and host telemetry; missing optional exporters remain visible as unknown.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(lane,node,kind) (increase(aa_factory_units_total{event=\"applied\"}[7d]))",
+          "legendFormat": "{{lane}} {{node}} {{kind}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unknown / absent telemetry"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      }
+    }
+  ]
+}

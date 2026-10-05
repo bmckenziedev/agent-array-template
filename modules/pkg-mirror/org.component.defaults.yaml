@@ -1,0 +1,8 @@
+scope: modules
+name: pkg-mirror
+defaults:
+  enabled: false
+  npm_upstream: "https://registry.npmjs.org/"
+  pypi_upstream: "https://pypi.org/simple/"
+  storage: "30Gi"
+  upstream_cidrs: ["0.0.0.0/0"]

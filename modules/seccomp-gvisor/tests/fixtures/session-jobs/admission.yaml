@@ -1,0 +1,79 @@
+# Positive dry-run: plain busybox:1.36 Pod and Deployment without module labels are out of scope.
+# Positive in-scope: exact pod Localhost profile and no container overrides.
+# Negative dry-run: RuntimeDefault, Unconfined, other path, or per-container override.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: seccomp-pod
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: podSpec
+      expression: object.spec
+    - name: containers
+      expression: >-
+        variables.podSpec.containers + (has(variables.podSpec.initContainers) ? variables.podSpec.initContainers : []) + (has(variables.podSpec.ephemeralContainers) ? variables.podSpec.ephemeralContainers : [])
+  validations:
+    - expression: variables.containers.all(c, !has(c.securityContext) || !has(c.securityContext.privileged) || !c.securityContext.privileged)
+      message: "containers must not be privileged"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: seccomp-pod
+spec:
+  policyName: seccomp-pod
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: example-session-jobs
+    objectSelector:
+      matchLabels:
+        example.org/seccomp-gvisor: "true"
+---
+# Positive dry-run: plain busybox:1.36 Pod and Deployment without module labels are out of scope.
+# Positive in-scope: exact pod Localhost profile and no container overrides.
+# Negative dry-run: RuntimeDefault, Unconfined, other path, or per-container override.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: seccomp-job
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [jobs]
+  variables:
+    - name: podSpec
+      expression: object.spec.template.spec
+    - name: containers
+      expression: >-
+        variables.podSpec.containers + (has(variables.podSpec.initContainers) ? variables.podSpec.initContainers : []) + (has(variables.podSpec.ephemeralContainers) ? variables.podSpec.ephemeralContainers : [])
+  validations:
+    - expression: variables.containers.all(c, !has(c.securityContext) || !has(c.securityContext.privileged) || !c.securityContext.privileged)
+      message: "containers must not be privileged"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: seccomp-job
+spec:
+  policyName: seccomp-job
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: example-session-jobs
+    objectSelector:
+      matchLabels:
+        example.org/seccomp-gvisor: "true"

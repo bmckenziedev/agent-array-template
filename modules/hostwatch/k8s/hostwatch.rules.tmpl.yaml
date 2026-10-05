@@ -1,0 +1,200 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: '{{PROJECT_NAME}}-hostwatch'
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: alerts
+    release: kps
+spec:
+  groups:
+  - name: agent-array.hostwatch
+    rules:
+    - alert: HostRebootPendingTooLong
+      expr: "(\n  (time() - aa_reboot_required_since_timestamp_seconds{job=\"node-exporter\"})\n  and on (instance)\n\
+        \  (aa_reboot_required{job=\"node-exporter\"} == 1)\n)\n* on (instance) group_left (host) aa:node:info\n\
+        > 7 * 86400\n"
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: HostRebootPendingTooLong
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: HostSecurityUpdatesPendingTooLong
+      expr: "(\n  (time() - aa_security_updates_since_timestamp_seconds{job=\"node-exporter\"})\n  and on (instance)\n\
+        \  (aa_security_updates_pending{job=\"node-exporter\"} > 0)\n)\n* on (instance) group_left (host) aa:node:info\n\
+        > 3 * 86400\n"
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: HostSecurityUpdatesPendingTooLong
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: HostRaidDegraded
+      expr: 'aa_md_degraded{job="node-exporter"}
+
+        * on (instance) group_left (host) aa:node:info
+
+        == 1
+
+        '
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: HostRaidDegraded
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: HostSmartFailing
+      expr: 'aa_smart_healthy{job="node-exporter"}
+
+        * on (instance) group_left (host) aa:node:info
+
+        == 0
+
+        '
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: HostSmartFailing
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: HostNvmeWearHigh
+      expr: 'aa_nvme_percentage_used{job="node-exporter"}
+
+        * on (instance) group_left (host) aa:node:info
+
+        > 80
+
+        '
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: HostNvmeWearHigh
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: HostCertificateExpiring
+      expr: '(aa_k3s_certificate_not_after_timestamp_seconds{job="node-exporter"} - time())
+
+        * on (instance) group_left (host) aa:node:info
+
+        < 30 * 86400
+
+        '
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: HostCertificateExpiring
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: HostCertificateExpiring
+      expr: '(aa_k3s_certificate_not_after_timestamp_seconds{job="node-exporter"} - time())
+
+        * on (instance) group_left (host) aa:node:info
+
+        < 7 * 86400
+
+        '
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        summary: HostCertificateExpiring
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: TailscaleKeyExpiring
+      expr: '((aa_tailscale_key_expiry_timestamp_seconds{job="node-exporter"} > 0) - time())
+
+        * on (instance) group_left (host) aa:node:info
+
+        < 30 * 86400
+
+        '
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: TailscaleKeyExpiring
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: TailscaleKeyExpiring
+      expr: '((aa_tailscale_key_expiry_timestamp_seconds{job="node-exporter"} > 0) - time())
+
+        * on (instance) group_left (host) aa:node:info
+
+        < 7 * 86400
+
+        '
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        summary: TailscaleKeyExpiring
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: CredentialExpiring
+      expr: '(min by (secret_namespace, secret) (aa_credential_expiry_timestamp_seconds{job="node-exporter"}) -
+        time())
+
+        < 30 * 86400
+
+        '
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: CredentialExpiring
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: CredentialExpiring
+      expr: '(min by (secret_namespace, secret) (aa_credential_expiry_timestamp_seconds{job="node-exporter"}) -
+        time())
+
+        < 7 * 86400
+
+        '
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        summary: CredentialExpiring
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: CredentialExpiryAnnotationInvalid
+      expr: 'max by (secret_namespace, secret) (aa_credential_expiry_invalid{job="node-exporter"}) == 1
+
+        '
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: CredentialExpiryAnnotationInvalid
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: HostClockUnsynchronized
+      expr: 'aa_time_synchronized{job="node-exporter"}
+
+        * on (instance) group_left (host) aa:node:info
+
+        == 0
+
+        '
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: HostClockUnsynchronized
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: HostwatchCollectorStale
+      expr: "(\n  (time() - aa_hostwatch_last_success_timestamp_seconds{job=\"node-exporter\"})\n  * on (instance)\
+        \ group_left (host) aa:node:info\n  > 30 * 60\n)\nor\n(\n  aa:node:info\n  unless on (instance)\n  aa_hostwatch_last_success_timestamp_seconds{job=\"\
+        node-exporter\"}\n)\n"
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: HostwatchCollectorStale
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: HostwatchCheckFailing
+      expr: "label_replace(\n  {__name__=~\"aa_(security_updates|unattended_upgrades|md|smart|nvme|time_sync|k3s_certificates|tailscale|credentials)_up\"\
+        , job=\"node-exporter\"} == 0,\n  \"check\", \"$1\", \"__name__\", \"aa_(.+)_up\"\n)\n"
+      for: 1h
+      labels:
+        severity: warning
+      annotations:
+        summary: HostwatchCheckFailing
+        description: Inspect the alert labels and metric history before remediation.

@@ -1,0 +1,13 @@
+{
+  "name": "aa-factory-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pinned gate/packer tooling for the agent-array factory engine (parser + type checker). Parse-only on the host; anything that executes model output runs in an isolated gate container.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "acorn": "8.18.0",
+    "acorn-walk": "8.3.5",
+    "typescript": "7.0.2",
+    "@types/node": "22.20.5"
+  }
+}

@@ -1,0 +1,13 @@
+.git
+rendered
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+**/venv
+.ci-venvs
+**/node_modules
+**/tests/fixtures
+**/fixtures
+docs

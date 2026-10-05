@@ -1,0 +1,166 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "litellm",
+    "namespace": "{{NS_LLM}}",
+    "labels": {
+      "app.kubernetes.io/name": "litellm",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "llm"
+    }
+  },
+  "spec": {
+    "replicas": 1,
+    "selector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "litellm"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/name": "litellm",
+          "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+          "app.kubernetes.io/component": "llm"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 1000,
+          "runAsGroup": 1000,
+          "fsGroup": 1000,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "litellm",
+            "image": "ghcr.io/berriai/litellm-database:v1.104.0@sha256:fbe28229d2d02181c0a7d9df9599de614b491f3d897d2d7da18404f088310218",
+            "ports": [
+              {
+                "containerPort": 4000
+              }
+            ],
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "256Mi"
+              },
+              "limits": {
+                "cpu": "2",
+                "memory": "2Gi"
+              }
+            },
+            "volumeMounts": [
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              },
+              {
+                "name": "config",
+                "mountPath": "/app/config.yaml",
+                "subPath": "config.yaml",
+                "readOnly": true
+              }
+            ],
+            "args": [
+              "--config",
+              "/app/config.yaml",
+              "--port",
+              "4000"
+            ],
+            "env": [
+              {
+                "name": "LITELLM_MASTER_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "litellm-env",
+                    "key": "LITELLM_MASTER_KEY"
+                  }
+                }
+              },
+              {
+                "name": "LITELLM_SALT_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "litellm-env",
+                    "key": "LITELLM_SALT_KEY"
+                  }
+                }
+              },
+              {
+                "name": "DATABASE_URL",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "litellm-env",
+                    "key": "DATABASE_URL"
+                  }
+                }
+              },
+              {
+                "name": "REDIS_PASSWORD",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "litellm-redis",
+                    "key": "REDIS_PASSWORD"
+                  }
+                }
+              },
+              {
+                "name": "REDIS_HOST",
+                "value": "litellm-redis"
+              },
+              {
+                "name": "REDIS_PORT",
+                "value": "6379"
+              },
+              {
+                "name": "LITELLM_LOCAL_MODEL_COST_MAP",
+                "value": "True"
+              }
+            ],
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/health/readiness",
+                "port": 4000
+              },
+              "initialDelaySeconds": 20
+            },
+            "livenessProbe": {
+              "httpGet": {
+                "path": "/health/liveliness",
+                "port": 4000
+              },
+              "initialDelaySeconds": 60
+            }
+          }
+        ],
+        "volumes": [
+          {
+            "name": "tmp",
+            "emptyDir": {}
+          },
+          {
+            "name": "config",
+            "configMap": {
+              "name": "litellm-config"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

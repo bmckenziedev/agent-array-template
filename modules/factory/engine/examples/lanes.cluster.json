@@ -1,0 +1,36 @@
+{
+  "lanes": {
+    "lane-gpu-a": {
+      "local": true,
+      "node": "gpu-a",
+      "gpu": "example-24gb",
+      "tier": "a",
+      "concurrency": 1,
+      "ctx": 16384,
+      "prompt_cap": 8192,
+      "endpoint": {
+        "base_url": "http://lane-gpu-a.agent-array-models.svc.cluster.local:8000",
+        "api": "llamacpp",
+        "model": "local-code-a",
+        "template": "chatml-nothink",
+        "timeout_s": 300
+      }
+    },
+    "lane-gpu-b": {
+      "local": true,
+      "node": "gpu-b",
+      "gpu": "example-24gb",
+      "tier": "b",
+      "concurrency": 1,
+      "ctx": 16384,
+      "prompt_cap": 8192,
+      "endpoint": {
+        "base_url": "http://lane-gpu-b.agent-array-models.svc.cluster.local:8000",
+        "api": "llamacpp",
+        "model": "local-code-b",
+        "template": "chatml-nothink",
+        "timeout_s": 300
+      }
+    }
+  }
+}

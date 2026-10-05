@@ -1,0 +1,9 @@
+Host backup-target
+  HostName {{BACKUP_SFTP_HOST}}
+  User {{BACKUP_SFTP_USER}}
+  Port {{BACKUP_SFTP_PORT}}
+  IdentityFile /etc/cluster-ops/backup-key
+  IdentitiesOnly yes
+  BatchMode yes
+  StrictHostKeyChecking yes
+  UserKnownHostsFile /etc/cluster-ops/known_hosts

@@ -1,0 +1,1257 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-network
+  namespace: "{{NS_MONITORING}}"
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+    app.kubernetes.io/component: dashboards
+data:
+  network.json: |-
+    {
+      "uid": "agent-array-network",
+      "title": "agent-array / Network",
+      "description": "Per-interface traffic, the network network interface month-to-date total against its 1 TB budget, and tailscale0.",
+      "tags": [
+        "agent-array",
+        "network",
+        "vswitch",
+        "tailscale"
+      ],
+      "schemaVersion": 39,
+      "version": 1,
+      "editable": true,
+      "graphTooltip": 1,
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "refresh": "30s",
+      "timezone": "",
+      "fiscalYearStartMonth": 0,
+      "liveNow": false,
+      "weekStart": "",
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "label": "Data source",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": {},
+            "hide": 0,
+            "refresh": 1,
+            "regex": "",
+            "includeAll": false,
+            "multi": false
+          },
+          {
+            "name": "host",
+            "label": "Host",
+            "type": "query",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "query": "label_values(aa:node:info, host)",
+            "definition": "label_values(aa:node:info, host)",
+            "refresh": 2,
+            "regex": "",
+            "sort": 1,
+            "multi": true,
+            "includeAll": true,
+            "hide": 0,
+            "current": {
+              "selected": true,
+              "text": [
+                "All"
+              ],
+              "value": [
+                "$__all"
+              ]
+            },
+            "options": []
+          },
+          {
+            "name": "device",
+            "label": "Interface",
+            "type": "query",
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "query": "label_values(node_network_receive_bytes_total{job=\"node-exporter\", device!~\"lo|veth.*|cni.*|flannel.*|cali.*|docker.*|br-.*|kube-.*|virbr.*|tap.*\"}, device)",
+            "definition": "label_values(node_network_receive_bytes_total{job=\"node-exporter\", device!~\"lo|veth.*|cni.*|flannel.*|cali.*|docker.*|br-.*|kube-.*|virbr.*|tap.*\"}, device)",
+            "refresh": 2,
+            "regex": "",
+            "sort": 1,
+            "multi": true,
+            "includeAll": true,
+            "hide": 0,
+            "current": {
+              "selected": true,
+              "text": [
+                "All"
+              ],
+              "value": [
+                "$__all"
+              ]
+            },
+            "options": []
+          },
+          {
+            "name": "node",
+            "type": "query",
+            "datasource": "${datasource}",
+            "query": "label_values(kube_node_info, node)",
+            "refresh": 2,
+            "includeAll": true,
+            "allValue": ".*",
+            "multi": true
+          }
+        ]
+      },
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "links": [
+        {
+          "title": "agent-array dashboards",
+          "type": "dashboards",
+          "tags": [
+            "agent-array"
+          ],
+          "asDropdown": true,
+          "includeVars": false,
+          "keepTime": true,
+          "icon": "external link",
+          "targetBlank": false,
+          "tooltip": "",
+          "url": ""
+        }
+      ],
+      "panels": [
+        {
+          "type": "row",
+          "title": "network network interface: month-to-date vs the 1 TB budget",
+          "collapsed": false,
+          "id": 1,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "panels": []
+        },
+        {
+          "type": "text",
+          "title": "",
+          "options": {
+            "mode": "markdown",
+            "content": "Missing metrics represent unknown state. Confirm exporter health and module enablement before remediation.",
+            "code": {
+              "language": "plaintext",
+              "showLineNumbers": false,
+              "showMiniMap": false
+            }
+          },
+          "id": 2,
+          "gridPos": {
+            "h": 2,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Days left in the month (UTC)",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "days_in_month() - (day_of_month() - 1 + hour() / 24 + minute() / 1440)",
+              "legendFormat": "days left",
+              "range": false,
+              "instant": true,
+              "editorMode": "code"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": [],
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto",
+            "wideLayout": true,
+            "showPercentChange": false
+          },
+          "id": 6,
+          "gridPos": {
+            "h": 5,
+            "w": 6,
+            "x": 18,
+            "y": 3
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Interface throughput (rx +, tx -)",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host, device) (rate(node_network_receive_bytes_total{job=\"node-exporter\", device=~\"$device\"}[$__rate_interval]) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"})) * 8",
+              "legendFormat": "{{host}} {{device}} rx",
+              "range": true,
+              "instant": false,
+              "editorMode": "code"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host, device) (rate(node_network_transmit_bytes_total{job=\"node-exporter\", device=~\"$device\"}[$__rate_interval]) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"})) * 8",
+              "legendFormat": "{{host}} {{device}} tx",
+              "range": true,
+              "instant": false,
+              "editorMode": "code"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bps",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false,
+                "gradientMode": "none",
+                "axisSoftMin": 0,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/ tx$/"
+                },
+                "properties": [
+                  {
+                    "id": "custom.transform",
+                    "value": "negative-Y"
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ],
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "id": 8,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 8
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Interface traffic per day (last 14 days)",
+          "description": "Rolling 24h increase sampled once a day from raw counters (max 15 days of retention).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host) ((increase(node_network_receive_bytes_total{job=\"node-exporter\", device=~\"$device\"}[1d]) + increase(node_network_transmit_bytes_total{job=\"node-exporter\", device=~\"$device\"}[1d])) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"}))",
+              "legendFormat": "{{host}}",
+              "range": true,
+              "instant": false,
+              "editorMode": "code",
+              "interval": "1d"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "decbytes",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "bars",
+                "lineWidth": 1,
+                "fillOpacity": 80,
+                "showPoints": "never",
+                "spanNulls": false,
+                "gradientMode": "none",
+                "axisSoftMin": 0,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "mean",
+                "max",
+                "sum"
+              ],
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "timeFrom": "14d",
+          "id": 9,
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 16
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Interface traffic in the selected time range",
+          "description": "Cross-check from raw counters over the dashboard time range (only valid within the 15-day retention).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host) ((increase(node_network_receive_bytes_total{job=\"node-exporter\", device=~\"$device\"}[$__range]) + increase(node_network_transmit_bytes_total{job=\"node-exporter\", device=~\"$device\"}[$__range])) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"}))",
+              "legendFormat": "{{host}}",
+              "range": false,
+              "instant": true,
+              "editorMode": "code"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "decbytes",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": [],
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto",
+            "wideLayout": true,
+            "showPercentChange": false
+          },
+          "id": 10,
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 16
+          }
+        },
+        {
+          "type": "row",
+          "title": "Tailscale (tailscale0)",
+          "collapsed": false,
+          "id": 11,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 23
+          },
+          "panels": []
+        },
+        {
+          "type": "timeseries",
+          "title": "tailscale0 throughput (rx +, tx -)",
+          "description": "All k8s east-west traffic (flannel over the tailnet) plus node-to-node tailnet traffic. When the network path is direct, $node <-> $node WireGuard packets also appear on the Interface interface.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host) (rate(node_network_receive_bytes_total{job=\"node-exporter\", device=\"tailscale0\"}[$__rate_interval]) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"})) * 8",
+              "legendFormat": "{{host}} rx",
+              "range": true,
+              "instant": false,
+              "editorMode": "code"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host) (rate(node_network_transmit_bytes_total{job=\"node-exporter\", device=\"tailscale0\"}[$__rate_interval]) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"})) * 8",
+              "legendFormat": "{{host}} tx",
+              "range": true,
+              "instant": false,
+              "editorMode": "code"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bps",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false,
+                "gradientMode": "none",
+                "axisSoftMin": 0,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/ tx$/"
+                },
+                "properties": [
+                  {
+                    "id": "custom.transform",
+                    "value": "negative-Y"
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ],
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "id": 12,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 24
+          }
+        },
+        {
+          "type": "stat",
+          "title": "tailscale0 traffic in the selected time range",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host) ((increase(node_network_receive_bytes_total{job=\"node-exporter\", device=\"tailscale0\"}[$__range]) + increase(node_network_transmit_bytes_total{job=\"node-exporter\", device=\"tailscale0\"}[$__range])) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"}))",
+              "legendFormat": "{{host}}",
+              "range": false,
+              "instant": true,
+              "editorMode": "code"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "decbytes",
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": [],
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "orientation": "auto",
+            "wideLayout": true,
+            "showPercentChange": false
+          },
+          "id": 13,
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 12,
+            "y": 24
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "tailscale0 errors and drops",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host) ((rate(node_network_receive_errs_total{job=\"node-exporter\", device=\"tailscale0\"}[$__rate_interval]) + rate(node_network_receive_drop_total{job=\"node-exporter\", device=\"tailscale0\"}[$__rate_interval])) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"}))",
+              "legendFormat": "{{host}} rx",
+              "range": true,
+              "instant": false,
+              "editorMode": "code"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host) ((rate(node_network_transmit_errs_total{job=\"node-exporter\", device=\"tailscale0\"}[$__rate_interval]) + rate(node_network_transmit_drop_total{job=\"node-exporter\", device=\"tailscale0\"}[$__rate_interval])) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"}))",
+              "legendFormat": "{{host}} tx",
+              "range": true,
+              "instant": false,
+              "editorMode": "code"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "pps",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false,
+                "gradientMode": "none",
+                "axisSoftMin": 0,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ],
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "id": 14,
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 18,
+            "y": 24
+          }
+        },
+        {
+          "type": "row",
+          "title": "All interfaces",
+          "collapsed": false,
+          "id": 15,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 32
+          },
+          "panels": []
+        },
+        {
+          "type": "timeseries",
+          "title": "Throughput per interface (rx +, tx -)",
+          "description": "Filtered by the Host and Interface variables (pod veths, cni0 and flannel.1 are excluded from the list).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host, device) (rate(node_network_receive_bytes_total{job=\"node-exporter\", device=~\"$device\"}[$__rate_interval]) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"})) * 8",
+              "legendFormat": "{{host}} {{device}} rx",
+              "range": true,
+              "instant": false,
+              "editorMode": "code"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host, device) (rate(node_network_transmit_bytes_total{job=\"node-exporter\", device=~\"$device\"}[$__rate_interval]) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"})) * 8",
+              "legendFormat": "{{host}} {{device}} tx",
+              "range": true,
+              "instant": false,
+              "editorMode": "code"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bps",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false,
+                "gradientMode": "none",
+                "axisSoftMin": 0,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/ tx$/"
+                },
+                "properties": [
+                  {
+                    "id": "custom.transform",
+                    "value": "negative-Y"
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ],
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "id": 16,
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 33
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Errors and drops per interface",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host, device) ((rate(node_network_receive_errs_total{job=\"node-exporter\", device=~\"$device\"}[$__rate_interval]) + rate(node_network_receive_drop_total{job=\"node-exporter\", device=~\"$device\"}[$__rate_interval])) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"}))",
+              "legendFormat": "{{host}} {{device}} rx",
+              "range": true,
+              "instant": false,
+              "editorMode": "code"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host, device) ((rate(node_network_transmit_errs_total{job=\"node-exporter\", device=~\"$device\"}[$__rate_interval]) + rate(node_network_transmit_drop_total{job=\"node-exporter\", device=~\"$device\"}[$__rate_interval])) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"}))",
+              "legendFormat": "{{host}} {{device}} tx",
+              "range": true,
+              "instant": false,
+              "editorMode": "code"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "pps",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false,
+                "gradientMode": "none",
+                "axisSoftMin": 0,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ],
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "id": 17,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 42
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "TCP retransmitted segments",
+          "description": "Retransmitted share of sent TCP segments. A rise after a network change often means an MTU problem (the Interface is MTU 1400, tailscale0 1280).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (host) (rate(node_netstat_Tcp_RetransSegs{job=\"node-exporter\"}[$__rate_interval]) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"})) / sum by (host) (rate(node_netstat_Tcp_OutSegs{job=\"node-exporter\"}[$__rate_interval]) * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"}))",
+              "legendFormat": "{{host}}",
+              "range": true,
+              "instant": false,
+              "editorMode": "code"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never",
+                "spanNulls": false,
+                "gradientMode": "none",
+                "axisSoftMin": 0,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "min": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ],
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "id": 18,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 42
+          }
+        },
+        {
+          "type": "table",
+          "title": "Interfaces",
+          "description": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (host, device, operstate, duplex) (node_network_info{job=\"node-exporter\", device=~\"$device\"} * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"}))",
+              "legendFormat": "__auto",
+              "range": false,
+              "instant": true,
+              "editorMode": "code",
+              "format": "table"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (host, device) (node_network_up{job=\"node-exporter\", device=~\"$device\"} * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"}))",
+              "legendFormat": "__auto",
+              "range": false,
+              "instant": true,
+              "editorMode": "code",
+              "format": "table"
+            },
+            {
+              "refId": "C",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (host, device) (node_network_mtu_bytes{job=\"node-exporter\", device=~\"$device\"} * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"}))",
+              "legendFormat": "__auto",
+              "range": false,
+              "instant": true,
+              "editorMode": "code",
+              "format": "table"
+            },
+            {
+              "refId": "D",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (host, device) (node_network_speed_bytes{job=\"node-exporter\", device=~\"$device\"} * on (instance) group_left (host) max by (instance, host) (aa:node:info{host=~\"$host\"})) * 8",
+              "legendFormat": "__auto",
+              "range": false,
+              "instant": true,
+              "editorMode": "code",
+              "format": "table"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value #A": true
+                },
+                "renameByName": {
+                  "host": "Host",
+                  "device": "Interface",
+                  "operstate": "Oper state",
+                  "duplex": "Duplex",
+                  "Value #B": "Up",
+                  "Value #C": "MTU",
+                  "Value #D": "Link speed"
+                },
+                "indexByName": {
+                  "host": 0,
+                  "device": 1,
+                  "operstate": 2,
+                  "Value #B": 3,
+                  "Value #C": 4,
+                  "Value #D": 5,
+                  "duplex": 6
+                }
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false,
+                "filterable": false
+              },
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "mappings": []
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Up"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "1": {
+                            "text": "up",
+                            "color": "green",
+                            "index": 0
+                          },
+                          "0": {
+                            "text": "down",
+                            "color": "red",
+                            "index": 1
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Link speed"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "bps"
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {
+              "show": false,
+              "reducer": [
+                "sum"
+              ],
+              "fields": "",
+              "countRows": false
+            },
+            "sortBy": [
+              {
+                "displayName": "Host",
+                "desc": false
+              }
+            ]
+          },
+          "id": 19,
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 50
+          }
+        }
+      ]
+    }

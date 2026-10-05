@@ -1,0 +1,123 @@
+# Server dry-runs (tests/live/check_admission.py): positives FIRST.
+# Positive: plain busybox:1.36 Pod, containers only; plain Deployment using that PodSpec.
+# Negative: NodePort, LoadBalancer, externalIPs; hostPort; privileged/hostPID/hostIPC/
+# hostNetwork/hostPath, direct nodeName, unmasked proc, SYS_ADMIN; forged exporter.
+# Run as Argo application-controller and platform-admin; any unexpected result fails.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{PROJECT_NAME}}-monitoring-host-access
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups: [""]
+      apiVersions: [v1]
+      operations: [CREATE, UPDATE]
+      resources: [pods, pods/ephemeralcontainers]
+    - apiGroups: [apps]
+      apiVersions: [v1]
+      operations: [CREATE, UPDATE]
+      resources: [deployments, statefulsets, daemonsets, replicasets]
+    - apiGroups: [batch]
+      apiVersions: [v1]
+      operations: [CREATE, UPDATE]
+      resources: [jobs, cronjobs]
+  matchConditions:
+  - name: monitoring-or-operator
+    expression: >-
+      (has(object.metadata.namespace) && object.metadata.namespace == '{{NS_MONITORING}}') ||
+      request.userInfo.username == 'system:serviceaccount:{{NS_MONITORING}}:kps-operator'
+  variables:
+  - name: podSpec
+    expression: >-
+      object.kind == 'Pod' ? object.spec :
+      (object.kind == 'CronJob' ? object.spec.jobTemplate.spec.template.spec : object.spec.template.spec)
+  - name: exporterIdentity
+    expression: >-
+      has(object.metadata.namespace) && object.metadata.namespace == '{{NS_MONITORING}}' &&
+      has(variables.podSpec.serviceAccountName) && variables.podSpec.serviceAccountName == 'kps-prometheus-node-exporter' &&
+      ((object.kind == 'DaemonSet' && object.metadata.name == 'kps-prometheus-node-exporter' &&
+        request.userInfo.username != 'system:serviceaccount:{{NS_MONITORING}}:kps-operator') ||
+       (object.kind == 'Pod' && request.userInfo.username == 'system:serviceaccount:kube-system:daemon-set-controller' &&
+        has(object.metadata.ownerReferences) && object.metadata.ownerReferences.exists(o,
+          o.kind == 'DaemonSet' && o.name == 'kps-prometheus-node-exporter' && has(o.controller) && o.controller)))
+  validations:
+  - expression: >-
+      (!has(variables.podSpec.hostIPC) || !variables.podSpec.hostIPC) &&
+      (!has(variables.podSpec.nodeName) || variables.podSpec.nodeName == '' ||
+       (object.kind == 'Pod' && request.operation == 'UPDATE' && has(oldObject.spec) &&
+        has(oldObject.spec.nodeName) && variables.podSpec.nodeName == oldObject.spec.nodeName)) &&
+      variables.podSpec.containers.all(c,
+        (!has(c.securityContext) ||
+         ((!has(c.securityContext.privileged) || !c.securityContext.privileged) &&
+          (!has(c.securityContext.procMount) || c.securityContext.procMount == 'Default') &&
+          (!has(c.securityContext.capabilities) || !has(c.securityContext.capabilities.add) ||
+           c.securityContext.capabilities.add.all(a, a in ['CHOWN', 'DAC_OVERRIDE', 'NET_BIND_SERVICE'])))) &&
+        (!has(c.ports) || c.ports.all(p, !has(p.hostPort) || p.hostPort == 0))) &&
+      (!has(variables.podSpec.initContainers) || variables.podSpec.initContainers.all(c,
+        (!has(c.securityContext) ||
+         ((!has(c.securityContext.privileged) || !c.securityContext.privileged) &&
+          (!has(c.securityContext.procMount) || c.securityContext.procMount == 'Default') &&
+          (!has(c.securityContext.capabilities) || !has(c.securityContext.capabilities.add) ||
+           c.securityContext.capabilities.add.all(a, a in ['CHOWN', 'DAC_OVERRIDE', 'NET_BIND_SERVICE'])))) &&
+        (!has(c.ports) || c.ports.all(p, !has(p.hostPort) || p.hostPort == 0)))) &&
+      (!has(variables.podSpec.ephemeralContainers) || variables.podSpec.ephemeralContainers.all(c,
+        (!has(c.securityContext) ||
+         ((!has(c.securityContext.privileged) || !c.securityContext.privileged) &&
+          (!has(c.securityContext.procMount) || c.securityContext.procMount == 'Default') &&
+          (!has(c.securityContext.capabilities) || !has(c.securityContext.capabilities.add) ||
+           c.securityContext.capabilities.add.all(a, a in ['CHOWN', 'DAC_OVERRIDE', 'NET_BIND_SERVICE'])))) &&
+        (!has(c.ports) || c.ports.all(p, !has(p.hostPort) || p.hostPort == 0))))
+    message: "Monitoring workloads may not use privileged containers, hostIPC, direct nodeName, hostPort, unmasked proc or added host capabilities"
+  - expression: >-
+      ((!has(variables.podSpec.hostPID) || !variables.podSpec.hostPID) &&
+       (!has(variables.podSpec.hostNetwork) || !variables.podSpec.hostNetwork) &&
+       (!has(variables.podSpec.volumes) || variables.podSpec.volumes.all(v, !has(v.hostPath)))) ||
+      (variables.exporterIdentity &&
+       has(variables.podSpec.automountServiceAccountToken) && !variables.podSpec.automountServiceAccountToken &&
+       has(variables.podSpec.securityContext) &&
+       has(variables.podSpec.securityContext.runAsUser) && variables.podSpec.securityContext.runAsUser == 65534 &&
+       has(variables.podSpec.securityContext.runAsGroup) && variables.podSpec.securityContext.runAsGroup == 65534 &&
+       has(variables.podSpec.securityContext.runAsNonRoot) && variables.podSpec.securityContext.runAsNonRoot &&
+       (!has(variables.podSpec.securityContext.fsGroup) || variables.podSpec.securityContext.fsGroup == 65534) &&
+       (!has(variables.podSpec.securityContext.supplementalGroups) ||
+        variables.podSpec.securityContext.supplementalGroups.all(g, g == 65534)) &&
+       (!has(variables.podSpec.initContainers) || size(variables.podSpec.initContainers) == 0) &&
+       (!has(variables.podSpec.ephemeralContainers) || size(variables.podSpec.ephemeralContainers) == 0) &&
+       size(variables.podSpec.containers) == 1 && variables.podSpec.containers.all(c,
+         c.name == 'node-exporter' &&
+         c.image == 'quay.io/prometheus/node-exporter:v1.12.1-distroless@sha256:8c9bac11973b94b59be88d6e11fee4429aa743c8846cdc75d65b18db33f6a106' &&
+         !has(c.command) && has(c.securityContext) &&
+         (!has(c.securityContext.capabilities) || !has(c.securityContext.capabilities.add) ||
+          size(c.securityContext.capabilities.add) == 0) &&
+         (!has(c.securityContext.runAsUser) || c.securityContext.runAsUser == 65534) &&
+         (!has(c.securityContext.runAsGroup) || c.securityContext.runAsGroup == 65534) &&
+         (!has(c.securityContext.runAsNonRoot) || c.securityContext.runAsNonRoot) &&
+         has(c.securityContext.readOnlyRootFilesystem) && c.securityContext.readOnlyRootFilesystem &&
+         has(c.volumeMounts) && c.volumeMounts.all(m,
+           has(m.readOnly) && m.readOnly &&
+           ((!has(m.mountPropagation) || m.mountPropagation == 'None') ||
+            (m.name == 'root' && m.mountPropagation == 'HostToContainer')) &&
+           ((m.name == 'root' && m.mountPath == '/host/root') ||
+            (m.name == 'proc' && m.mountPath == '/host/proc') ||
+            (m.name == 'sys' && m.mountPath == '/host/sys')))) &&
+       has(variables.podSpec.volumes) && size(variables.podSpec.volumes) == 3 &&
+       variables.podSpec.volumes.all(v, has(v.hostPath) && has(v.hostPath.path) &&
+         ((v.name == 'root' && v.hostPath.path == '/') ||
+          (v.name == 'proc' && v.hostPath.path == '/proc') ||
+          (v.name == 'sys' && v.hostPath.path == '/sys'))))
+    message: "hostPID, hostNetwork and hostPath are reserved for the pinned non-root, read-only node-exporter DaemonSet and its controller-created Pods"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "{{PROJECT_NAME}}-monitoring-host-access"
+spec:
+  policyName: "{{PROJECT_NAME}}-monitoring-host-access"
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: Exists

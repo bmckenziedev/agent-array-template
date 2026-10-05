@@ -1,0 +1,134 @@
+rule_files:
+- ../rules/ops.rules.yaml
+- ../rules/ci.rules.yaml
+- ../rules/node-cluster.rules.yaml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: argocd_app_info{job="argocd-application-controller",name="aa-60-panel",project="agent-array",dest_namespace="agent-array-llm",sync_status="OutOfSync",health_status="Missing",autosync_enabled="false"}
+    values: 1x45
+  - series: argocd_app_info{job="argocd-application-controller",name="aa-auto",project="agent-array",dest_namespace="agent-array-llm",sync_status="OutOfSync",health_status="Healthy",autosync_enabled="true"}
+    values: 1x45
+  - series: argocd_app_info{job="argocd-application-controller",name="aa-broken",project="agent-array",dest_namespace="agent-array-models",sync_status="Synced",health_status="Degraded",autosync_enabled="false"}
+    values: 1x45
+  alert_rule_test:
+  - alertname: ArgoCDAppOutOfSync
+    eval_time: 40m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        namespace: argocd
+        name: aa-auto
+        project: agent-array
+        dest_namespace: agent-array-llm
+      exp_annotations:
+        summary: ArgoCDAppOutOfSync
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: ArgoCDAppUnhealthy
+    eval_time: 40m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        namespace: argocd
+        name: aa-broken
+        project: agent-array
+        dest_namespace: agent-array-models
+        health_status: Degraded
+      exp_annotations:
+        summary: ArgoCDAppUnhealthy
+        description: Inspect the alert labels and metric history before remediation.
+- interval: 1m
+  input_series:
+  - series: kube_secret_created{job="kube-state-metrics",namespace="agent-array-system",secret="sealed-secrets-keyaaaaa"}
+    values: '0x60'
+  alert_rule_test:
+  - alertname: SealedSecretsNewKeyNeedsBackup
+    eval_time: 30m
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: kube_secret_created{job="kube-state-metrics",namespace="agent-array-system",secret="sealed-secrets-keyaaaaa"}
+    values: -2592000x60
+  - series: kube_secret_created{job="kube-state-metrics",namespace="agent-array-system",secret="sealed-secrets-keybbbbb"}
+    values: '0x60'
+  alert_rule_test:
+  - alertname: SealedSecretsNewKeyNeedsBackup
+    eval_time: 30m
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        namespace: agent-array-system
+      exp_annotations:
+        summary: SealedSecretsNewKeyNeedsBackup
+        description: Inspect the alert labels and metric history before remediation.
+- interval: 1m
+  input_series:
+  - series: kube_secret_created{job="kube-state-metrics",namespace="agent-array-system",secret="sealed-secrets-keyaaaaa"}
+    values: -2764800x130
+  alert_rule_test:
+  - alertname: SealedSecretsKeyRotationOverdue
+    eval_time: 2h
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        namespace: agent-array-system
+      exp_annotations:
+        summary: SealedSecretsKeyRotationOverdue
+        description: Inspect the alert labels and metric history before remediation.
+- interval: 1m
+  input_series:
+  - series: up{job="kube-state-metrics"}
+    values: 1x30
+  - series: kube_pod_status_ready{job="kube-state-metrics",namespace="arc-systems",pod="arc-light-8688b58d-listener",condition="true"}
+    values: 1x30
+  alert_rule_test:
+  - alertname: ARCListenerDown
+    eval_time: 15m
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        namespace: arc-systems
+        scale_set: arc-heavy
+      exp_annotations:
+        summary: ARCListenerDown
+        description: Inspect the alert labels and metric history before remediation.
+- interval: 1m
+  input_series:
+  - series: up{job="kube-state-metrics"}
+    values: '0x30'
+  alert_rule_test:
+  - alertname: ARCListenerDown
+    eval_time: 15m
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: node_filesystem_avail_bytes{job="node-exporter",instance="100.64.0.11:9100",device="/dev/sda1",fstype="ext4",mountpoint="/"}
+    values: 5x40
+  - series: node_filesystem_size_bytes{job="node-exporter",instance="100.64.0.11:9100",device="/dev/sda1",fstype="ext4",mountpoint="/"}
+    values: 100x40
+  - series: node_filesystem_readonly{job="node-exporter",instance="100.64.0.11:9100",device="/dev/sda1",fstype="ext4",mountpoint="/"}
+    values: '0x40'
+  - series: node_filesystem_avail_bytes{job="node-exporter",instance="100.64.0.11:9100",device="/dev/nvme0n1p1",fstype="ext4",mountpoint="/agent-array-models"}
+    values: 50x40
+  - series: node_filesystem_size_bytes{job="node-exporter",instance="100.64.0.11:9100",device="/dev/nvme0n1p1",fstype="ext4",mountpoint="/agent-array-models"}
+    values: 100x40
+  - series: node_filesystem_readonly{job="node-exporter",instance="100.64.0.11:9100",device="/dev/nvme0n1p1",fstype="ext4",mountpoint="/agent-array-models"}
+    values: '0x40'
+  - series: node_uname_info{job="node-exporter",instance="100.64.0.11:9100",nodename="gpu-a"}
+    values: 1x40
+  alert_rule_test:
+  - alertname: AgentArrayDiskSpaceLow
+    eval_time: 35m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: node-exporter
+        instance: 100.64.0.11:9100
+        device: /dev/sda1
+        fstype: ext4
+        mountpoint: /
+        nodename: gpu-a
+      exp_annotations:
+        summary: AgentArrayDiskSpaceLow
+        description: Inspect the alert labels and metric history before remediation.

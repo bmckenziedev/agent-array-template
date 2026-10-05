@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "factory": {
+      "command": "/opt/factory/venv/bin/python",
+      "args": ["-m", "factory_mcp"],
+      "env": {"FACTORY_API_URL": "http://factory-api.agent-array-factory.svc:8080"}
+    }
+  }
+}

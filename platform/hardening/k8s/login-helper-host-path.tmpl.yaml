@@ -1,0 +1,32 @@
+# Local-path helper pods require host access only beneath the configured login root.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: '{{PROJECT_NAME}}-login-helper-host-path'
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['']
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods, pods/ephemeralcontainers]
+  validations:
+    - expression: >-
+        !has(object.spec.volumes) || object.spec.volumes.all(v,
+        !has(v.hostPath) || (has(v.hostPath.path) &&
+        (v.hostPath.path == '{{LOGIN_HOST_ROOT}}' || v.hostPath.path.startsWith('{{LOGIN_HOST_ROOT}}/')) &&
+        !v.hostPath.path.split('/').exists(p, p == '..')))
+      message: Login helper hostPath is confined to the configured login root.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: '{{PROJECT_NAME}}-login-helper-host-path'
+spec:
+  policyName: '{{PROJECT_NAME}}-login-helper-host-path'
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: '{{PROJECT_NAME}}-login-storage'

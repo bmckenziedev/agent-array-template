@@ -1,0 +1,26 @@
+# Set metadata.namespace to the organisation Argo namespace. Manual sync; no namespace finalizer.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: <app-name>
+  namespace: <argocd-namespace>
+  labels:
+    app.kubernetes.io/name: <app-name>
+    app.kubernetes.io/part-of: <project-name>
+    app.kubernetes.io/component: application
+spec:
+  project: <app-project>
+  source:
+    repoURL: <org-git-remote>
+    targetRevision: <git-revision>
+    path: rendered/global/<component-dir>
+    directory:
+      recurse: true
+      include: '*.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: <namespace>
+  syncPolicy:
+    syncOptions:
+    - FailOnSharedResource=true
+    - PruneLast=true

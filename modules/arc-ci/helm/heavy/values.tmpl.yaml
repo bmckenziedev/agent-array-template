@@ -1,0 +1,168 @@
+githubConfigUrl: https://github.com/{{ORG_GITHUB_ORG}}
+githubConfigSecret: arc-github-app
+runnerGroup: '{{M_ARC_CI_TRUSTED_GROUP}}'
+minRunners: 0
+maxRunners: {{M_ARC_CI_MAX_HEAVY}}
+controllerServiceAccount:
+  name: arc-gha-rs-controller
+  namespace: {{PROJECT_NAME}}-arc-systems
+listenerTemplate:
+  spec:
+    nodeSelector:
+      '{{LABEL_PREFIX}}/role-ci': 'true'
+    containers:
+    - name: listener
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+    securityContext:
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+template:
+  spec:
+    automountServiceAccountToken: false
+    runtimeClassName: '{{RUNTIME_CLASS_VM}}'
+    priorityClassName: ci-runner
+    initContainers:
+    - name: init-dind-externals
+      image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+      command:
+      - cp
+      args:
+      - -r
+      - /home/runner/externals/.
+      - /home/runner/tmpDir/
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+          ephemeral-storage: 64Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+          ephemeral-storage: 1Gi
+      volumeMounts:
+      - name: dind-externals
+        mountPath: /home/runner/tmpDir
+    - name: init-docker-disk
+      image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+      command:
+      - sh
+      - -c
+      args:
+      - truncate -s 38G /dind-storage/docker.ext4 && mkfs.ext4 -q -F -m 0 -E lazy_itable_init=1,lazy_journal_init=1,nodiscard
+        /dind-storage/docker.ext4
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+          ephemeral-storage: 64Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+          ephemeral-storage: 1Gi
+      volumeMounts:
+      - name: dind-storage
+        mountPath: /dind-storage
+    - name: dind
+      image: docker:29.8.2-dind@sha256:7dcdfc4a20246236f558175182ccace1eb15a41bd3eb119dd2284f393498b7c1
+      command:
+      - sh
+      - -c
+      args:
+      - 'set -e
+
+        [ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237
+
+        for i in 0 1 2 3 4 5 6 7; do [ -e /dev/loop$i ] || mknod /dev/loop$i b 7 $i;
+        done
+
+        grep -q '' /var/lib/docker ext4 '' /proc/mounts || mount -o loop,noatime,noinit_itable
+        /dind-storage/docker.ext4 /var/lib/docker
+
+        exec dockerd-entrypoint.sh dockerd --host=unix:///var/run/docker.sock --group="$DOCKER_GROUP_GID"
+
+        '
+      env:
+      - name: DOCKER_GROUP_GID
+        value: '123'
+      securityContext:
+        privileged: true
+      restartPolicy: Always
+      startupProbe:
+        exec:
+          command:
+          - docker
+          - info
+        initialDelaySeconds: 0
+        failureThreshold: 24
+        periodSeconds: 5
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+          ephemeral-storage: 4Gi
+        limits:
+          cpu: 2500m
+          memory: 5Gi
+          ephemeral-storage: 40Gi
+      volumeMounts:
+      - name: work
+        mountPath: /home/runner/_work
+      - name: dind-sock
+        mountPath: /var/run
+      - name: dind-externals
+        mountPath: /home/runner/externals
+      - name: dind-storage
+        mountPath: /dind-storage
+    containers:
+    - name: runner
+      image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+      command:
+      - /home/runner/run.sh
+      env:
+      - name: DOCKER_HOST
+        value: unix:///var/run/docker.sock
+      - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+        value: '120'
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+          ephemeral-storage: 1Gi
+        limits:
+          cpu: 1500m
+          memory: 3Gi
+          ephemeral-storage: 20Gi
+      volumeMounts:
+      - name: work
+        mountPath: /home/runner/_work
+      - name: dind-sock
+        mountPath: /var/run
+    volumes:
+    - name: dind-sock
+      emptyDir:
+        medium: Memory
+        sizeLimit: 16Mi
+    - name: dind-externals
+      emptyDir: {}
+    - name: dind-storage
+      emptyDir:
+        sizeLimit: 40Gi
+    - name: work
+      emptyDir:
+        sizeLimit: 20Gi
+    serviceAccountName: arc-heavy-runner
+    nodeSelector:
+      '{{LABEL_PREFIX}}/role-ci': 'true'
+runnerScaleSetName: '{{M_ARC_CI_RUNNER_HEAVY}}'

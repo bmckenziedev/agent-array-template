@@ -1,0 +1,2 @@
+# The factory engine has no runtime Python dependencies (stdlib only, Python 3.12+).
+# Optional extras: requirements-exact-tokens.txt. JS tools: js/package-lock.json (npm ci --ignore-scripts).

@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: '{{PROJECT_NAME}}-teams'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+  - git:
+      repoURL: '{{ORG_GIT_REMOTE}}'
+      revision: '{{GIT_REVISION}}'
+      directories:
+      - path: rendered/teams/*
+  syncPolicy:
+    preserveResourcesOnDeletion: true
+  template:
+    metadata:
+      name: team-{{.path.basename}}
+    spec:
+      project: services
+      source:
+        repoURL: '{{ORG_GIT_REMOTE}}'
+        targetRevision: '{{GIT_REVISION}}'
+        path: rendered/teams/{{.path.basename}}
+        directory:
+          recurse: true
+          include: '*.yaml'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{NS_SYSTEM}}'
+      ignoreDifferences:
+      - group: apps
+        kind: StatefulSet
+        jqPathExpressions: [.spec.replicas]
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - FailOnSharedResource=true
+        - PruneLast=true
+        - RespectIgnoreDifferences=true

@@ -1,0 +1,53 @@
+# Teams (EXAMPLE). A team = one IdP group. Reviewed like code; the renderer validates it.
+version: 1
+teams:
+  - id: payments
+    idp_group: aa-team-payments
+    leads: [ana]                        # approve factory batches and pool changes
+    weight: 3                             # factory fair-share weight
+    session_tier: standard
+    permission_mode: default              # default | acceptEdits | bypassPermissions
+    data_classes_allowed: [public, internal, confidential]
+    vendors_allowed:                      # per data class: which vendors may see that data
+      public: [anthropic, openai, local]
+      internal: [anthropic, openai, local]
+      confidential: [anthropic, local]
+      restricted: [local]
+    mcp_servers: [factory, farm, tickets]
+    context_sources: [estate-snapshot, estate-index, tickets]
+    litellm:
+      models: [local-coder, local-coder-small, claude-api-standard]
+      max_budget_usd: 1500
+      budget_duration: 30d
+      tpm_limit: 2000000
+      rpm_limit: 600
+      task_budget_usd: {standard: 5, bulk: 2}
+    factory:
+      max_inflight_per_lane: 1
+      queue_priority_ceiling: 50
+    pools: [acct-anthropic-api-payments, acct-local-gpu]
+  - id: platform
+    idp_group: aa-team-platform
+    leads: [bo]
+    weight: 2
+    session_tier: power
+    permission_mode: acceptEdits
+    data_classes_allowed: [public, internal, confidential, restricted]
+    vendors_allowed:
+      public: [anthropic, openai, local]
+      internal: [anthropic, openai, local]
+      confidential: [anthropic, local]
+      restricted: [local]
+    mcp_servers: [factory, farm, arrayops]
+    context_sources: [estate-snapshot, estate-index]
+    litellm:
+      models: [local-coder, local-coder-small, openai-api-standard]
+      max_budget_usd: 3000
+      budget_duration: 30d
+      tpm_limit: 4000000
+      rpm_limit: 1200
+      task_budget_usd: {standard: 10, bulk: 3}
+    factory:
+      max_inflight_per_lane: 2
+      queue_priority_ceiling: 100
+    pools: [acct-openai-api-shared, acct-local-gpu]

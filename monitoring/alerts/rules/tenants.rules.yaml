@@ -1,0 +1,82 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: organization-tenants
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+spec:
+  groups:
+  - name: organization.tenants
+    rules:
+    - alert: PaceWindowCapExceeded
+      expr: (aa_pace_window_used_pct > aa_pace_window_cap_pct) * on (account) group_left (team) aa_pace_account_info
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: PaceWindowCapExceeded
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: PaceSeatUsageStale
+      expr: (aa_pace_usage_age_seconds > 7200) * on (account) group_left (team) aa_pace_account_info{type="seat",usage_source!="manual"}
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: PaceSeatUsageStale
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: PaceLeaseDenialsSpike
+      expr: (sum by (account) (increase(aa_pace_lease_denied_total[5m])) > {{C_MONITORING_LEASE_DENIALS_THRESHOLD}})
+        * on (account) group_left (team) aa_pace_account_info
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: PaceLeaseDenialsSpike
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: UserSessionCrashLoop
+      expr: (max by (namespace,pod,container) (kube_pod_container_status_waiting_reason{namespace=~"{{USER_NS_PREFIX}}.*",reason="CrashLoopBackOff"})
+        == 1) * on (namespace) group_left (team,user) aa_monitoring_namespace_info
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: UserSessionCrashLoop
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: UserLoginPVCPending
+      expr: (max by (namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_status_phase{namespace=~"{{USER_NS_PREFIX}}.*",phase="Pending"})
+        == 1) * on (namespace) group_left (team,user) aa_monitoring_namespace_info
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: UserLoginPVCPending
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: MCPErrorRatioHigh
+      expr: (sum by (server,team) (rate(aa_mcp_requests_total{outcome="error"}[5m])) / sum by (server,team) (rate(aa_mcp_requests_total[5m]))
+        > 0.10) and on (server,team) (sum by (server,team) (increase(aa_mcp_requests_total[5m])) >= 10)
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: MCPErrorRatioHigh
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: MCPAuthDenialsSpike
+      expr: sum by (server) (increase(aa_mcp_auth_denied_total[5m])) > {{C_MONITORING_MCP_AUTH_DENIALS_THRESHOLD}}
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: MCPAuthDenialsSpike
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: LiteLLMTeamBudgetAlmostSpent
+      expr: label_replace(((1 - max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_REMAINING_BUDGET_METRIC}})
+        / max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0.80) and on ({{C_MONITORING_LITELLM_TEAM_LABEL}})
+        (max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0)), "team", "$1",
+        "{{C_MONITORING_LITELLM_TEAM_LABEL}}", "(.+)")
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: LiteLLMTeamBudgetAlmostSpent
+        description: Inspect the alert labels and metric history before remediation.

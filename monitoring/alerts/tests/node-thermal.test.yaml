@@ -1,0 +1,96 @@
+rule_files:
+- ../rules/node-cluster.rules.yaml
+- ../rules/gpu.rules.yaml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: node_uname_info{job="node-exporter",instance="10.0.0.1:9100",nodename="node-a-host"}
+    values: 1x25
+  - series: node_uname_info{job="node-exporter",instance="10.0.0.2:9100",nodename="node-c"}
+    values: 1x25
+  - series: node_hwmon_chip_names{job="node-exporter",instance="10.0.0.1:9100",chip="pci0000:00_0000:00:18_3",chip_name="k10temp"}
+    values: 1x25
+  - series: node_hwmon_chip_names{job="node-exporter",instance="10.0.0.1:9100",chip="nvme_nvme0",chip_name="nvme"}
+    values: 1x25
+  - series: node_hwmon_chip_names{job="node-exporter",instance="10.0.0.2:9100",chip="platform_coretemp_0",chip_name="coretemp"}
+    values: 1x25
+  - series: node_hwmon_temp_celsius{job="node-exporter",instance="10.0.0.1:9100",chip="pci0000:00_0000:00:18_3",sensor="temp1"}
+    values: 60x5 95x20
+  - series: node_hwmon_temp_celsius{job="node-exporter",instance="10.0.0.1:9100",chip="pci0000:00_0000:00:18_3",sensor="temp3"}
+    values: 99x25
+  - series: node_hwmon_temp_celsius{job="node-exporter",instance="10.0.0.1:9100",chip="nvme_nvme0",sensor="temp1"}
+    values: 100x25
+  - series: node_hwmon_temp_celsius{job="node-exporter",instance="10.0.0.2:9100",chip="platform_coretemp_0",sensor="temp1"}
+    values: 85x25
+  promql_expr_test:
+  - expr: aa:node_cpu_package_temp:celsius
+    eval_time: 10m
+    exp_samples:
+    - labels: aa:node_cpu_package_temp:celsius{instance="10.0.0.1:9100"}
+      value: 95
+    - labels: aa:node_cpu_package_temp:celsius{instance="10.0.0.2:9100"}
+      value: 85
+  alert_rule_test:
+  - alertname: NodeCPUTemperatureHigh
+    eval_time: 14m
+    exp_alerts: []
+  - alertname: NodeCPUTemperatureHigh
+    eval_time: 20m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: 10.0.0.1:9100
+        nodename: node-a-host
+      exp_annotations:
+        summary: NodeCPUTemperatureHigh
+        description: Inspect the alert labels and metric history before remediation.
+- interval: 1m
+  input_series:
+  - series: DCGM_FI_DEV_GPU_TEMP{job="dcgm-exporter",namespace="gpu-system",pod="dcgm-exporter-aaaaa",gpu="0",Hostname="dcgm-exporter-aaaaa",modelName="NVIDIA
+      GeForce example-24gb"}
+    values: 84x20
+  - series: DCGM_FI_DEV_GPU_TEMP{job="dcgm-exporter",namespace="gpu-system",pod="dcgm-exporter-bbbbb",gpu="0",Hostname="dcgm-exporter-bbbbb",modelName="NVIDIA
+      GeForce example-24gb"}
+    values: 83x20
+  - series: kube_pod_info{job="kube-state-metrics",namespace="gpu-system",pod="dcgm-exporter-aaaaa",node="gpu-a"}
+    values: 1x20
+  - series: kube_pod_info{job="kube-state-metrics",namespace="gpu-system",pod="dcgm-exporter-bbbbb",node="gpu-b"}
+    values: 1x20
+  alert_rule_test:
+  - alertname: GPUTemperatureHigh
+    eval_time: 15m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: dcgm-exporter
+        namespace: gpu-system
+        pod: dcgm-exporter-aaaaa
+        gpu: '0'
+        Hostname: dcgm-exporter-aaaaa
+        modelName: NVIDIA GeForce example-24gb
+      exp_annotations:
+        summary: GPUTemperatureHigh
+        description: Inspect the alert labels and metric history before remediation.
+- interval: 1m
+  input_series:
+  - series: node_uname_info{job="node-exporter",instance="203.0.113.10:9100",nodename="node-a",namespace="monitoring",pod="ne-a"}
+    values: 1x5
+  - series: node_uname_info{job="node-exporter",instance="100.64.0.2:9100",nodename="node-b",namespace="monitoring",pod="ne-b"}
+    values: 1x5
+  - series: node_uname_info{job="node-exporter",instance="198.51.100.50:9100",nodename="node-c"}
+    values: 1x5
+  - series: kube_pod_info{job="kube-state-metrics",namespace="monitoring",pod="ne-a",node="node-a"}
+    values: 1x5
+  - series: kube_pod_info{job="kube-state-metrics",namespace="monitoring",pod="ne-b",node="node-b"}
+    values: 1x5
+  promql_expr_test:
+  - expr: aa:node:info
+    eval_time: 2m
+    exp_samples:
+    - labels: aa:node:info{instance="203.0.113.10:9100",nodename="node-a",node="node-a",host="node-a"}
+      value: 1
+    - labels: aa:node:info{instance="100.64.0.2:9100",nodename="node-b",node="node-b",host="node-b"}
+      value: 1
+    - labels: aa:node:info{instance="198.51.100.50:9100",nodename="node-c",host="node-c"}
+      value: 1

@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+"""Acquire, renew and release interactive seat leases; run holds a renewable lease.
+
+Exit 3: denied (HTTP 409); 1: fail-closed service failure; run returns child status.
+An unreachable service warns and permits interactive use unless fail-closed is set.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+
+class Denied(Exception):
+    pass
+
+
+def fail_closed() -> bool:
+    return os.environ.get("AA_LEASE_FAIL_CLOSED", "false").lower() in ("1", "true", "yes")
+
+
+def request(method: str, path: str, payload=None):
+    url = os.environ.get("AA_PACE_URL", "")
+    if not url:
+        raise ValueError("AA_PACE_URL is required")
+    token = Path(os.environ.get("AA_PACE_TOKEN_FILE", "/var/run/agent-array/pace-token/token")).read_text().strip()
+    if not token:
+        raise ValueError("pace pod token unavailable")
+    req = urllib.request.Request(url.rstrip("/") + path, method=method,
+                                 data=None if payload is None else json.dumps(payload).encode(),
+                                 headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            raw = response.read(65536)
+            if method == "POST" and path == "/v1/lease" and response.status != 200:
+                raise ValueError("unexpected acquire response")
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        if exc.code == 409:
+            try:
+                reason = json.loads(exc.read(4096)).get("reason")
+            except ValueError:
+                reason = "denied"
+            if reason not in ("max_concurrent", "spacing", "cap"):
+                reason = "denied"
+            exc.close()
+            raise Denied(reason) from None
+        # Authentication failures must never become fail-open availability errors.
+        code = exc.code
+        exc.close()
+        raise Denied(f"pace HTTP {code}") from None
+
+
+def operation(action: str, lease_id: str | None = None):
+    if action == "acquire":
+        account = os.environ.get("AA_ACCOUNT", "")
+        if not account:
+            raise ValueError("AA_ACCOUNT is required")
+        result = request("POST", "/v1/lease", {"account_id": account, "kind": "session",
+                                               "pod": os.environ.get("HOSTNAME", "unknown")})
+        if not isinstance(result, dict) or not isinstance(result.get("lease_id"), str) or not result["lease_id"]:
+            raise ValueError("pace response missing lease_id")
+        return result
+    identifier = urllib.parse.quote(lease_id or "", safe="")
+    if not identifier:
+        raise ValueError("lease id is required")
+    return request("DELETE" if action == "release" else "POST", "/v1/lease/" + identifier +
+                   ("/renew" if action == "renew" else ""), {} if action == "renew" else None)
+
+
+def available(action: str, lease_id: str | None = None):
+    try:
+        return operation(action, lease_id)
+    except (urllib.error.URLError, OSError) as exc:
+        print("aa-lease: pace unreachable; " + ("refusing session" if fail_closed() else "continuing interactive session"),
+              file=sys.stderr)
+        if fail_closed():
+            raise ValueError("pace unavailable") from exc
+        return {}
+
+
+def run(command: list[str]) -> int:
+    if command and command[0] == "--":
+        command = command[1:]
+    if not command:
+        raise ValueError("run requires a command")
+    lease = available("acquire").get("lease_id")
+    child = None
+    old_handlers = {}
+    try:
+        child = subprocess.Popen(command)
+        def forward(signum, _frame):
+            if child.poll() is None:
+                child.send_signal(signum)
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            old_handlers[sig] = signal.signal(sig, forward)
+        renew_at = time.monotonic() + 60
+        while child.poll() is None:
+            time.sleep(0.2)
+            if lease and time.monotonic() >= renew_at:
+                try:
+                    available("renew", lease)
+                except (Denied, ValueError):
+                    child.terminate()
+                    try:
+                        child.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        child.kill()
+                        child.wait()
+                    raise
+                renew_at = time.monotonic() + 60
+        return child.returncode if child.returncode >= 0 else 128 - child.returncode
+    finally:
+        if child is not None and child.poll() is None:
+            child.terminate()
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait()
+        for sig, handler in old_handlers.items():
+            signal.signal(sig, handler)
+        if lease:
+            try:
+                available("release", lease)
+            except (Denied, ValueError):
+                print("aa-lease: release failed; lease will expire", file=sys.stderr)
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="action", required=True)
+    commands.add_parser("acquire")
+    for name in ("renew", "release"):
+        commands.add_parser(name).add_argument("lease_id")
+    for name in ("run", "hold"):
+        sub = commands.add_parser(name)
+        sub.add_argument("--account")
+        sub.add_argument("command", nargs=argparse.REMAINDER)
+    args = parser.parse_args(argv)
+    try:
+        if args.action in ("run", "hold"):
+            if args.account:
+                os.environ["AA_ACCOUNT"] = args.account
+            return run(args.command)
+        print(json.dumps(available(args.action, getattr(args, "lease_id", None))))
+        return 0
+    except Denied as exc:
+        print(f"aa-lease: {exc}", file=sys.stderr)
+        return 3
+    except (ValueError, OSError) as exc:
+        print(f"aa-lease: {type(exc).__name__}; refused", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

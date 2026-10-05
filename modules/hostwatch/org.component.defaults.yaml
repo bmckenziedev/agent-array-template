@@ -1,0 +1,5 @@
+scope: modules
+name: hostwatch
+defaults:
+  enabled: false
+  textfile_directory: /var/lib/node_exporter/textfile_collector

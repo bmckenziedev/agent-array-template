@@ -1,0 +1,6 @@
+scope: components
+name: sessions
+defaults:
+  claude_mcp_mode: managed-file
+  usage_report_interval_s: 300
+  admission_ca_bundle: ""

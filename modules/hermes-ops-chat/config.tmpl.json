@@ -1,0 +1,11 @@
+{
+  "platform": "{{M_HERMES_OPS_CHAT_PLATFORM}}",
+  "allowed_group": "{{GROUP_PLATFORM_ADMIN}}",
+  "allowed_team": "{{M_HERMES_OPS_CHAT_ALLOWED_TEAM}}",
+  "model": "{{M_HERMES_OPS_CHAT_MODEL}}",
+  "base_url": "http://litellm.{{NS_LLM}}.svc:4000/v1",
+  "memory_root": "/var/lib/hermes/users",
+  "service_account": "{{NS_OPS}}/hermes-ops-chat",
+  "mcp_command": ["python3", "/opt/arrayops/server.py"],
+  "read_tools": ["cluster_status", "prom_query", "alerts"]
+}

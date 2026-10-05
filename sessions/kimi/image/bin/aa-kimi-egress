@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""Credential-free CONNECT gateway. Exact vendor hosts, port 443, matching TLS SNI.
+
+No TLS termination, request bodies, keys or URLs are inspected or logged. DNS results
+must be public addresses; private, node and tailnet destinations fail closed.
+"""
+import ipaddress
+import select
+import socket
+import socketserver
+import struct
+import json
+import datetime
+import threading
+from pathlib import Path
+
+HOSTS = frozenset(('api.kimi.ai', 'auth.kimi.ai'))
+import os
+NODE_IPS = frozenset(os.environ.get('AA_EGRESS_DENY_IPS', '').split(','))
+
+
+def denied_networks(path=Path('/etc/aa-egress/denied-cidrs.json')):
+    values = json.loads(path.read_text())
+    if not isinstance(values, list) or not values:
+        raise ValueError('managed egress deny CIDRs are required')
+    return [ipaddress.ip_network(value) for value in values]
+
+
+def audit(peer, outcome, reason):
+    # The CNI audit pipeline correlates source Pod IP to its namespace/user.
+    print(json.dumps({
+        'ts': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        'component': 'kimi-egress', 'event': 'egress.connect',
+        'actor': {'user': None, 'sa': None, 'sub': None}, 'team': None,
+        'target': {'source_ip': peer}, 'outcome': outcome,
+        'detail': {'reason': reason},
+    }), flush=True)
+
+
+def exact(sock, count):
+    out = b''
+    while len(out) < count:
+        data = sock.recv(count - len(out))
+        if not data:
+            raise ValueError('truncated TLS')
+        out += data
+    return out
+
+
+def hello(sock):
+    """Read bounded TLS records and extract ClientHello SNI before forwarding."""
+    raw, data = b'', b''
+    while len(data) < 4 or len(data) < 4 + int.from_bytes(data[1:4], 'big'):
+        header = exact(sock, 5)
+        size = int.from_bytes(header[3:5], 'big')
+        if header[0] != 22 or size > 18432 or len(raw) + size > 65536:
+            raise ValueError('not a bounded ClientHello')
+        body = exact(sock, size)
+        raw += header + body
+        data += body
+    if data[0] != 1:
+        raise ValueError('not ClientHello')
+    p = 4 + 2 + 32
+    p += 1 + data[p]
+    p += 2 + int.from_bytes(data[p:p+2], 'big')
+    p += 1 + data[p]
+    end = p + 2 + int.from_bytes(data[p:p+2], 'big')
+    p += 2
+    while p + 4 <= end:
+        kind, size = struct.unpack('!HH', data[p:p+4])
+        p += 4
+        ext = data[p:p+size]
+        p += size
+        if kind == 0:
+            if len(ext) < 5 or ext[2] != 0:
+                raise ValueError('invalid SNI')
+            count = int.from_bytes(ext[3:5], 'big')
+            return ext[5:5+count].decode('ascii').lower(), raw
+    raise ValueError('SNI required')
+
+
+class Handler(socketserver.BaseRequestHandler):
+    networks = []
+    active = {}
+    lock = threading.Lock()
+
+    def handle(self):
+        # Kimi is limited to one Pod per user; cap tunnels by its preserved Pod IP.
+        peer = self.client_address[0]
+        with self.lock:
+            if self.active.get(peer, 0) >= 8:
+                audit(peer, 'deny', 'source-connection-limit')
+                return
+            self.active[peer] = self.active.get(peer, 0) + 1
+        try:
+            self.tunnel()
+        finally:
+            with self.lock:
+                remaining = self.active[peer] - 1
+                if remaining:
+                    self.active[peer] = remaining
+                else:
+                    del self.active[peer]
+
+    def tunnel(self):
+        client = self.request
+        client.settimeout(15)
+        try:
+            header = b''
+            while not header.endswith(b'\r\n\r\n'):
+                header += exact(client, 1)
+                if len(header) > 8192:
+                    raise ValueError('oversized headers')
+            method, target, version = header.split(b'\r\n', 1)[0].decode('ascii').split()
+            host, port = target.rsplit(':', 1)
+            if method != 'CONNECT' or version not in ('HTTP/1.0', 'HTTP/1.1') or host not in HOSTS or port != '443':
+                client.sendall(b'HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n')
+                audit(self.client_address[0], 'deny', 'host-or-port')
+                return
+            addresses = socket.getaddrinfo(host, 443, socket.AF_INET, socket.SOCK_STREAM)
+            if not addresses or any(not ipaddress.ip_address(a[4][0]).is_global or a[4][0] in NODE_IPS or
+                                    any(ipaddress.ip_address(a[4][0]) in net for net in self.networks)
+                                    for a in addresses):
+                raise ValueError('non-public DNS result')
+            client.sendall(b'HTTP/1.1 200 Connection Established\r\n\r\n')
+            sni, first = hello(client)
+            if sni != host:
+                raise ValueError('SNI differs from CONNECT')
+            audit(self.client_address[0], 'allow', 'exact-host-and-sni')
+            with socket.create_connection(addresses[0][4], timeout=15) as upstream:
+                upstream.sendall(first)
+                client.settimeout(900)
+                upstream.settimeout(900)
+                while True:
+                    ready, _, _ = select.select([client, upstream], [], [], 900)
+                    if not ready:
+                        return
+                    for source in ready:
+                        data = source.recv(65536)
+                        if not data:
+                            return
+                        (upstream if source is client else client).sendall(data)
+        except (OSError, ValueError, IndexError, UnicodeError, struct.error):
+            audit(self.client_address[0], 'deny', 'connection-refused')
+            return
+
+
+class Server(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+    request_queue_size = 64
+
+
+if __name__ == '__main__':
+    Handler.networks = denied_networks()
+    with Server(('0.0.0.0', 3128), Handler) as server:
+        server.serve_forever()

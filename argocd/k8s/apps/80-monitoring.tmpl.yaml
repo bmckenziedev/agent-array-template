@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: '{{PROJECT_NAME}}-80-monitoring'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+  annotations:
+    argocd.argoproj.io/sync-wave: '80'
+spec:
+  project: platform-infra
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: '{{NS_MONITORING}}'
+  sources:
+  - repoURL: '{{ORG_GIT_REMOTE}}'
+    targetRevision: '{{GIT_REVISION}}'
+    path: rendered/global/monitoring/k8s
+    directory:
+      recurse: true
+      include: '*.yaml'
+  syncPolicy:
+    syncOptions:
+    - FailOnSharedResource=true
+    - PruneLast=true
+    automated:
+      prune: false
+      selfHeal: true

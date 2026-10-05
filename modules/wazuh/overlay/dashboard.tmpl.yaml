@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wazuh-dashboard
+  namespace: "{{PROJECT_NAME}}-wazuh"
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        "{{LABEL_PREFIX}}/role-control-plane": "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
+      containers:
+        - name: wazuh-dashboard
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          readinessProbe:
+            tcpSocket:
+              port: 5601
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 60

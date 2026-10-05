@@ -1,0 +1,6 @@
+[Unit]
+Description=Cluster restore-drill
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/opt/cluster-ops/backup/restore-drill.sh --yes

@@ -1,0 +1,123 @@
+#!/usr/bin/env node
+// aa-symbols FILE... : top-level symbols, exports and imports of JS/TS
+// files as JSON, for the estate index. Parses only (@babel/parser); it never
+// evaluates or requires the file it reads.
+//
+//   {"file": ..., "symbols": [{"name","kind","start","end","line","endLine"}],
+//    "exports": [...names], "imports": [...specifiers], "errors": n}
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const { parse } = require('/opt/aa/npm/node_modules/@babel/parser');
+
+const MAX_BYTES = 4 * 1024 * 1024;
+
+function pluginsFor(file) {
+  const ext = path.extname(file).toLowerCase();
+  if (ext === '.ts' || ext === '.mts' || ext === '.cts') return ['typescript'];
+  if (ext === '.tsx') return ['typescript', 'jsx'];
+  return ['jsx'];
+}
+
+function loc(node) {
+  return { start: node.start, end: node.end, line: node.loc.start.line, endLine: node.loc.end.line };
+}
+
+function declNames(node) {
+  switch (node.type) {
+    case 'FunctionDeclaration':
+    case 'TSDeclareFunction':
+      return node.id ? [[node.id.name, 'function', node]] : [];
+    case 'ClassDeclaration':
+      return node.id ? [[node.id.name, 'class', node]] : [];
+    case 'VariableDeclaration':
+      return node.declarations
+        .filter((d) => d.id && d.id.type === 'Identifier')
+        .map((d) => [d.id.name, d.init && /Function/.test(d.init.type) ? 'function' : node.kind, d]);
+    case 'TSInterfaceDeclaration':
+      return [[node.id.name, 'interface', node]];
+    case 'TSTypeAliasDeclaration':
+      return [[node.id.name, 'type', node]];
+    case 'TSEnumDeclaration':
+      return [[node.id.name, 'enum', node]];
+    default:
+      return [];
+  }
+}
+
+function moduleExportsNames(expr) {
+  // module.exports = { a, b: c }   |   module.exports.x = ...   |   exports.x = ...
+  if (expr.type !== 'AssignmentExpression' || expr.left.type !== 'MemberExpression') return [];
+  const l = expr.left;
+  const isModExports = (n) => n.type === 'MemberExpression' && n.object.type === 'Identifier'
+    && n.object.name === 'module' && n.property.type === 'Identifier' && n.property.name === 'exports';
+  if (isModExports(l)) {
+    if (expr.right.type === 'ObjectExpression') {
+      return expr.right.properties
+        .filter((p) => p.type === 'ObjectProperty' && p.key && (p.key.name || p.key.value))
+        .map((p) => String(p.key.name || p.key.value));
+    }
+    return ['default'];
+  }
+  const obj = l.object;
+  if ((obj.type === 'Identifier' && obj.name === 'exports') || isModExports(obj)) {
+    if (l.property.type === 'Identifier') return [l.property.name];
+  }
+  return [];
+}
+
+function analyse(file) {
+  const st = fs.statSync(file);
+  if (st.size > MAX_BYTES) return { file, skipped: 'too large' };
+  const code = fs.readFileSync(file, 'utf8');
+  const ast = parse(code, {
+    sourceType: 'unambiguous',
+    errorRecovery: true,
+    allowReturnOutsideFunction: true,
+    plugins: pluginsFor(file),
+  });
+  const symbols = [];
+  const exports = new Set();
+  const imports = new Set();
+  for (const node of ast.program.body) {
+    let target = node;
+    if (node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration') {
+      if (node.declaration) {
+        target = node.declaration;
+        for (const [name] of declNames(target)) exports.add(name);
+        if (node.type === 'ExportDefaultDeclaration') exports.add('default');
+      }
+      for (const s of node.specifiers || []) {
+        if (s.exported) exports.add(s.exported.name || s.exported.value);
+      }
+      if (node.source) imports.add(node.source.value);
+    }
+    if (node.type === 'ImportDeclaration') imports.add(node.source.value);
+    for (const [name, kind, n] of declNames(target)) symbols.push({ name, kind, ...loc(n) });
+    if (node.type === 'ExpressionStatement') {
+      for (const name of moduleExportsNames(node.expression)) exports.add(name);
+    }
+    // const x = require('y')  (top level only; enough for the module graph)
+    if (node.type === 'VariableDeclaration') {
+      for (const d of node.declarations) {
+        const init = d.init;
+        if (init && init.type === 'CallExpression' && init.callee.type === 'Identifier'
+            && init.callee.name === 'require' && init.arguments[0]
+            && init.arguments[0].type === 'StringLiteral') {
+          imports.add(init.arguments[0].value);
+        }
+      }
+    }
+  }
+  return { file, symbols, exports: [...exports], imports: [...imports], errors: (ast.errors || []).length };
+}
+
+const files = process.argv.slice(2);
+if (files.length === 0 || files.includes('-h') || files.includes('--help')) {
+  process.stdout.write('usage: aa-symbols FILE...  (JSON: top-level symbols, exports, imports)\n');
+  process.exit(files.length === 0 ? 2 : 0);
+}
+const out = files.map((f) => {
+  try { return analyse(f); } catch (e) { return { file: f, error: String(e && e.message || e) }; }
+});
+process.stdout.write(JSON.stringify(out.length === 1 ? out[0] : out) + '\n');

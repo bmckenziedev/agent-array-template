@@ -1,0 +1,15 @@
+[Unit]
+Description=Hourly Kata stale-sandbox garbage collection (kata-gc.service)
+
+[Timer]
+# /run is tmpfs and empty after a reboot, so no catch-up (Persistent) is needed. The first
+# run is 10 min after the timer starts (at boot: once k3s and its containerd are up; on
+# install: not at once, so an install never deletes anything by surprise), then hourly after
+# each run. OnBootSec would fire immediately when the timer is enabled on a running node.
+OnActiveSec=10min
+OnUnitActiveSec=1h
+RandomizedDelaySec=5min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

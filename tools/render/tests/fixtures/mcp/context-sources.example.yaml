@@ -1,0 +1,26 @@
+# Context-source registry (EXAMPLE). How context reaches a session:
+# push = uploaded by `aa snapshot up` into /work/snap (checked again in the pod),
+# mcp  = served by a registry MCP server, feed = indexed periodically by a server.
+version: 1
+sources:
+  - name: estate-snapshot
+    kind: code-snapshot                   # code-snapshot | code-index | docs | tickets | wiki | chat
+    delivery: push
+    estates_from: estates                 # org files.estates
+    ttl_hours: {default: 12, max: 24}
+    allowed_teams: ["*"]
+    tags: [code]
+  - name: estate-index
+    kind: code-index
+    delivery: mcp
+    served_by: factory
+    builds_from: estate-snapshot
+    languages: [js, ts]
+    allowed_teams: ["*"]
+    tags: [code]
+  - name: tickets
+    kind: tickets
+    delivery: mcp
+    served_by: tickets
+    allowed_teams: [payments]
+    tags: [tickets]

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = --help ] || [ "${1:-}" = -h ]; then
+  echo 'aa-codex [login|status|gate|resume|CLI ARGS]'
+  exit 0
+fi
+entrypoint-check --tool codex
+if [ "${1:-}" = gate ]; then
+  echo 'Seat holder: codex login --device-auth, then aa-codex to start a session.'
+  exec bash -l
+fi
+# Auth refresh is serialized even when pace is unreachable and leases fail open.
+exec 9>"${CODEX_HOME:?}/.aa-tui.lock"
+flock -n 9 || { echo 'aa-codex: another auth/login/TUI operation holds this login.' >&2; exit 1; }
+case "${1:-}" in
+  login) shift; exec codex login --device-auth "$@" ;;
+  status) shift; exec codex login status "$@" ;;
+esac
+for arg in "$@"; do
+  case "$arg" in
+    exec|e|--prompt|--dangerously-bypass-approvals-and-sandbox|--yolo|--dangerously-bypass-hook-trust|--approve-for-me|--search|--remote*|-a|-a*|-s|-s*|--sandbox*|--ask-for-approval*|--full-auto)
+      echo "aa-codex: argument refused by interactive managed session policy: $arg" >&2; exit 2 ;;
+  esac
+done
+codex login status >/dev/null 2>&1 || { echo 'Run codex login --device-auth first.' >&2; exit 1; }
+if [ -r /var/run/agent-array/mcp-token/token ]; then
+  AA_MCP_TOKEN="$(cat /var/run/agent-array/mcp-token/token)"
+  export AA_MCP_TOKEN
+fi
+# The managed configuration selects the team's permission mode and sandbox.
+exec aa-lease hold -- codex --no-daemon -C "${AA_WORK_DIR:-/work}" "$@"

@@ -1,0 +1,23 @@
+[Unit]
+Description=Remove stale Kata per-sandbox state from /run (kata-gc.sh)
+Documentation=file:///usr/local/sbin/kata-gc.sh
+# k3s on the server, k3s-agent on a worker; whichever exists. Neither is required: the
+# script aborts by itself (removing nothing) when containerd does not answer.
+After=k3s.service k3s-agent.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kata-gc.sh --yes
+SyslogIdentifier=kata-gc
+# Background hygiene: never compete with etcd, the kubelet or a running VM.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+# It writes only under /run and /var/lib/node_exporter; keep /usr, /boot, /etc read-only
+# and give it an empty tmpfs in place of /home and /root. HOME is set because k3s's
+# crictl/ctr look for a per-user config there and warn when the variable is missing.
+ProtectSystem=full
+ProtectHome=tmpfs
+Environment=HOME=/root
+PrivateTmp=yes
+TimeoutStartSec=10min

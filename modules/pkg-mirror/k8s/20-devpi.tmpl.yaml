@@ -1,0 +1,233 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devpi-config
+  namespace: "{{PROJECT_NAME}}-pkg-mirror"
+  labels: { app.kubernetes.io/name: pypi, app.kubernetes.io/part-of: "{{PROJECT_NAME}}" }
+data:
+  requirements.txt: |
+    anyio==4.15.1 \
+        --hash=sha256:6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101
+    argon2-cffi==25.1.0 \
+        --hash=sha256:fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741
+    argon2-cffi-bindings==26.1.0 \
+        --hash=sha256:27f1821903e2ceadcb88ec2b45ef190897b7682449c772f4d9b53e42c520cf29
+    attrs==26.1.0 \
+        --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309
+    certifi==2026.7.22 \
+        --hash=sha256:62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775
+    cffi==2.1.1 \
+        --hash=sha256:c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf
+    charset-normalizer==3.5.2 \
+        --hash=sha256:3d31298449090ab8d47b7b1b2a555ff73cac7ed438a08b7ac160980c7ebed649
+    defusedxml==0.7.1 \
+        --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
+    devpi-common==4.1.1 \
+        --hash=sha256:8fda7e8965d3744b1184d6c426fd5caf1345ed74513db687beeb5ee0e63a675c
+    devpi-server==6.20.3 \
+        --hash=sha256:4cdc372ce695ad45c7e5eb20f5eaf7e50fd5abe1991db3700f0e68b26e406e67
+    h11==0.16.0 \
+        --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
+    httpcore==1.0.9 \
+        --hash=sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55
+    httpx==0.28.1 \
+        --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
+    hupper==1.12.1 \
+        --hash=sha256:e872b959f09d90be5fb615bd2e62de89a0b57efc037bdf9637fb09cdf8552b19
+    idna==3.20 \
+        --hash=sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c
+    itsdangerous==2.2.0 \
+        --hash=sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
+    lazy==2.0 \
+        --hash=sha256:6bf06f6a71dbe6148f3948c6388b264772493972ad22fb958d24bb52e7e7ec9b
+    packaging==26.3 \
+        --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+    packaging-legacy==23.0.post0 \
+        --hash=sha256:6cd21cd283c09409349bccc10bb55bfd837b4aab86a7b0f87bfcb8dd9831a8a3
+    passlib==1.7.4 \
+        --hash=sha256:aa6bca462b8d8bda89c70b382f0c298a20b5560af6cbfa2dce410c0a2fb669f1
+    pastedeploy==3.1.0 \
+        --hash=sha256:76388ad53a661448d436df28c798063108f70e994ddc749540d733cdbd1b38cf
+    plaster==1.1.2 \
+        --hash=sha256:42992ab1f4865f1278e2ad740e8ad145683bb4022e03534265528f0c23c0df2d
+    plaster-pastedeploy==1.0.1 \
+        --hash=sha256:ad3550cc744648969ed3b810f33c9344f515ee8d8a8cec18e8f2c4a643c2181f
+    platformdirs==4.12.3 \
+        --hash=sha256:080f3b39423b5abfca9a23d84c4e9795f54d395cd8459867a8ded44084fcd5f8
+    pluggy==1.6.0 \
+        --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+    py==1.11.0 \
+        --hash=sha256:607c53218732647dff4acdfcd50cb62615cedf612e72d1724fb1a0cc6405b378
+    pycparser==3.0 \
+        --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
+    pyramid==2.1 \
+        --hash=sha256:0aa62604221f6a8ac6e77a0faa02a5b7a294d6675f15581d8d416dffe2ac98e7
+    python-dateutil==2.9.0.post0 \
+        --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
+    repoze-lru==0.8 \
+        --hash=sha256:979a30d2e567e31f292009ba4467aa444c89ee0da3e3013980c35f1fb4f19d99
+    requests==2.34.2 \
+        --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0
+    ruamel-yaml==0.19.1 \
+        --hash=sha256:27592957fedf6e0b62f281e96effd28043345e0e66001f97683aa9a40c667c93
+    setuptools==81.0.0 \
+        --hash=sha256:fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6
+    six==1.17.0 \
+        --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
+    strictyaml==1.7.3 \
+        --hash=sha256:fb5c8a4edb43bebb765959e420f9b3978d7f1af88c80606c03fb420888f5d1c7
+    translationstring==1.4 \
+        --hash=sha256:5f4dc4d939573db851c8d840551e1a0fb27b946afe3b95aafc22577eed2d6262
+    typing-extensions==4.16.0 \
+        --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+    urllib3==2.8.0 \
+        --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3
+    venusian==3.1.1 \
+        --hash=sha256:0845808a985976acbceaa1fbb871c7fac4fb28ae75453232970e9c2c2866dbf4
+    waitress==3.0.2 \
+        --hash=sha256:c56d67fd6e87c2ee598b76abdd4e96cfad1f24cacdea5078d382b1f9d7b5ed2e
+    webob==1.8.11 \
+        --hash=sha256:4addd1d38d6a7fbe0eda22d45f25a40d74c8b290f3a99c0ac3d4023cf21f2da2
+    zope-deprecation==6.0 \
+        --hash=sha256:ff72d51c88b516b9ddf2cfb826381cc49f99a6a89b7d35c97faca7bee3b46da6
+    zope-interface==8.6 \
+        --hash=sha256:9217b1123f6aeec9ddf1789bffd83da3123546d551c164a99f862a5d1f5ac0f8
+  install.sh: |
+    set -eu
+    python3 -m venv /opt/devpi
+    /opt/devpi/bin/pip install --no-cache-dir --disable-pip-version-check --no-input -q \
+      --require-hashes --only-binary=:all: --no-deps --index-url "{{M_PKG_MIRROR_PYPI_UPSTREAM}}" -r /config/requirements.txt
+    /opt/devpi/bin/pip check
+    /opt/devpi/bin/devpi-server --version
+  start.sh: |
+    set -eu
+    umask 077
+    SERVERDIR=/data/server
+    if [ ! -e "$SERVERDIR/.nodeinfo" ]; then
+      if [ -e "$SERVERDIR" ]; then
+        echo "FATAL: $SERVERDIR exists but has no .nodeinfo; inspect the PVC" >&2; exit 1
+      fi
+      rm -rf "$SERVERDIR.init"
+      pw=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')
+      /opt/devpi/bin/devpi-init --serverdir "$SERVERDIR.init" --root-passwd "$pw" --mirror-url "{{M_PKG_MIRROR_PYPI_UPSTREAM}}"
+      unset pw
+      mv "$SERVERDIR.init" "$SERVERDIR"
+    fi
+    exec /opt/devpi/bin/devpi-server --serverdir "$SERVERDIR" \
+      --host 0.0.0.0 --port 3141 \
+      --restrict-modify root \
+      --max-request-body-size 65536 \
+      --request-timeout 30 \
+      --threads 20 --connection-limit 200
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: devpi-data
+  namespace: "{{PROJECT_NAME}}-pkg-mirror"
+  labels: { app.kubernetes.io/name: pypi, app.kubernetes.io/part-of: "{{PROJECT_NAME}}" }
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: "{{STORAGE_CLASS_DEFAULT}}"
+  resources:
+    requests: { storage: "{{M_PKG_MIRROR_STORAGE}}" }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devpi
+  namespace: "{{PROJECT_NAME}}-pkg-mirror"
+  labels: { app.kubernetes.io/name: pypi, app.kubernetes.io/part-of: "{{PROJECT_NAME}}" }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app.kubernetes.io/name: pypi }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: pypi, app.kubernetes.io/part-of: "{{PROJECT_NAME}}" }
+    spec:
+      runtimeClassName: "{{RUNTIME_CLASS_VM}}"
+      nodeSelector:
+        "{{LABEL_PREFIX}}/role-worker": "true"
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: install
+          image: docker.io/library/python:3.12-slim-bookworm@sha256:54c85f3c47607a77f32adec749d3c81d1348bf25833671f512b26a9b6d778cb3
+          command: ["sh", "/config/install.sh"]
+          env:
+            - { name: HOME, value: /tmp }
+            - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+            - { name: PYTHONWARNINGS, value: "ignore:pkg_resources is deprecated" }
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits:   { cpu: "1",  memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: config, mountPath: /config, readOnly: true }
+            - { name: venv,   mountPath: /opt/devpi }
+            - { name: tmp,    mountPath: /tmp }
+      containers:
+        - name: devpi
+          image: docker.io/library/python:3.12-slim-bookworm@sha256:54c85f3c47607a77f32adec749d3c81d1348bf25833671f512b26a9b6d778cb3
+          command: ["sh", "/config/start.sh"]
+          env:
+            - { name: HOME, value: /tmp }
+            - { name: PYTHONDONTWRITEBYTECODE, value: "1" }
+            - { name: PYTHONWARNINGS, value: "ignore:pkg_resources is deprecated" }
+          ports:
+            - { name: http, containerPort: 3141, protocol: TCP }
+          readinessProbe:
+            httpGet: { path: /+api, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: { path: /+api, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: "2",  memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: config, mountPath: /config, readOnly: true }
+            - { name: venv,   mountPath: /opt/devpi, readOnly: true }
+            - { name: data,   mountPath: /data }
+            - { name: tmp,    mountPath: /tmp }
+      volumes:
+        - name: config
+          configMap: { name: devpi-config }
+        - name: venv
+          emptyDir: { sizeLimit: 256Mi }
+        - name: data
+          persistentVolumeClaim: { claimName: devpi-data }
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pypi
+  namespace: "{{PROJECT_NAME}}-pkg-mirror"
+  labels: { app.kubernetes.io/name: pypi, app.kubernetes.io/part-of: "{{PROJECT_NAME}}" }
+spec:
+  type: ClusterIP
+  selector: { app.kubernetes.io/name: pypi }
+  ports:
+    - { name: http, port: 3141, targetPort: http, protocol: TCP }

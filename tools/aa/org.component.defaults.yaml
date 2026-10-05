@@ -1,0 +1,5 @@
+scope: components
+name: aa
+defaults:
+  ca_bundle_path: "~/.config/agent-array/cluster-ca.pem"
+  panel_url: ""

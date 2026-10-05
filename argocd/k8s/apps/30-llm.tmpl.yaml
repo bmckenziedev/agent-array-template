@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: '{{PROJECT_NAME}}-30-llm'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+  annotations:
+    argocd.argoproj.io/sync-wave: '30'
+spec:
+  project: services
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: '{{NS_LLM}}'
+  sources:
+  - repoURL: '{{ORG_GIT_REMOTE}}'
+    targetRevision: '{{GIT_REVISION}}'
+    path: rendered/global/llm/k8s
+    directory:
+      recurse: true
+      include: '*.yaml'
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions: [.spec.replicas]
+  syncPolicy:
+    syncOptions:
+    - FailOnSharedResource=true
+    - PruneLast=true
+    - RespectIgnoreDifferences=true
+    automated:
+      prune: false
+      selfHeal: true

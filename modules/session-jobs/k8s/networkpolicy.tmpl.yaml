@@ -1,0 +1,53 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: session-job-egress
+  namespace: "{{NS_SESSION_JOBS}}"
+  labels:
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: session-job
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "{{NS_LLM}}"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: litellm
+      ports:
+        - {protocol: TCP, port: 4000}
+    # Input retrieval and callback use the panel's internal listener only.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "{{NS_PORTAL}}"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: panel
+      ports:
+        - {protocol: TCP, port: 8081}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "{{PROJECT_NAME}}-pkg-mirror"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: pkg-mirror
+      ports:
+        - {protocol: TCP, port: 4873}
+        - {protocol: TCP, port: 3141}

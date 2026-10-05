@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: login-exclusion-policy
+  namespace: "{{PROJECT_NAME}}-velero"
+  annotations:
+    "{{LABEL_PREFIX}}/login-root": "{{LOGIN_HOST_ROOT}}"
+    "{{LABEL_PREFIX}}/excluded-host-paths": |-
+      {{BACKUP_EXCLUDE_JSON}}
+data:
+  resource-policies.yaml: |
+    version: v1
+    volumePolicies:
+      - conditions:
+          storageClass: ["{{STORAGE_CLASS_LOGIN}}"]
+        action:
+          type: skip

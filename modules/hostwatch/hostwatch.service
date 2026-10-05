@@ -1,0 +1,26 @@
+[Unit]
+Description=Agent Array host + credential expiry collector (hostwatch-collect.sh)
+Documentation=file:///usr/local/libexec/hostwatch-collect.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/hostwatch-collect.sh
+SyslogIdentifier=hostwatch
+# Read-only checks (apt-check, smartctl -H, nvme smart-log, openssl, k3s kubectl get) need root
+# for device and k3s file access. It writes only /var/lib/node_exporter/textfile_collector and
+# /var/lib/hostwatch, so keep /usr, /boot and /etc read-only and give it an empty tmpfs in
+# place of /home and /root (kubectl's discovery cache lands there). HOME is set because
+# k3s kubectl looks for a per-user directory.
+User=root
+Group=root
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=tmpfs
+PrivateTmp=true
+Environment=HOME=/root
+# Background hygiene: never compete with etcd, the kubelet or a running workload.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+# A hung tool must not leave the run (and the stale-collector alert) stuck forever.
+TimeoutStartSec=10min

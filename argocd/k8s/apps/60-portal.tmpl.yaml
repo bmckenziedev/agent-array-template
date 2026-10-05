@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: '{{PROJECT_NAME}}-60-portal'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+  annotations:
+    argocd.argoproj.io/sync-wave: '60'
+spec:
+  project: services
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: '{{NS_PORTAL}}'
+  sources:
+  - repoURL: '{{ORG_GIT_REMOTE}}'
+    targetRevision: '{{GIT_REVISION}}'
+    path: rendered/global/portal
+    directory:
+      recurse: true
+      include: '*.yaml'
+  syncPolicy:
+    syncOptions:
+    - FailOnSharedResource=true
+    - PruneLast=true
+    automated:
+      prune: false
+      selfHeal: true

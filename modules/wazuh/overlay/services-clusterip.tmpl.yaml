@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wazuh
+  namespace: "{{PROJECT_NAME}}-wazuh"
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: null
+spec:
+  type: ClusterIP
+  ports:
+    # Master-only: agents send events straight to the master's remoted.
+    - name: agents-events
+      port: 1514
+      targetPort: 1514
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: indexer
+  namespace: "{{PROJECT_NAME}}-wazuh"
+spec:
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: "{{PROJECT_NAME}}-wazuh"
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: null
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: null
+spec:
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wazuh-cluster
+  namespace: "{{PROJECT_NAME}}-wazuh"
+spec:
+  publishNotReadyAddresses: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wazuh-indexer
+  namespace: "{{PROJECT_NAME}}-wazuh"
+spec:
+  publishNotReadyAddresses: true

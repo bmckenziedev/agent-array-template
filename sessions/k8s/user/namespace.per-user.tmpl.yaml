@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: '{{USER_NS}}'
+  labels:
+    app.kubernetes.io/name: '{{USER_NS}}'
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: sessions
+    '{{LABEL_PREFIX}}/user': '{{USER_SLUG}}'
+    '{{LABEL_PREFIX}}/team': '{{USER_PRIMARY_TEAM}}'
+    '{{LABEL_PREFIX}}/kind': user-sessions
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: '{{K8S_VERSION}}'
+  annotations:
+    '{{LABEL_PREFIX}}/git-secret': '{{USER_GIT_SECRET}}'
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    '{{LABEL_PREFIX}}/oidc-sub': '{{USER_OIDC_SUB}}'
+    '{{LABEL_PREFIX}}/max-replicas-per-tool': '{{TIER_MAX_REPLICAS_PER_TOOL}}'
+    '{{LABEL_PREFIX}}/status': '{{USER_STATUS}}'

@@ -1,0 +1,12 @@
+{
+  "name": "agent-array-frontier-claude",
+  "private": true,
+  "description": "Pins the Claude Code CLI (stable channel), the JS/TS parser and pnpm's native linux-x64 binary for the frontier-claude image. npm ci verifies every tarball against the sha512 integrity in package-lock.json.",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.285",
+    "@babel/parser": "7.29.9"
+  },
+  "optionalDependencies": {
+    "@pnpm/exe.linux-x64": "12.9.1"
+  }
+}

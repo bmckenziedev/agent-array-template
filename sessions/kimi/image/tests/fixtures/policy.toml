@@ -1,0 +1,205 @@
+
+default_permission_mode = "auto"
+default_plan_mode = false
+telemetry = false                      # KIMI_DISABLE_TELEMETRY=1 is set in the pod too
+merge_all_available_skills = false     # no skills picked up from other agents' directories
+
+[thinking]
+enabled = true
+
+[permission]
+dangerous_command_guard = true         # inert in auto mode (2.1.1 skips it there); kept for manual/yolo
+
+[[permission.rules]]
+decision = "deny"
+pattern = "FetchURL"
+reason = "aa-kimi: no web fetch (repo content may carry prompt injection; 443 is open)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "WebSearch"
+reason = "aa-kimi: no web search"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "CronCreate"
+reason = "aa-kimi: nothing starts a turn on its own (rule R3); KIMI_DISABLE_CRON=1 too"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "CreateGoal"
+reason = "aa-kimi: a goal makes the runtime pursue work across turns on its own (rule R3)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(kimi*)"
+reason = "aa-kimi: no nested kimi (web/rc servers, login, provider changes)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(kimi*/**)"
+reason = "aa-kimi: no nested kimi (web/rc servers, login, provider changes)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(node*)"
+reason = "aa-kimi: this pod never executes repo code"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(node*/**)"
+reason = "aa-kimi: this pod never executes repo code"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(np[mx]*)"
+reason = "aa-kimi: this pod never executes repo code"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(np[mx]*/**)"
+reason = "aa-kimi: this pod never executes repo code"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git push*)"
+reason = "aa-kimi: no git network verbs (protocol.allow=never as well)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git push*/**)"
+reason = "aa-kimi: no git network verbs (protocol.allow=never as well)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git config*)"
+reason = "aa-kimi: the system gitconfig is the policy"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git config*/**)"
+reason = "aa-kimi: the system gitconfig is the policy"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git fetch*)"
+reason = "aa-kimi: no git network verbs"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git fetch*/**)"
+reason = "aa-kimi: no git network verbs"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git pull*)"
+reason = "aa-kimi: no git network verbs"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git pull*/**)"
+reason = "aa-kimi: no git network verbs"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git clone*)"
+reason = "aa-kimi: no git network verbs (clone a snapshot with a local path: cp -r)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git clone*/**)"
+reason = "aa-kimi: no git network verbs (clone a snapshot with a local path: cp -r)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git remote*)"
+reason = "aa-kimi: no git remotes"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git remote*/**)"
+reason = "aa-kimi: no git remotes"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git submodule*)"
+reason = "aa-kimi: no git network verbs"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git submodule*/**)"
+reason = "aa-kimi: no git network verbs"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git -c*)"
+reason = "aa-kimi: command-line git config would outrank the system gitconfig (protocol.allow)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Bash(git -c*/**)"
+reason = "aa-kimi: command-line git config would outrank the system gitconfig (protocol.allow)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Write(~/.kimi-code/**)"
+reason = "aa-kimi: the CLI's own config and sessions are not agent-editable"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Edit(~/.kimi-code/**)"
+reason = "aa-kimi: the CLI's own config and sessions are not agent-editable"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Write(/work/.kimi-code/**)"
+reason = "aa-kimi: no project-local CLI config (MCP servers, skills, agents)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Edit(/work/.kimi-code/**)"
+reason = "aa-kimi: no project-local CLI config (MCP servers, skills, agents)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Write(/work/.agents/**)"
+reason = "aa-kimi: no project-local skills or agents"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Edit(/work/.agents/**)"
+reason = "aa-kimi: no project-local skills or agents"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Write(/work/AGENTS.md)"
+reason = "aa-kimi: managed instructions (rewritten at every start)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Edit(/work/AGENTS.md)"
+reason = "aa-kimi: managed instructions (rewritten at every start)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Write(/work/snap/**)"
+reason = "aa-kimi: snapshots are read-only (aa snapshot)"
+
+[[permission.rules]]
+decision = "deny"
+pattern = "Edit(/work/snap/**)"
+reason = "aa-kimi: snapshots are read-only (aa snapshot)"
+
+[tools]
+disabled = ["FetchURL", "WebSearch", "CronCreate", "CronDelete", "CronList",
+            "CreateGoal", "UpdateGoal", "SetGoalBudget", "GetGoal"]
+
+[task]
+keep_alive_on_exit = false             # background shell tasks end with the session (R3)
+
+[model_catalog]
+refresh_on_start = false               # no models.dev / provider refresh behind your back;
+refresh_interval_ms = 0                # aa-kimi-config lists models at every start
+
+[watch]
+enabled = false                        # an edit to config.toml applies at the next start, which rewrites it

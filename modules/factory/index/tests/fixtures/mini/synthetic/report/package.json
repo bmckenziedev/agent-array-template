@@ -1,0 +1,1 @@
+{"name": "@example-org/report", "main": "src/report.js", "dependencies": {"@example-org/math": "1.0.0"}}

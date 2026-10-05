@@ -1,0 +1,15 @@
+{
+  "node": "{{NODE_NAME}}",
+  "label_prefix": "{{LABEL_PREFIX}}",
+  "roles": {{NODE_ROLES_JSON}},
+  "runtime_classes": {{NODE_RUNTIME_CLASSES_JSON}},
+  "labels": {{NODE_LABELS_JSON}},
+  "role_label_prefix": "{{LABEL_PREFIX}}/role-",
+  "runtime_label_prefix": "{{LABEL_PREFIX}}/runtime-",
+  "gpu_taint": {
+    "enabled": {{NODE_IS_GPU}},
+    "key": "{{LABEL_PREFIX}}/gpu",
+    "value": "true",
+    "effect": "NoSchedule"
+  }
+}

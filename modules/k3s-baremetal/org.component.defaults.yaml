@@ -1,0 +1,8 @@
+scope: modules
+name: k3s-baremetal
+defaults:
+  enabled: false
+  ssh_user: platform
+  ssh_port: 22
+  firewall_profile: overlay
+  overlay_interface: tailscale0

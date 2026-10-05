@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -n "${AA_PYTHON:-}" ]]; then
+    exec "$AA_PYTHON" "$root/aa.py" "$@"
+elif command -v python3 >/dev/null 2>&1; then
+    exec python3 "$root/aa.py" "$@"
+else
+    exec python "$root/aa.py" "$@"
+fi

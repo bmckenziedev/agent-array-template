@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pace
+  namespace: "{{NS_SYSTEM}}"
+  labels:
+    app.kubernetes.io/name: pace
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+    app.kubernetes.io/component: pacing
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: "{{PROJECT_NAME}}-pace-identity"
+  labels:
+    app.kubernetes.io/name: pace
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+    app.kubernetes.io/component: pacing
+rules:
+  - apiGroups: [authentication.k8s.io]
+    resources: [tokenreviews]
+    verbs: [create]
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: "{{PROJECT_NAME}}-pace-identity"
+  labels:
+    app.kubernetes.io/name: pace
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+    app.kubernetes.io/component: pacing
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "{{PROJECT_NAME}}-pace-identity"
+subjects:
+  - kind: ServiceAccount
+    name: pace
+    namespace: "{{NS_SYSTEM}}"

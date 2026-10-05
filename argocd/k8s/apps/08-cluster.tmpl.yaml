@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: '{{PROJECT_NAME}}-08-cluster'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+  annotations:
+    argocd.argoproj.io/sync-wave: '8'
+spec:
+  project: platform-infra
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: '{{NS_SYSTEM}}'
+  sources:
+  - repoURL: '{{ORG_GIT_REMOTE}}'
+    targetRevision: '{{GIT_REVISION}}'
+    path: rendered/global/cluster/k8s
+    directory:
+      recurse: true
+      include: '*.yaml'
+  - repoURL: '{{ORG_GIT_REMOTE}}'
+    targetRevision: '{{GIT_REVISION}}'
+    path: rendered/global/cluster/rbac/k8s
+    directory:
+      recurse: true
+      include: '*.yaml'
+  - repoURL: '{{ORG_GIT_REMOTE}}'
+    targetRevision: '{{GIT_REVISION}}'
+    path: rendered/global/cluster/login-storage
+    directory:
+      recurse: true
+      include: '*.yaml'
+  syncPolicy:
+    syncOptions:
+    - FailOnSharedResource=true
+    - PruneLast=true

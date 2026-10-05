@@ -1,0 +1,5 @@
+scope: modules
+name: k3s-maintenance
+defaults:
+  enabled: false
+  drain_timeout: 300s

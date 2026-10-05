@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: panel
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: panel
+  namespaceSelector:
+    matchNames:
+    - '{{NS_PORTAL}}'
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    honorLabels: true

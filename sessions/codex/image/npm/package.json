@@ -1,0 +1,8 @@
+{
+  "name": "agent-array-frontier-codex",
+  "private": true,
+  "description": "Pins the official OpenAI Codex CLI (npm `latest` = newest stable GitHub release rust-v0.160.0 on 2026-10-04) for the frontier-codex image. npm ci verifies the wrapper and the linux-x64 native package against the sha512 integrity in package-lock.json.",
+  "dependencies": {
+    "@openai/codex": "0.160.0"
+  }
+}

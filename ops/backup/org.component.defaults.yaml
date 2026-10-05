@@ -1,0 +1,11 @@
+scope: components
+name: backup
+defaults:
+  staging_dir: /var/backups/cluster-ops
+  snapshot_dir: /var/lib/rancher/k3s/server/db/snapshots
+  audit_dir: /var/log/kubernetes
+  grafana_db: /var/lib/grafana/grafana.db
+  sealed_namespace: kube-system
+  server_token_file: /var/lib/rancher/k3s/server/token
+  encryption_config: /var/lib/rancher/k3s/server/cred/encryption-config.json
+  secrets_encryption_enabled: true

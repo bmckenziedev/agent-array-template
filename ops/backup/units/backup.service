@@ -1,0 +1,6 @@
+[Unit]
+Description=Cluster backup
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/opt/cluster-ops/backup/backup.sh --yes

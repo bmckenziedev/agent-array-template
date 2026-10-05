@@ -1,0 +1,279 @@
+rule_files:
+- ../rules/tenants.rules.yaml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: aa_pace_window_used_pct{account="seat-a",window="weekly"}
+    values: 81x10
+  - series: aa_pace_window_cap_pct{account="seat-a",window="weekly"}
+    values: 80x10
+  - series: aa_pace_account_info{account="seat-a",team="payments",type="seat",usage_source="vendor"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (aa_pace_window_used_pct > aa_pace_window_cap_pct) * on (account) group_left (team) aa_pace_account_info
+    eval_time: 10m
+    exp_samples:
+    - labels: '{account="seat-a",window="weekly",team="payments"}'
+      value: 81
+- interval: 1m
+  input_series:
+  - series: aa_pace_window_used_pct{account="seat-a",window="weekly"}
+    values: 80x10
+  - series: aa_pace_window_cap_pct{account="seat-a",window="weekly"}
+    values: 80x10
+  - series: aa_pace_account_info{account="seat-a",team="payments",type="seat",usage_source="vendor"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (aa_pace_window_used_pct > aa_pace_window_cap_pct) * on (account) group_left (team) aa_pace_account_info
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: aa_pace_window_used_pct{account="seat-a",window="weekly"}
+    values: 79x10
+  - series: aa_pace_window_cap_pct{account="seat-a",window="weekly"}
+    values: 80x10
+  - series: aa_pace_account_info{account="seat-a",team="payments",type="seat",usage_source="vendor"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (aa_pace_window_used_pct > aa_pace_window_cap_pct) * on (account) group_left (team) aa_pace_account_info
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: (aa_pace_window_used_pct > aa_pace_window_cap_pct) * on (account) group_left (team) aa_pace_account_info
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: aa_pace_usage_age_seconds{account="seat-a",window="weekly"}
+    values: 7201x10
+  - series: aa_pace_account_info{account="seat-a",team="payments",type="seat",usage_source="vendor"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (aa_pace_usage_age_seconds > 7200) * on (account) group_left (team) aa_pace_account_info{type="seat",usage_source!="manual"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{account="seat-a",window="weekly",team="payments"}'
+      value: 7201
+- interval: 1m
+  input_series:
+  - series: aa_pace_usage_age_seconds{account="seat-a",window="weekly"}
+    values: 7200x10
+  - series: aa_pace_account_info{account="seat-a",team="payments",type="seat",usage_source="vendor"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (aa_pace_usage_age_seconds > 7200) * on (account) group_left (team) aa_pace_account_info{type="seat",usage_source!="manual"}
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: aa_pace_usage_age_seconds{account="seat-a",window="weekly"}
+    values: 9000x10
+  - series: aa_pace_account_info{account="seat-a",team="payments",type="seat",usage_source="manual"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (aa_pace_usage_age_seconds > 7200) * on (account) group_left (team) aa_pace_account_info{type="seat",usage_source!="manual"}
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: litellm_remaining_team_budget_metric{team_alias="payments"}
+    values: 19x10
+  - series: litellm_team_max_budget_metric{team_alias="payments"}
+    values: 100x10
+  promql_expr_test:
+  - expr: label_replace(((1 - max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_REMAINING_BUDGET_METRIC}})
+      / max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0.80) and on ({{C_MONITORING_LITELLM_TEAM_LABEL}})
+      (max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0)), "team", "$1",
+      "{{C_MONITORING_LITELLM_TEAM_LABEL}}", "(.+)")
+    eval_time: 10m
+    exp_samples:
+    - labels: '{team="payments",team_alias="payments"}'
+      value: 0.81
+- interval: 1m
+  input_series:
+  - series: litellm_remaining_team_budget_metric{team_alias="payments"}
+    values: 20x10
+  - series: litellm_team_max_budget_metric{team_alias="payments"}
+    values: 100x10
+  promql_expr_test:
+  - expr: label_replace(((1 - max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_REMAINING_BUDGET_METRIC}})
+      / max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0.80) and on ({{C_MONITORING_LITELLM_TEAM_LABEL}})
+      (max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0)), "team", "$1",
+      "{{C_MONITORING_LITELLM_TEAM_LABEL}}", "(.+)")
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: litellm_remaining_team_budget_metric{team_alias="payments"}
+    values: 21x10
+  - series: litellm_team_max_budget_metric{team_alias="payments"}
+    values: 100x10
+  promql_expr_test:
+  - expr: label_replace(((1 - max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_REMAINING_BUDGET_METRIC}})
+      / max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0.80) and on ({{C_MONITORING_LITELLM_TEAM_LABEL}})
+      (max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0)), "team", "$1",
+      "{{C_MONITORING_LITELLM_TEAM_LABEL}}", "(.+)")
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: litellm_remaining_team_budget_metric{team_alias="payments"}
+    values: '0x10'
+  - series: litellm_team_max_budget_metric{team_alias="payments"}
+    values: '0x10'
+  promql_expr_test:
+  - expr: label_replace(((1 - max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_REMAINING_BUDGET_METRIC}})
+      / max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0.80) and on ({{C_MONITORING_LITELLM_TEAM_LABEL}})
+      (max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0)), "team", "$1",
+      "{{C_MONITORING_LITELLM_TEAM_LABEL}}", "(.+)")
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: label_replace(((1 - max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_REMAINING_BUDGET_METRIC}})
+      / max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0.80) and on ({{C_MONITORING_LITELLM_TEAM_LABEL}})
+      (max by ({{C_MONITORING_LITELLM_TEAM_LABEL}}) ({{C_MONITORING_LITELLM_BUDGET_METRIC}}) > 0)), "team", "$1",
+      "{{C_MONITORING_LITELLM_TEAM_LABEL}}", "(.+)")
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: kube_pod_container_status_waiting_reason{namespace="aa-u-ana",pod="claude-node-a",container="cli",reason="CrashLoopBackOff"}
+    values: 1x10
+  - series: aa_monitoring_namespace_info{namespace="aa-u-ana",team="payments",user="ana"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (max by (namespace,pod,container) (kube_pod_container_status_waiting_reason{namespace=~"{{USER_NS_PREFIX}}.*",reason="CrashLoopBackOff"})
+      == 1) * on (namespace) group_left (team,user) aa_monitoring_namespace_info
+    eval_time: 10m
+    exp_samples:
+    - labels: '{namespace="aa-u-ana",pod="claude-node-a",container="cli",team="payments",user="ana"}'
+      value: 1
+- interval: 1m
+  input_series:
+  - series: kube_pod_container_status_waiting_reason{namespace="aa-u-ana",pod="claude-node-a",container="cli",reason="Running"}
+    values: 1x10
+  - series: aa_monitoring_namespace_info{namespace="aa-u-ana",team="payments",user="ana"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (max by (namespace,pod,container) (kube_pod_container_status_waiting_reason{namespace=~"{{USER_NS_PREFIX}}.*",reason="CrashLoopBackOff"})
+      == 1) * on (namespace) group_left (team,user) aa_monitoring_namespace_info
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: kube_pod_container_status_waiting_reason{namespace="unrelated",pod="claude-node-a",container="cli",reason="CrashLoopBackOff"}
+    values: 1x10
+  - series: aa_monitoring_namespace_info{namespace="aa-u-ana",team="payments",user="ana"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (max by (namespace,pod,container) (kube_pod_container_status_waiting_reason{namespace=~"{{USER_NS_PREFIX}}.*",reason="CrashLoopBackOff"})
+      == 1) * on (namespace) group_left (team,user) aa_monitoring_namespace_info
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: kube_persistentvolumeclaim_status_phase{namespace="aa-u-ana",persistentvolumeclaim="claude-home-node-a",phase="Pending"}
+    values: 1x10
+  - series: aa_monitoring_namespace_info{namespace="aa-u-ana",team="payments",user="ana"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (max by (namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_status_phase{namespace=~"{{USER_NS_PREFIX}}.*",phase="Pending"})
+      == 1) * on (namespace) group_left (team,user) aa_monitoring_namespace_info
+    eval_time: 10m
+    exp_samples:
+    - labels: '{namespace="aa-u-ana",persistentvolumeclaim="claude-home-node-a",team="payments",user="ana"}'
+      value: 1
+- interval: 1m
+  input_series:
+  - series: kube_persistentvolumeclaim_status_phase{namespace="aa-u-ana",persistentvolumeclaim="claude-home-node-a",phase="Bound"}
+    values: 1x10
+  - series: aa_monitoring_namespace_info{namespace="aa-u-ana",team="payments",user="ana"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (max by (namespace,persistentvolumeclaim) (kube_persistentvolumeclaim_status_phase{namespace=~"{{USER_NS_PREFIX}}.*",phase="Pending"})
+      == 1) * on (namespace) group_left (team,user) aa_monitoring_namespace_info
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: aa_mcp_requests_total{server="tickets",team="payments",outcome="error"}
+    values: 0+2x10
+  - series: aa_mcp_requests_total{server="tickets",team="payments",outcome="allow"}
+    values: 0+8x10
+  promql_expr_test:
+  - expr: (sum by (server,team) (rate(aa_mcp_requests_total{outcome="error"}[5m])) / sum by (server,team) (rate(aa_mcp_requests_total[5m]))
+      > 0.10) and on (server,team) (sum by (server,team) (increase(aa_mcp_requests_total[5m])) >= 10)
+    eval_time: 10m
+    exp_samples:
+    - labels: '{server="tickets",team="payments"}'
+      value: 0.2
+- interval: 1m
+  input_series:
+  - series: aa_mcp_requests_total{server="tickets",team="payments",outcome="error"}
+    values: 0+1x10
+  - series: aa_mcp_requests_total{server="tickets",team="payments",outcome="allow"}
+    values: 0+9x10
+  promql_expr_test:
+  - expr: (sum by (server,team) (rate(aa_mcp_requests_total{outcome="error"}[5m])) / sum by (server,team) (rate(aa_mcp_requests_total[5m]))
+      > 0.10) and on (server,team) (sum by (server,team) (increase(aa_mcp_requests_total[5m])) >= 10)
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: aa_mcp_requests_total{server="tickets",team="payments",outcome="error"}
+    values: 0+0x10
+  - series: aa_mcp_requests_total{server="tickets",team="payments",outcome="allow"}
+    values: 0+10x10
+  promql_expr_test:
+  - expr: (sum by (server,team) (rate(aa_mcp_requests_total{outcome="error"}[5m])) / sum by (server,team) (rate(aa_mcp_requests_total[5m]))
+      > 0.10) and on (server,team) (sum by (server,team) (increase(aa_mcp_requests_total[5m])) >= 10)
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: aa_pace_lease_denied_total{account="seat-a",reason="cap"}
+    values: 0+3x10
+  - series: aa_pace_account_info{account="seat-a",team="payments"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (sum by (account) (increase(aa_pace_lease_denied_total[5m])) > {{C_MONITORING_LEASE_DENIALS_THRESHOLD}})
+      * on (account) group_left (team) aa_pace_account_info
+    eval_time: 10m
+    exp_samples:
+    - labels: '{account="seat-a",team="payments"}'
+      value: 15
+- interval: 1m
+  input_series:
+  - series: aa_mcp_auth_denied_total{server="tickets",reason="forbidden"}
+    values: 0+3x10
+  promql_expr_test:
+  - expr: sum by (server) (increase(aa_mcp_auth_denied_total[5m])) > {{C_MONITORING_MCP_AUTH_DENIALS_THRESHOLD}}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{server="tickets"}'
+      value: 15
+- interval: 1m
+  input_series:
+  - series: aa_pace_lease_denied_total{account="seat-a",reason="cap"}
+    values: 0+2x10
+  - series: aa_pace_account_info{account="seat-a",team="payments"}
+    values: 1x10
+  promql_expr_test:
+  - expr: (sum by (account) (increase(aa_pace_lease_denied_total[5m])) > {{C_MONITORING_LEASE_DENIALS_THRESHOLD}})
+      * on (account) group_left (team) aa_pace_account_info
+    eval_time: 10m
+    exp_samples: []
+- interval: 1m
+  input_series:
+  - series: aa_mcp_auth_denied_total{server="tickets",reason="forbidden"}
+    values: 0+2x10
+  promql_expr_test:
+  - expr: sum by (server) (increase(aa_mcp_auth_denied_total[5m])) > {{C_MONITORING_MCP_AUTH_DENIALS_THRESHOLD}}
+    eval_time: 10m
+    exp_samples: []

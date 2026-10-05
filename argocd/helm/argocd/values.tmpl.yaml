@@ -1,0 +1,223 @@
+global:
+  domain: '{{HOST_ARGOCD}}'
+  nodeSelector:
+    '{{LABEL_PREFIX}}/role-control-plane': 'true'
+  networkPolicy:
+    create: false
+controller:
+  image:
+    tag: v3.5.3@sha256:dd3f47d5a5e4da563a7a398506e892481b358a7cec50abdf320c71aa55904bfa
+  clusterRoleRules:
+    enabled: true
+    rules:
+    - apiGroups:
+      - ''
+      resources:
+      - configmaps
+      - endpoints
+      - events
+      - limitranges
+      - namespaces
+      - persistentvolumeclaims
+      - persistentvolumes
+      - pods
+      - resourcequotas
+      - serviceaccounts
+      - services
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - apps
+      resources:
+      - daemonsets
+      - deployments
+      - replicasets
+      - statefulsets
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - networking.k8s.io
+      resources:
+      - networkpolicies
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - rbac.authorization.k8s.io
+      resources:
+      - clusterroles
+      - clusterrolebindings
+      - roles
+      - rolebindings
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - bitnami.com
+      resources:
+      - sealedsecrets
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - monitoring.coreos.com
+      resources:
+      - podmonitors
+      - prometheusrules
+      - servicemonitors
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - node.k8s.io
+      resources:
+      - runtimeclasses
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - scheduling.k8s.io
+      resources:
+      - priorityclasses
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+    - apiGroups:
+      - admissionregistration.k8s.io
+      resources:
+      - validatingadmissionpolicies
+      - validatingadmissionpolicybindings
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: '1'
+      memory: 1Gi
+server:
+  image:
+    tag: v3.5.3@sha256:dd3f47d5a5e4da563a7a398506e892481b358a7cec50abdf320c71aa55904bfa
+  clusterRoleRules:
+    enabled: true
+    rules: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: '1'
+      memory: 1Gi
+  service:
+    type: ClusterIP
+repoServer:
+  image:
+    tag: v3.5.3@sha256:dd3f47d5a5e4da563a7a398506e892481b358a7cec50abdf320c71aa55904bfa
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: '1'
+      memory: 1Gi
+applicationSet:
+  replicas: 1
+  image:
+    tag: v3.5.3@sha256:dd3f47d5a5e4da563a7a398506e892481b358a7cec50abdf320c71aa55904bfa
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: '1'
+      memory: 1Gi
+notifications:
+  enabled: false
+  image:
+    tag: v3.5.3@sha256:dd3f47d5a5e4da563a7a398506e892481b358a7cec50abdf320c71aa55904bfa
+redisSecretInit:
+  image:
+    tag: v3.5.3@sha256:dd3f47d5a5e4da563a7a398506e892481b358a7cec50abdf320c71aa55904bfa
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: '1'
+      memory: 1Gi
+dex:
+  image:
+    tag: v2.45.1@sha256:8499afd690c437f52301efd2b05b2455da5bd2dfc20332cd697dc9937f808462
+  initImage:
+    tag: v3.5.3@sha256:dd3f47d5a5e4da563a7a398506e892481b358a7cec50abdf320c71aa55904bfa
+  enabled: false
+redis:
+  image:
+    tag: 8.6.4-alpine@sha256:2cc044fc5a07c9b701f8f1255a309ae9ad7856e694ac03513bf3648c01e40763
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: '1'
+      memory: 1Gi
+configs:
+  params:
+    server.insecure: false
+  cm:
+    admin.enabled: false
+    url: https://{{HOST_ARGOCD}}
+    oidc.config: "name: Organization\nissuer: {{OIDC_ISSUER_URL}}\nclientID: {{OIDC_CLIENT_ID}}\n\
+      clientSecret: $argocd-oidc:clientSecret\nrequestedScopes: [openid, profile,\
+      \ groups]\nrequestedIDTokenClaims:\n  groups:\n    essential: true\n"
+  rbac:
+    create: false

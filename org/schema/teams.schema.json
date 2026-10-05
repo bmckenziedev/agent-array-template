@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-array.example.org/schema/teams.schema.json",
+  "title": "Agent-array teams configuration",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "teams": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "idp_group": {
+            "type": "string"
+          },
+          "leads": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "weight": {
+            "type": "integer"
+          },
+          "session_tier": {
+            "type": "string"
+          },
+          "permission_mode": {
+            "type": "string"
+          },
+          "data_classes_allowed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "vendors_allowed": {
+            "type": "object",
+            "properties": {
+              "public": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "internal": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "confidential": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "restricted": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "mcp_servers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "context_sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "litellm": {
+            "type": "object",
+            "properties": {
+              "models": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "max_budget_usd": {
+                "type": "integer"
+              },
+              "budget_duration": {
+                "type": "string"
+              },
+              "tpm_limit": {
+                "type": "integer"
+              },
+              "rpm_limit": {
+                "type": "integer"
+              },
+              "task_budget_usd": {
+                "type": "object",
+                "properties": {
+                  "standard": {
+                    "type": "integer"
+                  },
+                  "bulk": {
+                    "type": "integer"
+                  }
+                },
+                "additionalProperties": {
+                  "type": "integer"
+                }
+              }
+            },
+            "required": [
+              "models",
+              "max_budget_usd",
+              "budget_duration",
+              "tpm_limit",
+              "rpm_limit",
+              "task_budget_usd"
+            ],
+            "additionalProperties": false
+          },
+          "factory": {
+            "type": "object",
+            "properties": {
+              "max_inflight_per_lane": {
+                "type": "integer"
+              },
+              "queue_priority_ceiling": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "max_inflight_per_lane",
+              "queue_priority_ceiling"
+            ],
+            "additionalProperties": false
+          },
+          "pools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "idp_group",
+          "leads",
+          "weight",
+          "session_tier",
+          "permission_mode",
+          "data_classes_allowed",
+          "vendors_allowed",
+          "mcp_servers",
+          "context_sources",
+          "litellm",
+          "factory",
+          "pools"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "version",
+    "teams"
+  ],
+  "additionalProperties": false
+}

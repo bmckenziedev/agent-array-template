@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "farm-mcp"
+  namespace: "{{NS_SYSTEM}}"
+  labels:
+    app.kubernetes.io/name: "farm-mcp"
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+    app.kubernetes.io/component: mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "farm-mcp"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "farm-mcp"
+        app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+        app.kubernetes.io/component: mcp
+        "{{LABEL_PREFIX}}/llm-client": "true"
+    spec:
+      serviceAccountName: "farm-mcp"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mcp
+          image: "{{IMAGE_FARM_MCP}}"
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
+          env:
+            - {name: PACE_URL, value: "http://pace.{{NS_SYSTEM}}.svc:8080"}
+            - {name: LITELLM_URL, value: "http://litellm.{{NS_LLM}}.svc:4000"}
+            - {name: FACTORY_URL, value: "http://factory-api.{{NS_FACTORY}}.svc:8080"}
+            - {name: PROJECT_NAME, value: "{{PROJECT_NAME}}"}
+            - {name: LABEL_PREFIX, value: "{{LABEL_PREFIX}}"}
+            - {name: USER_NS_PREFIX, value: "{{USER_NS_PREFIX}}"}
+            - {name: APISERVER_URL, value: "{{APISERVER_URL}}"}
+            - {name: MCP_NAME, value: "farm"}
+            - {name: MCP_PORT, value: "8080"}
+            - {name: MCP_PATH, value: "/mcp"}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+          volumeMounts:
+            - {name: pace-token, mountPath: /var/run/agent-array/pace-token, readOnly: true}
+            - {name: config, mountPath: /etc/agent-array/farm, readOnly: true}
+            - {name: mint, mountPath: /etc/agent-array/mint, readOnly: true}
+            - {name: directory, mountPath: /etc/agent-array/org, readOnly: true}
+      volumes:
+        - name: pace-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: "{{PROJECT_NAME}}-pace"
+                  expirationSeconds: 3600
+                  path: token
+        - name: directory
+          configMap: {name: org-directory}
+        - name: config
+          configMap: {name: farm-mcp-config}
+        - name: mint
+          secret:
+            secretName: litellm-mint
+            items:
+              - {key: key, path: key}

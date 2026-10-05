@@ -1,0 +1,9 @@
+scope: modules
+name: hermes-ops-chat
+defaults:
+  enabled: false
+  platform: telegram
+  bot_secret: hermes-chat-bot
+  identity_secret: hermes-allowed-users
+  allowed_team: platform
+  model: openai-api-standard

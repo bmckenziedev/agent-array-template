@@ -1,0 +1,871 @@
+rule_files:
+- ../rules/factory.rules.yaml
+evaluation_interval: 1m
+tests:
+- name: missing telemetry never means idle or suspended
+  interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: ready backlog idle on healthy awake model
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 2+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts:
+    - exp_labels:
+        lane: gpu-a-a
+        node: gpu-a
+        severity: warning
+      exp_annotations:
+        summary: FactoryIdleWithReadyBacklog
+        description: Inspect the alert labels and metric history before remediation.
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: empty ready queue
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: nonzero total queue but dependency-blocked, no ready work
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  - series: aa_factory_queue_depth{lane="gpu-a-a",node="gpu-a"}
+    values: 9+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: inflight work
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 2+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: GPU time is advancing
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 2+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+30x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: model outage does not become idle
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 2+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 0+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: absent model scrape does not become idle
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 2+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: stale queue snapshot
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 2+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: sleep confirmed with ready backlog
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 2+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts:
+    - exp_labels:
+        lane: gpu-a-a
+        node: gpu-a
+        severity: warning
+      exp_annotations:
+        summary: FactoryWaitingOnSuspendedNode
+        description: Inspect the alert labels and metric history before remediation.
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: sleep confirmed with zero backlog
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: cordoned or missing node alone is not suspend proof
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 2+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: unknown power state does not mean suspend
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 2+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: zero ratio denominator
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: ratio denominator missing
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: failure share high but fewer than 10 attempts
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+0.1x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: exactly 30 percent is quiet
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+7x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+3x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: 40 percent parse plus apply failures
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+60x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+6x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+2x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+2x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts:
+    - exp_labels:
+        lane: gpu-a-a
+        node: gpu-a
+        kind: doc_map
+        severity: warning
+      exp_annotations:
+        summary: FactoryParseApplyFailureRateHigh
+        description: Inspect the alert labels and metric history before remediation.
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: high failures with stale producer is quiet
+  interval: 1m
+  input_series:
+  - series: aa_factory_snapshot_timestamp_seconds{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_ready{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_inflight{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_gpu_seconds_total{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa_factory_node_suspended{lane="gpu-a-a",node="gpu-a"}
+    values: 0+0x90
+  - series: aa:gpu_node:active{node="gpu-a"}
+    values: 1+0x90
+  - series: up{namespace="agent-array-models",job="lane-gpu-a",pod="model1"}
+    values: 1+0x90
+  - series: kube_pod_info{job="kube-state-metrics",namespace="agent-array-models",pod="model1",node="gpu-a"}
+    values: 1+0x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="pass"}
+    values: 0+6x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_parse"}
+    values: 0+2x90
+  - series: aa_factory_attempts_total{lane="gpu-a-a",node="gpu-a",kind="doc_map",outcome="fail_apply"}
+    values: 0+2x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: configured swap on Kata node even when unused
+  interval: 1m
+  input_series:
+  - series: node_memory_SwapTotal_bytes{job="node-exporter",instance="n1"}
+    values: 1024+0x90
+  - series: aa:node:info{instance="n1",node="gpu-a"}
+    values: 1+0x90
+  - series: kube_node_labels{job="kube-state-metrics",node="gpu-a",label_aa_example_org_runtime_kata="true"}
+    values: 1+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts:
+    - exp_labels:
+        node: gpu-a
+        severity: warning
+      exp_annotations:
+        summary: KataNodeSwapEnabled
+        description: Inspect the alert labels and metric history before remediation.
+- name: Kata node swap disabled
+  interval: 1m
+  input_series:
+  - series: node_memory_SwapTotal_bytes{job="node-exporter",instance="n1"}
+    values: 0+0x90
+  - series: aa:node:info{instance="n1",node="gpu-a"}
+    values: 1+0x90
+  - series: kube_node_labels{job="kube-state-metrics",node="gpu-a",label_aa_example_org_runtime_kata="true"}
+    values: 1+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: non Kata node swap
+  interval: 1m
+  input_series:
+  - series: node_memory_SwapTotal_bytes{job="node-exporter",instance="n1"}
+    values: 1024+0x90
+  - series: aa:node:info{instance="n1",node="gpu-a"}
+    values: 1+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: missing swap series
+  interval: 1m
+  input_series:
+  - series: aa:node:info{instance="n1",node="gpu-a"}
+    values: 1+0x90
+  - series: kube_node_labels{job="kube-state-metrics",node="gpu-a",label_aa_example_org_runtime_kata="true"}
+    values: 1+0x90
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryIdleWithReadyBacklog
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryWaitingOnSuspendedNode
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: FactoryParseApplyFailureRateHigh
+    exp_alerts: []
+  - eval_time: 20m
+    alertname: KataNodeSwapEnabled
+    exp_alerts: []
+- name: team starvation boundary
+  interval: 1m
+  input_series:
+  - series: aa_factory_ready{team="payments",lane="lane-a"}
+    values: 2x60
+  - series: aa_factory_inflight{team="payments",lane="lane-a"}
+    values: '0x60'
+  - series: aa_factory_snapshot_timestamp_seconds{team="payments",lane="lane-a"}
+    values: 0+60x60
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryTeamQueueStarved
+    exp_alerts:
+    - exp_labels:
+        team: payments
+        severity: warning
+      exp_annotations:
+        summary: FactoryTeamQueueStarved
+        description: Inspect the alert labels and metric history before remediation.
+- name: team starvation boundary
+  interval: 1m
+  input_series:
+  - series: aa_factory_ready{team="payments",lane="lane-a"}
+    values: '0x60'
+  - series: aa_factory_inflight{team="payments",lane="lane-a"}
+    values: '0x60'
+  - series: aa_factory_snapshot_timestamp_seconds{team="payments",lane="lane-a"}
+    values: 0+60x60
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryTeamQueueStarved
+    exp_alerts: []
+- name: team starvation boundary
+  interval: 1m
+  input_series:
+  - series: aa_factory_ready{team="payments",lane="lane-a"}
+    values: 2x60
+  - series: aa_factory_inflight{team="payments",lane="lane-a"}
+    values: 1x60
+  - series: aa_factory_snapshot_timestamp_seconds{team="payments",lane="lane-a"}
+    values: 0+60x60
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryTeamQueueStarved
+    exp_alerts: []
+- name: team starvation boundary
+  interval: 1m
+  input_series:
+  - series: aa_factory_ready{team="payments",lane="lane-a"}
+    values: 2x60
+  - series: aa_factory_inflight{team="payments",lane="lane-a"}
+    values: '0x60'
+  - series: aa_factory_snapshot_timestamp_seconds{team="payments",lane="lane-a"}
+    values: '0x60'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryTeamQueueStarved
+    exp_alerts: []
+- name: team starvation boundary
+  interval: 1m
+  input_series:
+  - series: aa_factory_ready{team="",lane="lane-a"}
+    values: 2x60
+  - series: aa_factory_inflight{team="",lane="lane-a"}
+    values: '0x60'
+  - series: aa_factory_snapshot_timestamp_seconds{team="",lane="lane-a"}
+    values: 0+60x60
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: FactoryTeamQueueStarved
+    exp_alerts: []

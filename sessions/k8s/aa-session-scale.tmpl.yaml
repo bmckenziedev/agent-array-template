@@ -1,0 +1,40 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: aa-session-scale
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - apps
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - statefulsets
+      - statefulsets/scale
+  validations:
+  - expression: has(object.spec.replicas) && object.spec.replicas >= 0 && has(namespaceObject.metadata.annotations)
+      && '{{LABEL_PREFIX}}/max-replicas-per-tool' in namespaceObject.metadata.annotations && object.spec.replicas
+      <= int(namespaceObject.metadata.annotations['{{LABEL_PREFIX}}/max-replicas-per-tool']) && (!object.metadata.name.matches('^(codex|kimi)-.*')
+      || object.spec.replicas <= 1) && (!('{{LABEL_PREFIX}}/status' in namespaceObject.metadata.annotations)
+      || namespaceObject.metadata.annotations['{{LABEL_PREFIX}}/status'] != 'suspended' || object.spec.replicas
+      == 0)
+    message: Replicas must respect the user tier; Codex and Kimi allow only one instance; suspended users must
+      remain stopped.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: aa-session-scale
+spec:
+  policyName: aa-session-scale
+  validationActions:
+  - Deny
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        '{{LABEL_PREFIX}}/kind': user-sessions

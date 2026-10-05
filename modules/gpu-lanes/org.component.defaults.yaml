@@ -1,0 +1,25 @@
+scope: modules
+name: gpu-lanes
+defaults:
+  enabled: false
+  cache_root: /var/lib/model-cache
+  cache_size: 100Gi
+  download_image: python:3.12-alpine@sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4
+  lanes:
+    - name: lane-gpu-a
+      node: gpu-a
+      model_group: local-coder
+      gguf_url: https://models.example.org/coder-large.gguf
+      gguf_sha256: REPLACE_WITH_VERIFIED_SHA256
+      ctx: 65536
+      slots: 1
+      extra_args: [--jinja, --reasoning, "off", --n-cpu-moe, "31", -ctk, q8_0, -ctv, q8_0]
+    - name: lane-gpu-b
+      node: gpu-b
+      model_group: local-coder-small
+      gguf_url: https://models.example.org/coder-small.gguf
+      gguf_sha256: REPLACE_WITH_VERIFIED_SHA256
+      ctx: 36864
+      slots: 3
+      extra_args: [--jinja, --reasoning, "off", -ctk, q8_0, -ctv, q8_0]
+# CPU affinity is an optional measured setting: extra_args may include -Cr 0-15.

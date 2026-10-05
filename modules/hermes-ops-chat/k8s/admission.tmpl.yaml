@@ -1,0 +1,124 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: '{{PROJECT_NAME}}-ops-chat'
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+      - pods/ephemeralcontainers
+  matchConditions:
+  - name: chat-service-account
+    expression: >-
+      has(object.spec.serviceAccountName) && object.spec.serviceAccountName == 'hermes-ops-chat'
+  variables:
+  - name: containers
+    expression: >-
+      object.spec.containers + (has(object.spec.initContainers) ? object.spec.initContainers
+      : []) +
+
+      (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers : [])
+  validations:
+  - expression: >-
+      variables.containers.all(c, !has(c.envFrom) && (!has(c.env) || c.env.all(e,
+      e.name ==
+
+      'ARRAYOPS_READONLY' && has(e.value) && e.value == '1' && !has(e.valueFrom))))
+    message: Only the fixed read-only environment is admitted
+  - expression: >-
+      has(object.spec.securityContext) && has(object.spec.securityContext.runAsNonRoot)
+      &&
+
+      object.spec.securityContext.runAsNonRoot && has(object.spec.securityContext.runAsUser)
+      &&
+
+      object.spec.securityContext.runAsUser == 10001 && variables.containers.all(c,
+
+      !has(c.securityContext) || !has(c.securityContext.runAsUser) || c.securityContext.runAsUser
+      ==
+
+      10001)
+    message: The gateway must run as the fixed non-root identity
+  - expression: >-
+      variables.containers.all(c, has(c.securityContext) && has(c.securityContext.capabilities)
+      &&
+
+      has(c.securityContext.capabilities.drop) && 'ALL' in c.securityContext.capabilities.drop
+      &&
+
+      (!has(c.securityContext.capabilities.add) || size(c.securityContext.capabilities.add)
+      == 0))
+    message: All capabilities must be dropped
+  - expression: >-
+      has(object.spec.runtimeClassName) && object.spec.runtimeClassName == '{{RUNTIME_CLASS_VM}}'
+    message: Ops chat requires the VM runtime
+  - expression: >-
+      (!has(object.spec.hostNetwork) || !object.spec.hostNetwork) && (!has(object.spec.hostPID)
+      ||
+
+      !object.spec.hostPID) && (!has(object.spec.hostIPC) || !object.spec.hostIPC)
+    message: Host access is forbidden
+  - expression: >-
+      !has(object.metadata.annotations) || object.metadata.annotations.all(k,
+
+      !k.startsWith('io.katacontainers.') && !k.startsWith('dev.gvisor.'))
+    message: Runtime overrides are forbidden
+  - expression: >-
+      size(variables.containers) == 1 && variables.containers.all(c, c.name == 'chat'
+      && c.image ==
+
+      '{{IMAGE_HERMES_CHAT}}' && !has(c.command) && !has(c.args))
+    message: Only the pinned read-only gateway is admitted
+  - expression: >-
+      variables.containers.all(c, has(c.securityContext) && has(c.securityContext.readOnlyRootFilesystem)
+
+      && c.securityContext.readOnlyRootFilesystem && has(c.securityContext.allowPrivilegeEscalation)
+      &&
+
+      !c.securityContext.allowPrivilegeEscalation && (!has(c.securityContext.privileged)
+      ||
+
+      !c.securityContext.privileged) && (!has(c.ports) || c.ports.all(p, !has(p.hostPort)
+      || p.hostPort ==
+
+      0)))
+    message: Container privilege and host ports are forbidden
+  - expression: >-
+      has(object.spec.volumes) && object.spec.volumes.all(v, (has(v.persistentVolumeClaim)
+      &&
+
+      v.persistentVolumeClaim.claimName == 'hermes-home') || (has(v.configMap) &&
+      v.configMap.name in
+
+      ['hermes-ops-chat-config', 'org-directory']) || (has(v.secret) && has(v.secret.secretName) && v.secret.secretName
+      in
+
+      ['hermes-llm-key', '{{M_HERMES_OPS_CHAT_BOT_SECRET}}', '{{M_HERMES_OPS_CHAT_IDENTITY_SECRET}}'])
+      ||
+
+      (has(v.projected) && has(v.projected.sources) && v.projected.sources.all(s,
+
+      has(s.serviceAccountToken) || has(s.configMap) || has(s.downwardAPI))))
+    message: Only approved home, configuration and key mounts are admitted
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: '{{PROJECT_NAME}}-ops-chat'
+spec:
+  policyName: '{{PROJECT_NAME}}-ops-chat'
+  validationActions:
+  - Deny
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: '{{NS_OPS}}'

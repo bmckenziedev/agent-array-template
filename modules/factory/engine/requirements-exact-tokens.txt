@@ -1,0 +1,7 @@
+# Optional: exact token counts with the pinned Qwen tokenizer (FACTORY_TOKENIZER=<tokenizer.json>).
+# Without it the packer estimates chars/3 (over-counts code a little, so budgets stay safe).
+# Install: pip install --no-deps --require-hashes -r requirements-exact-tokens.txt
+# (--no-deps: Tokenizer.from_file needs no huggingface-hub). Hashes from PyPI,.
+tokenizers==0.23.2 \
+    --hash=sha256:2e96f5699d5249c9c64aa8412e044f727aae3a4098cf830f9901ec1afc361cde \
+    --hash=sha256:41c2f84d172449b4dadb9cdc508e3e364076613c35b16e76ecfe47a60d1e3305

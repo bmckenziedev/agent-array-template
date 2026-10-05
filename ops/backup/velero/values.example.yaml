@@ -1,0 +1,8 @@
+configuration:
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: example-backups
+  volumeSnapshotLocation: []
+deployNodeAgent: false
+snapshotsEnabled: false

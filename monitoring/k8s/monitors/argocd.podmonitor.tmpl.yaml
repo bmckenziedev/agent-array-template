@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: argocd
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: monitors
+    release: kps
+spec:
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+    - '{{NS_ARGOCD}}'
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: argocd
+      app.kubernetes.io/part-of: argocd
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: In
+      values:
+      - argocd-application-controller
+      - argocd-server
+      - argocd-repo-server
+      - argocd-applicationset-controller
+      - argocd-notifications-controller
+  podMetricsEndpoints:
+  - port: metrics
+    path: /metrics
+    interval: 60s

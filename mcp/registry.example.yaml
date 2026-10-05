@@ -1,0 +1,49 @@
+# MCP server registry (EXAMPLE). Nothing reaches a session that this registry plus the
+# user's team entitlements (teams.yaml mcp_servers) did not render.
+version: 1
+servers:
+  - name: factory                         # appears as mcp__factory__* in Claude Code
+    description: estate code index and local factory (read tools + submit)
+    transport: stdio                      # stdio | http
+    command: /opt/factory/venv/bin/python
+    args: ["-m", "factory_mcp"]
+    image_layer: factory                  # stdio servers must be baked into the session image
+    env: {FACTORY_SNAP_ROOT: /work/snap, FACTORY_INDEX_ROOT: /work/index}
+    auth: none                            # none | pod-identity | per-user-token (phase 2, rejected for now)
+    clients: [claude, codex]
+    allowed_teams: ["*"]
+    context_tags: [code-index, estate]
+    tool_timeout_s: 960
+    tools_readonly: [find_untested, dependents_of, impact, results]
+  - name: farm
+    description: fleet status, local-model calls and batch dispatch under the caller's team accounts
+    transport: http
+    service: {namespace_ref: system, name: farm-mcp, port: 8080, path: /mcp}
+    auth: pod-identity                    # projected SA token (audience <project>-mcp), TokenReview -> user
+    clients: [claude, codex]
+    allowed_teams: ["*"]
+    context_tags: [dispatch]
+    tool_timeout_s: 300
+  - name: tickets
+    description: read-only issue tracker search (example of a deployed third-party server)
+    transport: http
+    deploy: {image: "registry.example.org/mcp/tickets@sha256:0000000000000000000000000000000000000000000000000000000000000000", port: 8080, path: /mcp}
+    auth: pod-identity
+    clients: [claude, codex]
+    allowed_teams: [payments]
+    context_tags: [tickets]
+    tool_timeout_s: 120
+    server_egress:
+      - {host: tickets.example.org, port: 443}
+    server_secret: {name: mcp-tickets-upstream, key: token}   # upstream service credential, held by the server pod only
+  - name: arrayops
+    description: read-only cluster/alert queries for the ops chat module
+    transport: stdio
+    command: /opt/arrayops/arrayops-mcp
+    args: ["--read-only"]
+    image_layer: arrayops
+    auth: none
+    clients: [hermes]
+    allowed_teams: [platform]
+    context_tags: [ops]
+    tool_timeout_s: 60

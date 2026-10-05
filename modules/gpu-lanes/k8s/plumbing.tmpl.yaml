@@ -1,0 +1,116 @@
+{
+  "apiVersion": "v1",
+  "kind": "Namespace",
+  "metadata": {
+    "name": "gpu-system",
+    "labels": {
+      "pod-security.kubernetes.io/enforce": "privileged",
+      "pod-security.kubernetes.io/enforce-version": "latest",
+      "pod-security.kubernetes.io/warn": "restricted",
+      "pod-security.kubernetes.io/warn-version": "latest",
+      "pod-security.kubernetes.io/audit": "restricted",
+      "pod-security.kubernetes.io/audit-version": "latest",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/name": "gpu-system",
+      "app.kubernetes.io/component": "gpu-lanes"
+    }
+  }
+}
+---
+{
+  "apiVersion": "node.k8s.io/v1",
+  "kind": "RuntimeClass",
+  "metadata": {
+    "name": "{{RUNTIME_CLASS_GPU}}",
+    "labels": {
+      "app.kubernetes.io/name": "{{RUNTIME_CLASS_GPU}}",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "gpu-lanes"
+    }
+  },
+  "handler": "nvidia",
+  "scheduling": {
+    "nodeSelector": {
+      "{{LABEL_PREFIX}}/role-gpu": "true"
+    },
+    "tolerations": [
+      {
+        "key": "{{LABEL_PREFIX}}/gpu",
+        "operator": "Equal",
+        "value": "true",
+        "effect": "NoSchedule"
+      }
+    ]
+  }
+}
+---
+{
+  "apiVersion": "networking.k8s.io/v1",
+  "kind": "NetworkPolicy",
+  "metadata": {
+    "name": "gpu-system-default-deny",
+    "namespace": "gpu-system",
+    "labels": {
+      "app.kubernetes.io/name": "gpu-system-default-deny",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "gpu-lanes"
+    }
+  },
+  "spec": {
+    "podSelector": {},
+    "policyTypes": [
+      "Ingress",
+      "Egress"
+    ],
+    "ingress": [],
+    "egress": []
+  }
+}
+---
+{
+  "apiVersion": "networking.k8s.io/v1",
+  "kind": "NetworkPolicy",
+  "metadata": {
+    "name": "dcgm-scrape",
+    "namespace": "gpu-system",
+    "labels": {
+      "app.kubernetes.io/name": "dcgm-scrape",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "gpu-lanes"
+    }
+  },
+  "spec": {
+    "podSelector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "dcgm-exporter"
+      }
+    },
+    "policyTypes": [
+      "Ingress"
+    ],
+    "ingress": [
+      {
+        "from": [
+          {
+            "namespaceSelector": {
+              "matchLabels": {
+                "kubernetes.io/metadata.name": "{{NS_MONITORING}}"
+              }
+            },
+            "podSelector": {
+              "matchLabels": {
+                "app.kubernetes.io/name": "prometheus"
+              }
+            }
+          }
+        ],
+        "ports": [
+          {
+            "port": 9400,
+            "protocol": "TCP"
+          }
+        ]
+      }
+    ]
+  }
+}

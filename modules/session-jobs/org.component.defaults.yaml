@@ -1,0 +1,5 @@
+scope: modules
+name: session-jobs
+defaults:
+  enabled: false
+  runtime: kata

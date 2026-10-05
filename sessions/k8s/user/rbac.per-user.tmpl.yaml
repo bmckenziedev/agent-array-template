@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: session
+  labels:
+    app.kubernetes.io/name: session
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: sessions
+  namespace: '{{USER_NS}}'
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: session-holder
+  labels:
+    app.kubernetes.io/name: session-holder
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: sessions
+  namespace: '{{USER_NS}}'
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aa-session-holder
+subjects:
+- kind: User
+  apiGroup: rbac.authorization.k8s.io
+  name: '{{USER_OIDC_SUBJECT}}'

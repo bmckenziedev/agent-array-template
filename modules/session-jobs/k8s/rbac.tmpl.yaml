@@ -1,0 +1,27 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "{{PROJECT_NAME}}-panel-jobs"
+  namespace: "{{NS_SESSION_JOBS}}"
+  labels:
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+rules:
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [create, get, list, watch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "{{PROJECT_NAME}}-panel-jobs"
+  namespace: "{{NS_SESSION_JOBS}}"
+  labels:
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+subjects:
+  - kind: ServiceAccount
+    name: panel
+    namespace: "{{NS_PORTAL}}"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: "{{PROJECT_NAME}}-panel-jobs"

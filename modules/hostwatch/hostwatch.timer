@@ -1,0 +1,15 @@
+[Unit]
+Description=Run the Agent Array host + credential expiry collector every 15 minutes
+
+[Timer]
+# First run 3 min after boot (k3s and node-exporter are up by then), then 15 min after each
+# run finished starting. The installer also starts the service once, so a fresh install
+# does not wait for the timer. HostwatchCollectorStale fires after 30 min without a run.
+OnBootSec=3min
+OnUnitActiveSec=15min
+RandomizedDelaySec=30s
+AccuracySec=1min
+Unit=hostwatch.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,6 @@
+kube-apiserver-arg:
+  - "audit-policy-file=/etc/cluster-ops/audit-policy.yaml"
+  - "audit-log-path={{C_AUDIT_LOG_PATH}}"
+  - "audit-log-maxage={{C_AUDIT_RETENTION_DAYS}}"
+  - "audit-log-maxbackup=10"
+  - "audit-log-maxsize=100"

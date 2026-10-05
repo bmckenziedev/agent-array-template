@@ -1,0 +1,1313 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-array.example.org/schema/org.schema.json",
+  "title": "Agent-array org configuration",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "label_prefix": {
+          "type": "string"
+        },
+        "image_prefix": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "label_prefix",
+        "image_prefix"
+      ],
+      "additionalProperties": false
+    },
+    "org": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "security_contact": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "domain",
+        "timezone",
+        "security_contact"
+      ],
+      "additionalProperties": false
+    },
+    "github": {
+      "type": "object",
+      "properties": {
+        "org": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "string"
+        },
+        "git_remote": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "platform_team_handle": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "org",
+        "repo",
+        "git_remote",
+        "revision",
+        "platform_team_handle"
+      ],
+      "additionalProperties": false
+    },
+    "registry": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "pull_secret": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "host",
+        "namespace",
+        "pull_secret"
+      ],
+      "additionalProperties": false
+    },
+    "images": {
+      "type": "object",
+      "properties": {
+        "session-claude": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "tag",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "session-codex": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "tag",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "session-kimi": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "tag",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "panel": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "tag",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "session-runner": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "tag",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "pace": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "tag",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "farm-mcp": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "tag",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "factory": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "tag",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "hermes-chat": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "tag",
+            "digest"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "session-claude",
+        "session-codex",
+        "session-kimi",
+        "panel",
+        "session-runner",
+        "pace",
+        "farm-mcp",
+        "factory",
+        "hermes-chat"
+      ],
+      "additionalProperties": false
+    },
+    "cluster": {
+      "type": "object",
+      "properties": {
+        "distribution": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "cni": {
+          "type": "string"
+        },
+        "apiserver": {
+          "type": "object",
+          "properties": {
+            "endpoint_ips": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "port": {
+              "type": "integer"
+            },
+            "service_ip": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "endpoint_ips",
+            "port",
+            "service_ip",
+            "url"
+          ],
+          "additionalProperties": false
+        },
+        "cidrs": {
+          "type": "object",
+          "properties": {
+            "pod": {
+              "type": "string"
+            },
+            "service": {
+              "type": "string"
+            },
+            "overlay": {
+              "type": "string"
+            },
+            "private": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "session_egress_deny_extra": {
+              "type": "array",
+              "items": {}
+            }
+          },
+          "required": [
+            "pod",
+            "service",
+            "overlay",
+            "private",
+            "session_egress_deny_extra"
+          ],
+          "additionalProperties": false
+        },
+        "dns_service_ip": {
+          "type": "string"
+        },
+        "storage": {
+          "type": "object",
+          "properties": {
+            "default_class": {
+              "type": "string"
+            },
+            "login_class": {
+              "type": "string"
+            },
+            "login_host_root": {
+              "type": "string"
+            },
+            "login_storage": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "default_class",
+            "login_class",
+            "login_host_root",
+            "login_storage"
+          ],
+          "additionalProperties": false
+        },
+        "runtime_classes": {
+          "type": "object",
+          "properties": {
+            "vm": {
+              "type": "string"
+            },
+            "gvisor": {
+              "type": "string"
+            },
+            "gpu": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "vm",
+            "gvisor",
+            "gpu"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "distribution",
+        "version",
+        "provider",
+        "cni",
+        "apiserver",
+        "cidrs",
+        "dns_service_ip",
+        "storage",
+        "runtime_classes"
+      ],
+      "additionalProperties": false
+    },
+    "namespaces": {
+      "type": "object",
+      "properties": {
+        "system": {
+          "type": "string"
+        },
+        "llm": {
+          "type": "string"
+        },
+        "mcp": {
+          "type": "string"
+        },
+        "portal": {
+          "type": "string"
+        },
+        "factory": {
+          "type": "string"
+        },
+        "models": {
+          "type": "string"
+        },
+        "egress": {
+          "type": "string"
+        },
+        "session_jobs": {
+          "type": "string"
+        },
+        "ops": {
+          "type": "string"
+        },
+        "monitoring": {
+          "type": "string"
+        },
+        "argocd": {
+          "type": "string"
+        },
+        "user_prefix": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "system",
+        "llm",
+        "mcp",
+        "portal",
+        "factory",
+        "models",
+        "egress",
+        "session_jobs",
+        "ops",
+        "monitoring",
+        "argocd",
+        "user_prefix"
+      ],
+      "additionalProperties": false
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "short": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,14}$"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "overlay_ip": {
+            "type": "string"
+          },
+          "public_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "runtime_classes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "lan_ip": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": null
+          },
+          "gpu": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string"
+                  },
+                  "vram_gb": {
+                    "type": "integer"
+                  },
+                  "count": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "model",
+                  "vram_gb",
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "default": null
+          },
+          "labels": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": {},
+            "default": {}
+          }
+        },
+        "required": [
+          "name",
+          "overlay_ip",
+          "roles",
+          "short"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "overlay": {
+          "type": "string"
+        },
+        "tailscale": {
+          "type": "object",
+          "properties": {
+            "tailnet": {
+              "type": "string"
+            },
+            "node_tag": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "tailnet",
+            "node_tag"
+          ],
+          "additionalProperties": false
+        },
+        "access": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "cloudflare_team": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "cloudflare_team"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "overlay",
+        "tailscale",
+        "access"
+      ],
+      "additionalProperties": false
+    },
+    "identity": {
+      "type": "object",
+      "properties": {
+        "oidc": {
+          "type": "object",
+          "properties": {
+            "issuer_url": {
+              "type": "string"
+            },
+            "client_id": {
+              "type": "string"
+            },
+            "username_claim": {
+              "type": "string"
+            },
+            "username_prefix": {
+              "type": "string"
+            },
+            "groups_claim": {
+              "type": "string"
+            },
+            "groups_prefix": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "issuer_url",
+            "client_id",
+            "username_claim",
+            "username_prefix",
+            "groups_claim",
+            "groups_prefix"
+          ],
+          "additionalProperties": false
+        },
+        "groups": {
+          "type": "object",
+          "properties": {
+            "platform_admin": {
+              "type": "string"
+            },
+            "auditor": {
+              "type": "string"
+            },
+            "breakglass": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "platform_admin",
+            "auditor",
+            "breakglass"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "oidc",
+        "groups"
+      ],
+      "additionalProperties": false
+    },
+    "hostnames": {
+      "type": "object",
+      "properties": {
+        "panel": {
+          "type": "string",
+          "default": "panel.<org.domain>"
+        },
+        "argocd": {
+          "type": "string",
+          "default": "argocd.<org.domain>"
+        },
+        "grafana": {
+          "type": "string",
+          "default": "grafana.<org.domain>"
+        },
+        "headlamp": {
+          "type": "string",
+          "default": "headlamp.<org.domain>"
+        },
+        "wazuh": {
+          "type": "string",
+          "default": "wazuh.<org.domain>"
+        },
+        "mcp": {
+          "type": "string",
+          "default": "mcp.<org.domain>"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "alerting": {
+      "type": "object",
+      "properties": {
+        "default_receiver": {
+          "type": "string"
+        },
+        "receivers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "secret": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "kind",
+              "secret",
+              "key"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "quiet_hours": {
+          "type": "object",
+          "properties": {
+            "start": {
+              "type": "string"
+            },
+            "end": {
+              "type": "string"
+            },
+            "timezone": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "timezone"
+          ],
+          "additionalProperties": false
+        },
+        "heartbeat": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "secret": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "secret",
+            "key"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "default_receiver",
+        "receivers",
+        "quiet_hours",
+        "heartbeat"
+      ],
+      "additionalProperties": false
+    },
+    "backup": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "restic": {
+          "type": "object",
+          "properties": {
+            "sftp_host": {
+              "type": "string"
+            },
+            "sftp_user": {
+              "type": "string"
+            },
+            "sftp_port": {
+              "type": "integer"
+            },
+            "repository_path": {
+              "type": "string"
+            },
+            "secret": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "sftp_host",
+            "sftp_user",
+            "sftp_port",
+            "repository_path",
+            "secret"
+          ],
+          "additionalProperties": false
+        },
+        "never_back_up": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "schedule",
+        "restic",
+        "never_back_up"
+      ],
+      "additionalProperties": false
+    },
+    "vendors": {
+      "type": "object",
+      "properties": {
+        "anthropic": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "tool": {
+              "type": "string"
+            },
+            "cli_version": {
+              "type": "string"
+            },
+            "org_uuid": {
+              "type": "string"
+            },
+            "egress": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "tool",
+            "cli_version",
+            "org_uuid",
+            "egress"
+          ],
+          "additionalProperties": false
+        },
+        "openai": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "tool": {
+              "type": "string"
+            },
+            "cli_version": {
+              "type": "string"
+            },
+            "workspace_id": {
+              "type": "string"
+            },
+            "egress": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "tool",
+            "cli_version",
+            "workspace_id",
+            "egress"
+          ],
+          "additionalProperties": false
+        },
+        "moonshot": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "tool": {
+              "type": "string"
+            },
+            "cli_version": {
+              "type": "string"
+            },
+            "egress": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "tool",
+            "cli_version",
+            "egress"
+          ],
+          "additionalProperties": false
+        },
+        "local": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "anthropic",
+        "openai",
+        "moonshot",
+        "local"
+      ],
+      "additionalProperties": false
+    },
+    "sessions": {
+      "type": "object",
+      "properties": {
+        "default_tier": {
+          "type": "string"
+        },
+        "tiers": {
+          "type": "object",
+          "properties": {
+            "standard": {
+              "type": "object",
+              "properties": {
+                "pods": {
+                  "type": "integer"
+                },
+                "statefulsets": {
+                  "type": "integer"
+                },
+                "pvcs": {
+                  "type": "integer"
+                },
+                "requests_cpu": {
+                  "type": "string"
+                },
+                "requests_memory": {
+                  "type": "string"
+                },
+                "limits_cpu": {
+                  "type": "string"
+                },
+                "limits_memory": {
+                  "type": "string"
+                },
+                "max_replicas_per_tool": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "pods",
+                "statefulsets",
+                "pvcs",
+                "requests_cpu",
+                "requests_memory",
+                "limits_cpu",
+                "limits_memory",
+                "max_replicas_per_tool"
+              ],
+              "additionalProperties": false
+            },
+            "power": {
+              "type": "object",
+              "properties": {
+                "pods": {
+                  "type": "integer"
+                },
+                "statefulsets": {
+                  "type": "integer"
+                },
+                "pvcs": {
+                  "type": "integer"
+                },
+                "requests_cpu": {
+                  "type": "string"
+                },
+                "requests_memory": {
+                  "type": "string"
+                },
+                "limits_cpu": {
+                  "type": "string"
+                },
+                "limits_memory": {
+                  "type": "string"
+                },
+                "max_replicas_per_tool": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "pods",
+                "statefulsets",
+                "pvcs",
+                "requests_cpu",
+                "requests_memory",
+                "limits_cpu",
+                "limits_memory",
+                "max_replicas_per_tool"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "pods": {
+                "type": "integer"
+              },
+              "statefulsets": {
+                "type": "integer"
+              },
+              "pvcs": {
+                "type": "integer"
+              },
+              "requests_cpu": {
+                "type": "string"
+              },
+              "requests_memory": {
+                "type": "string"
+              },
+              "limits_cpu": {
+                "type": "string"
+              },
+              "limits_memory": {
+                "type": "string"
+              },
+              "max_replicas_per_tool": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "pods",
+              "statefulsets",
+              "pvcs",
+              "requests_cpu",
+              "requests_memory",
+              "limits_cpu",
+              "limits_memory",
+              "max_replicas_per_tool"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "idle_stop_minutes": {
+          "type": "integer"
+        },
+        "lease_fail_closed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "default_tier",
+        "tiers",
+        "idle_stop_minutes",
+        "lease_fail_closed"
+      ],
+      "additionalProperties": false
+    },
+    "policy": {
+      "type": "object",
+      "properties": {
+        "data_classes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permission_modes_allowed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "default_permission_mode": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data_classes",
+        "permission_modes_allowed",
+        "default_permission_mode"
+      ],
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "object",
+      "properties": {
+        "teams": {
+          "type": "string"
+        },
+        "users": {
+          "type": "string"
+        },
+        "accounts": {
+          "type": "string"
+        },
+        "estates": {
+          "type": "string"
+        },
+        "mcp_registry": {
+          "type": "string"
+        },
+        "context_sources": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "teams",
+        "users",
+        "accounts",
+        "estates",
+        "mcp_registry",
+        "context_sources"
+      ],
+      "additionalProperties": false
+    },
+    "modules": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "properties": {
+        "factory": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "gpu-lanes": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "session-jobs": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "pkg-mirror": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "wazuh": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "hostwatch": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "seccomp-gvisor": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "hostguard": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "hermes-ops-chat": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "workstation-lane": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "window_start": {
+              "type": "string"
+            },
+            "window_stop": {
+              "type": "string"
+            },
+            "drain_minutes": {
+              "type": "integer"
+            },
+            "timezone": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        },
+        "arc-ci": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "runner_light": {
+              "type": "string"
+            },
+            "runner_heavy": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        },
+        "k3s-baremetal": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "k3s-maintenance": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "default": {}
+    }
+  },
+  "required": [
+    "version",
+    "project",
+    "org",
+    "github",
+    "registry",
+    "images",
+    "cluster",
+    "namespaces",
+    "nodes",
+    "network",
+    "identity",
+    "alerting",
+    "backup",
+    "vendors",
+    "sessions",
+    "policy",
+    "files",
+    "modules"
+  ],
+  "additionalProperties": false
+}

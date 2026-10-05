@@ -1,0 +1,8 @@
+{
+  "profile": 1,
+  "sources": [
+    "src"
+  ],
+  "language": "JavaScript",
+  "style": "CommonJS modules; describe observable behavior and edge cases."
+}

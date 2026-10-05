@@ -1,0 +1,5 @@
+scope: components
+name: pace
+defaults:
+  platform_writers: ["{{NS_LLM}}/litellm-usage"]
+  storage: 1Gi

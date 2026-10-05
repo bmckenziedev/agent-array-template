@@ -1,0 +1,228 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "DaemonSet",
+  "metadata": {
+    "name": "dcgm-exporter",
+    "namespace": "gpu-system",
+    "labels": {
+      "app.kubernetes.io/name": "dcgm-exporter",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "gpu-lanes"
+    }
+  },
+  "spec": {
+    "selector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "dcgm-exporter"
+      }
+    },
+    "updateStrategy": {
+      "type": "RollingUpdate"
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/name": "dcgm-exporter",
+          "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+          "app.kubernetes.io/component": "gpu-lanes"
+        }
+      },
+      "spec": {
+        "runtimeClassName": "{{RUNTIME_CLASS_GPU}}",
+        "nodeSelector": {
+          "{{LABEL_PREFIX}}/role-gpu": "true"
+        },
+        "tolerations": [
+          {
+            "key": "{{LABEL_PREFIX}}/gpu",
+            "operator": "Equal",
+            "value": "true",
+            "effect": "NoSchedule"
+          }
+        ],
+        "containers": [
+          {
+            "name": "dcgm-exporter",
+            "image": "nvcr.io/nvidia/k8s/dcgm-exporter:4.6.1-4.8.4-distroless@sha256:148b0c025e5f2850256816fa33754fbf4733b7a086697a95613fc0ba3db5b003",
+            "args": [
+              "-f",
+              "/etc/dcgm-exporter/agent-array/counters.csv"
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              },
+              "limits": {
+                "memory": "512Mi"
+              }
+            },
+            "env": [
+              {
+                "name": "DCGM_EXPORTER_LISTEN",
+                "value": ":9400"
+              },
+              {
+                "name": "DCGM_EXPORTER_KUBERNETES",
+                "value": "true"
+              },
+              {
+                "name": "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE",
+                "value": "device-name"
+              },
+              {
+                "name": "NODE_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "fieldPath": "spec.nodeName"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "name": "metrics",
+                "containerPort": 9400
+              }
+            ],
+            "securityContext": {
+              "runAsNonRoot": false,
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ],
+                "add": [
+                  "SYS_ADMIN"
+                ]
+              },
+              "readOnlyRootFilesystem": true
+            },
+            "volumeMounts": [
+              {
+                "name": "counters",
+                "mountPath": "/etc/dcgm-exporter/agent-array",
+                "readOnly": true
+              },
+              {
+                "name": "pod-gpu-resources",
+                "readOnly": true,
+                "mountPath": "/var/lib/kubelet/pod-resources"
+              },
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              }
+            ]
+          }
+        ],
+        "volumes": [
+          {
+            "name": "counters",
+            "configMap": {
+              "name": "dcgm-exporter-counters"
+            }
+          },
+          {
+            "name": "pod-gpu-resources",
+            "hostPath": {
+              "path": "/var/lib/kubelet/pod-resources",
+              "type": "Directory"
+            }
+          },
+          {
+            "name": "tmp",
+            "emptyDir": {}
+          }
+        ],
+        "automountServiceAccountToken": false,
+        "securityContext": {
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        }
+      }
+    }
+  }
+}
+---
+{
+  "apiVersion": "v1",
+  "kind": "Service",
+  "metadata": {
+    "name": "dcgm-exporter",
+    "namespace": "gpu-system",
+    "labels": {
+      "app.kubernetes.io/name": "dcgm-exporter",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "gpu-lanes"
+    }
+  },
+  "spec": {
+    "selector": {
+      "app.kubernetes.io/name": "dcgm-exporter"
+    },
+    "ports": [
+      {
+        "name": "metrics",
+        "port": 9400,
+        "targetPort": "metrics"
+      }
+    ],
+    "type": "ClusterIP"
+  }
+}
+---
+{
+  "apiVersion": "monitoring.coreos.com/v1",
+  "kind": "ServiceMonitor",
+  "metadata": {
+    "name": "dcgm-exporter",
+    "namespace": "gpu-system",
+    "labels": {
+      "app.kubernetes.io/name": "dcgm-exporter",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "release": "kube-prometheus-stack",
+      "app.kubernetes.io/component": "gpu-lanes"
+    }
+  },
+  "spec": {
+    "selector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "dcgm-exporter"
+      }
+    },
+    "endpoints": [
+      {
+        "port": "metrics",
+        "interval": "15s",
+        "path": "/metrics",
+        "relabelings": [
+          {
+            "sourceLabels": [
+              "__meta_kubernetes_pod_node_name"
+            ],
+            "targetLabel": "node"
+          }
+        ]
+      }
+    ]
+  }
+}
+---
+{
+  "apiVersion": "v1",
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": "dcgm-exporter-counters",
+    "namespace": "gpu-system",
+    "labels": {
+      "app.kubernetes.io/name": "dcgm-exporter",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "gpu-lanes"
+    }
+  },
+  "data": {
+    "counters.csv": "# Format\n# If line starts with a '#' it is considered a comment\n# DCGM FIELD, Prometheus metric type, help message\n\n# Clocks\nDCGM_FI_DEV_SM_CLOCK,  gauge, SM clock frequency (in MHz).\nDCGM_FI_DEV_MEM_CLOCK, gauge, Memory clock frequency (in MHz).\n\n# Temperature\nDCGM_FI_DEV_MEMORY_TEMP, gauge, Memory temperature (in C).\nDCGM_FI_DEV_GPU_TEMP,    gauge, GPU temperature (in C).\n\n# Power\nDCGM_FI_DEV_POWER_USAGE,              gauge, Power draw (in W).\nDCGM_FI_DEV_POWER_MGMT_LIMIT,         gauge, Configured power management limit (in W).\nDCGM_FI_DEV_ENFORCED_POWER_LIMIT,     gauge, Effective power limit enforced by the driver after all limiters (in W).\nDCGM_FI_DEV_CLOCKS_EVENT_REASONS,     gauge, Bitmask of current clock event (throttle) reasons.\nDCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION, counter, Total energy consumption since the driver was last reloaded (in mJ).\n\n# PCIE\nDCGM_FI_DEV_PCIE_REPLAY_COUNTER, counter, Total number of PCIe retries.\n\n# Utilization (the sample period varies depending on the product)\nDCGM_FI_DEV_GPU_UTIL,      gauge, GPU utilization (in %).\nDCGM_FI_DEV_MEM_COPY_UTIL, gauge, Memory utilization (in %).\nDCGM_FI_DEV_ENC_UTIL,      gauge, Encoder utilization (in %).\nDCGM_FI_DEV_DEC_UTIL ,     gauge, Decoder utilization (in %).\n\n# Errors and violations\nDCGM_FI_DEV_XID_ERRORS,              gauge,   Value of the last XID error encountered.\nDCGM_FI_DEV_POWER_VIOLATION,       counter, Throttling duration due to power constraints (in ns).\nDCGM_FI_DEV_THERMAL_VIOLATION,     counter, Throttling duration due to thermal constraints (in ns).\n# DCGM_FI_DEV_SYNC_BOOST_VIOLATION,  counter, Throttling duration due to sync-boost constraints (in ns).\n# DCGM_FI_DEV_BOARD_LIMIT_VIOLATION, counter, Throttling duration due to board limit constraints (in ns).\n# DCGM_FI_DEV_LOW_UTIL_VIOLATION,    counter, Throttling duration due to low utilization (in ns).\n# DCGM_FI_DEV_RELIABILITY_VIOLATION, counter, Throttling duration due to reliability constraints (in ns).\n\n# DCGM Exporter fields\n\nDCGM_EXP_CLOCK_EVENTS_COUNT, gauge,   Clock events observed during the configured time window.\n# DCGM_EXP_CLOCK_EVENTS_TOTAL, counter, Total clock events observed since exporter start (edge-counted).\n# DCGM_EXP_XID_ERRORS_COUNT,   gauge,   XID errors observed during the configured time window.\n# DCGM_EXP_XID_ERRORS_TOTAL,   counter, Total XID errors observed since exporter start.\n# DCGM_EXP_GPU_HEALTH_STATUS,  gauge,   Current DCGM-reported GPU health status.\n# DCGM_EXP_P2P_STATUS,         gauge,   Current NVLink P2P status per peer link.\n\n# Fabric health\n# DCGM_FI_DEV_FABRIC_HEALTH_SUMMARY, gauge, Overall health of the GPU fabric.\n# DCGM_FI_DEV_FABRIC_HEALTH_MASK,    gauge, GPU fabric health status mask.\n\n# Memory usage\nDCGM_FI_DEV_FB_FREE, gauge, Framebuffer memory free (in MiB).\nDCGM_FI_DEV_FB_USED, gauge, Framebuffer memory used (in MiB).\nDCGM_FI_DEV_FB_RESERVED, gauge, Framebuffer memory reserved (in MiB).\n\n# ECC\n# DCGM_FI_DEV_ECC_SBE_VOL_TOTAL, counter, Total number of single-bit volatile ECC errors.\n# DCGM_FI_DEV_ECC_DBE_VOL_TOTAL, counter, Total number of double-bit volatile ECC errors.\n# DCGM_FI_DEV_ECC_SBE_AGG_TOTAL, counter, Total number of single-bit persistent ECC errors.\n# DCGM_FI_DEV_ECC_DBE_AGG_TOTAL, counter, Total number of double-bit persistent ECC errors.\n\n# Retired pages\n# DCGM_FI_DEV_RETIRED_SBE,     counter, Total number of retired pages due to single-bit errors.\n# DCGM_FI_DEV_RETIRED_DBE,     counter, Total number of retired pages due to double-bit errors.\n# DCGM_FI_DEV_RETIRED_PENDING, gauge, Whether pages are pending retirement (1 means pending and 0 means not pending).\n\n# NVLink\n# NVLink error counters for pre-Hopper GPUs\n# DCGM_FI_DEV_NVLINK_CRC_FLIT_ERROR_TOTAL, counter, Total number of NVLink flow-control CRC errors across all lanes.\n# DCGM_FI_DEV_NVLINK_CRC_DATA_ERROR_TOTAL, counter, Total number of NVLink data CRC errors across all lanes.\n# DCGM_FI_DEV_NVLINK_REPLAY_ERROR_TOTAL,   counter, Total number of NVLink replay errors across all lanes.\n# DCGM_FI_DEV_NVLINK_RECOVERY_ERROR_TOTAL, counter, Total number of NVLink recovery errors across all lanes.\n# NVLink data-link error counters for Hopper GPUs\n# DCGM_FI_DEV_NVLINK_CRC_ERROR_TOTAL, counter, Total number of NVLink data-link CRC errors.\n# DCGM_FI_DEV_NVLINK_RECOVERY_TOTAL,  counter, Total number of NVLink data-link recovery errors.\n# DCGM_FI_DEV_NVLINK_REPLAY_TOTAL,    counter, Total number of NVLink data-link replay errors.\n# NVLink recovery counters for Blackwell and newer GPUs\n# DCGM_FI_DEV_NVLINK_RECOVERY_SUCCESSFUL_TOTAL, counter, Total number of successful NVLink recovery events across all links.\n# DCGM_FI_DEV_NVLINK_RECOVERY_FAILED_TOTAL,     counter, Total number of failed NVLink recovery events across all links.\n# DCGM_FI_DEV_NVLINK_RECOVERY_EVENT_TOTAL,      counter, Total number of NVLink recovery events across all links.\n# DCGM_FI_DEV_NVLINK_BANDWIDTH_TOTAL, gauge, Aggregate NVLink throughput across all lanes (in MB/s).\n# DCGM_FI_DEV_NVLINK_BANDWIDTH_L0, gauge, NVLink lane 0 throughput (in MB/s).\n\n# VGPU License status\n# DCGM_FI_DEV_VGPU_LICENSE_STATUS, gauge, vGPU License status\n\n# Remapped rows\n# DCGM_FI_DEV_UNCORRECTABLE_REMAPPED_ROWS, counter, Number of remapped rows for uncorrectable errors\n# DCGM_FI_DEV_CORRECTABLE_REMAPPED_ROWS,   counter, Number of remapped rows for correctable errors\n# DCGM_FI_DEV_ROW_REMAP_FAILURE,           gauge,   Whether remapping of rows has failed\n\n# Static configuration information. These appear as labels on the other metrics\nDCGM_FI_DRIVER_VERSION,        label, Driver Version\n# DCGM_FI_NVML_VERSION,          label, NVML Version\n# DCGM_FI_DEV_BRAND,             label, Device Brand\n# DCGM_FI_DEV_SERIAL,            label, Device Serial Number\n# DCGM_FI_DEV_OEM_INFOROM_VER,   label, OEM inforom version\n# DCGM_FI_DEV_ECC_INFOROM_VER,   label, ECC inforom version\n# DCGM_FI_DEV_POWER_INFOROM_VER, label, Power management object inforom version\n# DCGM_FI_DEV_INFOROM_IMAGE_VER, label, Inforom image version\n# DCGM_FI_DEV_VBIOS_VERSION,     label, VBIOS version of the device\n\n# Datacenter Profiling (DCP) metrics\n# NOTE: supported on Nvidia datacenter Volta GPUs and newer\n# DCGM_FI_PROF_GR_ENGINE_ACTIVE,   gauge, Ratio of time the graphics engine is active.\n# DCGM_FI_PROF_SM_ACTIVE,          gauge, The ratio of cycles an SM has at least 1 warp assigned.\n# DCGM_FI_PROF_SM_OCCUPANCY,       gauge, The ratio of number of warps resident on an SM.\n# DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, Ratio of cycles the tensor (HMMA) pipe is active.\n# DCGM_FI_PROF_DRAM_ACTIVE,        gauge, Ratio of cycles the device memory interface is active sending or receiving data.\n# DCGM_FI_PROF_PIPE_FP64_ACTIVE,   gauge, Ratio of cycles the fp64 pipes are active.\n# DCGM_FI_PROF_PIPE_FP32_ACTIVE,   gauge, Ratio of cycles the fp32 pipes are active.\n# DCGM_FI_PROF_PIPE_FP16_ACTIVE,   gauge, Ratio of cycles the fp16 pipes are active.\n# DCGM_FI_PROF_PCIE_TX_BYTES,      gauge, The rate of data transmitted over the PCIe bus - including both protocol headers and data payloads - in bytes per second.\n# DCGM_FI_PROF_PCIE_RX_BYTES,      gauge, The rate of data received over the PCIe bus - including both protocol headers and data payloads - in bytes per second.\n# DCGM_FI_PROF_SM_CYCLES_ELAPSED_TOTAL, counter, Total elapsed SM cycles.\n# DCGM_FI_PROF_SM_CYCLES_ACTIVE_TOTAL,  counter, Total SM cycles with active warps.\n# DCGM_FI_PROF_MMA_CYCLES_ACTIVE_TOTAL, counter, Total MMA tensor cycles active.\n# DCGM_FI_PROF_DMMA_CYCLES_ACTIVE_TOTAL, counter, Total DMMA tensor cycles active.\n# DCGM_FI_PROF_HMMA_CYCLES_ACTIVE_TOTAL, counter, Total HMMA tensor cycles active.\n# DCGM_FI_PROF_IMMA_CYCLES_ACTIVE_TOTAL, counter, Total IMMA tensor cycles active.\n# DCGM_FI_PROF_DFMA_CYCLES_ACTIVE_TOTAL, counter, Total DFMA tensor cycles active.\n# DCGM_FI_PROF_PCIE_TX_BYTES_TOTAL,     counter, Total PCIe transmitted bytes.\n# DCGM_FI_PROF_PCIE_RX_BYTES_TOTAL,     counter, Total PCIe received bytes.\n# DCGM_FI_PROF_INT_CYCLES_ACTIVE_TOTAL, counter, Total integer pipe cycles active.\n# DCGM_FI_PROF_FP64_CYCLES_ACTIVE_TOTAL, counter, Total FP64 pipe cycles active.\n# DCGM_FI_PROF_FP32_CYCLES_ACTIVE_TOTAL, counter, Total FP32 pipe cycles active.\n# DCGM_FI_PROF_FP16_CYCLES_ACTIVE_TOTAL, counter, Total FP16 pipe cycles active.\n"
+  }
+}

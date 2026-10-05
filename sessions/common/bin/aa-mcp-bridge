@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Bounded stdio JSON-RPC to streamable HTTP; reread pod identity per request."""
+import argparse
+import json
+import os
+from pathlib import Path
+import sys
+import urllib.parse
+import urllib.request
+
+LIMIT = 1024 * 1024
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args):
+        return None
+
+
+class Bridge:
+    def __init__(self, url, token_file):
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.fragment:
+            raise ValueError("invalid MCP endpoint")
+        self.url, self.token_file = url, Path(token_file)
+        self.session = None
+        self.protocol = "2025-03-26"
+        self.opener = urllib.request.build_opener(NoRedirect())
+
+    def request(self, message):
+        token = self.token_file.read_text(encoding="utf-8").strip()
+        if not token or len(token) > 16384 or any(c.isspace() for c in token):
+            raise ValueError("pod token unavailable")
+        body = json.dumps(message, separators=(",", ":")).encode()
+        if len(body) > LIMIT:
+            raise ValueError("request too large")
+        headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json",
+                   "Accept": "application/json, text/event-stream", "MCP-Protocol-Version": self.protocol}
+        if self.session:
+            headers["Mcp-Session-Id"] = self.session
+        req = urllib.request.Request(self.url, data=body, headers=headers, method="POST")
+        with self.opener.open(req, timeout=60) as response:
+            session = response.headers.get("Mcp-Session-Id")
+            if session:
+                if len(session) > 1024 or any(ord(c) < 32 for c in session):
+                    raise ValueError("invalid session identifier")
+                self.session = session
+            if response.status in (202, 204):
+                return []
+            kind = response.headers.get("Content-Type", "").split(";")[0]
+            if kind == "text/event-stream":
+                messages, data, count = [], [], 0
+                while True:
+                    line = response.readline(LIMIT + 1)
+                    count += len(line)
+                    if count > LIMIT:
+                        raise ValueError("response too large")
+                    if not line:
+                        break
+                    text = line.decode("utf-8").rstrip("\r\n")
+                    if text.startswith("data:"):
+                        data.append(text[5:].lstrip())
+                    elif not text and data:
+                        result = json.loads("\n".join(data))
+                        messages.append(result)
+                        data = []
+                        if "id" in message and result.get("id") == message["id"]:
+                            break
+                return messages
+            raw = response.read(LIMIT + 1)
+            if len(raw) > LIMIT:
+                raise ValueError("response too large")
+            result = json.loads(raw) if raw else None
+            if message.get("method") == "initialize" and isinstance(result, dict):
+                self.protocol = result.get("result", {}).get("protocolVersion", self.protocol)
+            return [result] if result is not None else []
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("url")
+    args = parser.parse_args(argv)
+    bridge = Bridge(args.url, os.environ.get("AA_MCP_TOKEN_FILE", "/var/run/agent-array/mcp-token/token"))
+    while True:
+        line = sys.stdin.buffer.readline(LIMIT + 1)
+        if not line:
+            return 0
+        message = None
+        try:
+            if len(line) > LIMIT:
+                raise ValueError("request too large")
+            message = json.loads(line)
+            if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
+                raise ValueError("invalid JSON-RPC message")
+            for response in bridge.request(message):
+                print(json.dumps(response, separators=(",", ":")), flush=True)
+        except Exception:
+            # HTTP exception bodies and tokens must never reach stderr or the CLI.
+            if isinstance(message, dict) and "id" in message:
+                print(json.dumps({"jsonrpc": "2.0", "id": message["id"], "error": {
+                    "code": -32603, "message": "MCP bridge request failed"}}), flush=True)
+            else:
+                print("aa-mcp-bridge: invalid request or upstream unavailable", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

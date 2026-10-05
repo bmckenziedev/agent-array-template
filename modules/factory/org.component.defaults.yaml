@@ -1,0 +1,11 @@
+scope: modules
+name: factory
+defaults:
+  queue_max_batches: 32
+  queue_max_cards: 100
+  queue_max_payload_bytes: 1048576
+  queue_retention_seconds: 43200
+  starvation_dispatches: 20
+  lane_concurrency: 1
+  worker_poll_seconds: 1
+  storage_gib: 10

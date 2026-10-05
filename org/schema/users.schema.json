@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-array.example.org/schema/users.schema.json",
+  "title": "Agent-array users configuration",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "users": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,30}[a-z0-9]$"
+          },
+          "oidc_sub": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "github": {
+            "type": "string",
+            "default": null
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "primary_team": {
+            "type": "string"
+          },
+          "tier": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "status": {
+            "type": "string",
+            "default": "active",
+            "enum": [
+              "active",
+              "suspended",
+              "offboarded"
+            ]
+          },
+          "tools": {
+            "type": "object",
+            "properties": {
+              "claude": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "home_node": {
+                    "type": "string"
+                  },
+                  "replicas": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "account",
+                  "home_node",
+                  "replicas"
+                ],
+                "additionalProperties": false
+              },
+              "codex": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "home_node": {
+                    "type": "string"
+                  },
+                  "replicas": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "account",
+                  "home_node",
+                  "replicas"
+                ],
+                "additionalProperties": false
+              },
+              "kimi": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "home_node": {
+                    "type": "string"
+                  },
+                  "replicas": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "account",
+                  "home_node",
+                  "replicas"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          "git": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "credential_secret": {
+                "type": "string",
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+              },
+              "provider": {
+                "enum": [
+                  "github",
+                  "gitlab",
+                  "other"
+                ]
+              },
+              "username": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "credential_secret",
+              "provider",
+              "username"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "email",
+          "oidc_sub",
+          "primary_team",
+          "slug",
+          "teams",
+          "tools"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tombstones": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    }
+  },
+  "required": [
+    "version",
+    "users"
+  ],
+  "additionalProperties": false
+}

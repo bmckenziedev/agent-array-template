@@ -1,0 +1,225 @@
+{
+  "apiVersion": "apps/v1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "panel",
+    "namespace": "{{NS_PORTAL}}",
+    "labels": {
+      "app.kubernetes.io/name": "panel",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "panel"
+    }
+  },
+  "spec": {
+    "replicas": 1,
+    "selector": {
+      "matchLabels": {
+        "app.kubernetes.io/name": "panel"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/name": "panel",
+          "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+          "{{LABEL_PREFIX}}/llm-client": "true",
+          "app.kubernetes.io/component": "panel"
+        }
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 1000,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          },
+          "fsGroup": 1000
+        },
+        "containers": [
+          {
+            "name": "panel",
+            "image": "{{IMAGE_PANEL}}",
+            "args": [],
+            "env": [
+              {
+                "name": "ACCESS_KIND",
+                "value": "{{ACCESS_KIND}}"
+              },
+              {
+                "name": "OIDC_ISSUER_URL",
+                "value": "{{OIDC_ISSUER_URL}}"
+              },
+              {
+                "name": "OIDC_CLIENT_ID",
+                "value": "{{OIDC_CLIENT_ID}}"
+              },
+              {
+                "name": "OIDC_GROUPS_CLAIM",
+                "value": "{{OIDC_GROUPS_CLAIM}}"
+              },
+              {
+                "name": "GROUP_PLATFORM_ADMIN",
+                "value": "{{GROUP_PLATFORM_ADMIN}}"
+              },
+              {
+                "name": "GROUP_AUDITOR",
+                "value": "{{GROUP_AUDITOR}}"
+              },
+              {
+                "name": "CF_ACCESS_TEAM",
+                "value": "{{CF_ACCESS_TEAM}}"
+              },
+              {
+                "name": "PANEL_ORIGIN",
+                "value": "https://{{HOST_PANEL}}"
+              },
+              {
+                "name": "ORG_DIRECTORY",
+                "value": "/etc/agent-array/org"
+              },
+              {
+                "name": "SESSION_JOBS_ENABLED",
+                "value": "{{M_SESSION_JOBS_ENABLED}}"
+              },
+              {
+                "name": "SESSION_NAMESPACE",
+                "value": "{{NS_SESSION_JOBS}}"
+              },
+              {
+                "name": "SESSION_IMAGE",
+                "value": "{{IMAGE_SESSION_RUNNER}}"
+              },
+              {
+                "name": "LABEL_PREFIX",
+                "value": "{{LABEL_PREFIX}}"
+              },
+              {
+                "name": "LITELLM_ADMIN_BASE",
+                "value": "http://litellm.{{NS_LLM}}.svc:4000"
+              },
+              {
+                "name": "DATA_DIR",
+                "value": "/data"
+              },
+              {
+                "name": "MAX_ACTIVE_TASKS_PER_USER",
+                "value": "{{C_PANEL_MAX_ACTIVE_TASKS_PER_USER}}"
+              },
+              {
+                "name": "MAX_ACTIVE_TASKS_PER_TEAM",
+                "value": "{{C_PANEL_MAX_ACTIVE_TASKS_PER_TEAM}}"
+              },
+              {
+                "name": "TASK_MODELS",
+                "value": "{{C_PANEL_TASK_MODELS_JSON}}"
+              },
+              {
+                "name": "TASK_DURATION_SECONDS",
+                "value": "{{C_PANEL_TASK_DURATION_SECONDS}}"
+              },
+              {
+                "name": "LITELLM_MINT_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "litellm-mint",
+                    "key": "mint_key"
+                  }
+                }
+              },
+              {
+                "name": "CF_ACCESS_AUD",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "name": "panel-env",
+                    "key": "CF_ACCESS_AUD",
+                    "optional": true
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "name": "http",
+                "containerPort": 8080
+              },
+              {
+                "name": "internal",
+                "containerPort": 8081
+              }
+            ],
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "resources": {
+              "requests": {
+                "cpu": "50m",
+                "memory": "64Mi"
+              },
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              }
+            },
+            "volumeMounts": [
+              {
+                "name": "data",
+                "mountPath": "/data"
+              },
+              {
+                "name": "org",
+                "mountPath": "/etc/agent-array/org",
+                "readOnly": true
+              },
+              {
+                "name": "tmp",
+                "mountPath": "/tmp"
+              }
+            ],
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/healthz",
+                "port": "http"
+              }
+            }
+          }
+        ],
+        "serviceAccountName": "panel",
+        "volumes": [
+          {
+            "name": "data",
+            "persistentVolumeClaim": {
+              "claimName": "panel-data"
+            }
+          },
+          {
+            "name": "org",
+            "configMap": {
+              "name": "org-directory"
+            }
+          },
+          {
+            "name": "tmp",
+            "emptyDir": {
+              "sizeLimit": "512Mi"
+            }
+          }
+        ],
+        "imagePullSecrets": [
+          {
+            "name": "{{REGISTRY_PULL_SECRET}}"
+          }
+        ]
+      }
+    },
+    "strategy": {
+      "type": "Recreate"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: "{{PROJECT_NAME}}-pkg-mirror"
+  labels:
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: "{{K8S_VERSION}}"
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: "{{PROJECT_NAME}}-pkg-mirror"
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]

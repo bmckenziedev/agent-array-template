@@ -1,0 +1,10 @@
+# Replace all example handles before enabling required owner reviews.
+* @example-org/platform
+/org/ @example-org/platform
+/tools/ @example-org/tooling
+/sessions/ @example-org/sessions
+/platform/ @example-org/security
+/monitoring/ @example-org/observability
+/modules/ @example-org/platform
+/docs/ @example-org/docs
+/.github/ @example-org/platform

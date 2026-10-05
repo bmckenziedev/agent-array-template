@@ -1,0 +1,242 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+spec:
+  sourceRepos: []
+  destinations: []
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist: []
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-policy
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+spec:
+  sourceRepos:
+  - '{{ORG_GIT_REMOTE}}'
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_SYSTEM}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_LLM}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MCP}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_PORTAL}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_FACTORY}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MODELS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_EGRESS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_SESSION_JOBS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_OPS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MONITORING}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_ARGOCD}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{USER_NS_PREFIX}}*'
+  - server: https://kubernetes.default.svc
+    namespace: 'default'
+  - server: https://kubernetes.default.svc
+    namespace: 'kube-system'
+  - server: https://kubernetes.default.svc
+    namespace: 'kube-public'
+  - server: https://kubernetes.default.svc
+    namespace: 'kube-node-lease'
+  - server: https://kubernetes.default.svc
+    namespace: '{{PROJECT_NAME}}-login-storage'
+  - server: https://kubernetes.default.svc
+    namespace: '{{PROJECT_NAME}}-arc-systems'
+  - server: https://kubernetes.default.svc
+    namespace: '{{PROJECT_NAME}}-arc-runners'
+  - server: https://kubernetes.default.svc
+    namespace: '{{PROJECT_NAME}}-arc-heavy'
+  - server: https://kubernetes.default.svc
+    namespace: '{{PROJECT_NAME}}-wazuh'
+  clusterResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-infra
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+spec:
+  sourceRepos:
+  - '{{ORG_GIT_REMOTE}}'
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_SYSTEM}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_LLM}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MCP}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_PORTAL}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_FACTORY}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MODELS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_EGRESS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_SESSION_JOBS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_OPS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MONITORING}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_ARGOCD}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{USER_NS_PREFIX}}*'
+  - server: https://kubernetes.default.svc
+    namespace: '{{PROJECT_NAME}}-login-storage'
+  clusterResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: services
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+spec:
+  sourceRepos:
+  - '{{ORG_GIT_REMOTE}}'
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_SYSTEM}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_LLM}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MCP}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_PORTAL}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_FACTORY}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MODELS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_EGRESS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_SESSION_JOBS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_OPS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MONITORING}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_ARGOCD}}'
+  clusterResourceWhitelist:
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: users
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+spec:
+  sourceRepos:
+  - '{{ORG_GIT_REMOTE}}'
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: '{{USER_NS_PREFIX}}*'
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  namespaceResourceWhitelist:
+  - group: ''
+    kind: ConfigMap
+  - group: ''
+    kind: ServiceAccount
+  - group: ''
+    kind: PersistentVolumeClaim
+  - group: ''
+    kind: ResourceQuota
+  - group: ''
+    kind: LimitRange
+  - group: rbac.authorization.k8s.io
+    kind: Role
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+  - group: apps
+    kind: StatefulSet
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: modules
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+  namespace: '{{NS_ARGOCD}}'
+spec:
+  sourceRepos:
+  - '{{ORG_GIT_REMOTE}}'
+  destinations:
+  - server: https://kubernetes.default.svc
+    namespace: '{{PROJECT_NAME}}-*'
+  - server: https://kubernetes.default.svc
+    namespace: gpu-system
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_SYSTEM}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_LLM}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MCP}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_PORTAL}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_FACTORY}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MODELS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_EGRESS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_SESSION_JOBS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_OPS}}'
+  - server: https://kubernetes.default.svc
+    namespace: '{{NS_MONITORING}}'
+  clusterResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'

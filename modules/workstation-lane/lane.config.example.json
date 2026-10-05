@@ -1,0 +1,12 @@
+{
+  "device_id": "device-a",
+  "service_account": "workstation-device-a",
+  "model_dir": "C:/Models",
+  "state_dir": "C:/Lane/state",
+  "model": "example.gguf",
+  "gpu": 0,
+  "model_executable": "C:/Lane/bin/llama-server.exe",
+  "kubeconfig": "C:/Lane/device.kubeconfig",
+  "factory_pod": "factory-worker-0",
+  "worker_executable": "C:/Lane/bin/factory-worker.exe"
+}

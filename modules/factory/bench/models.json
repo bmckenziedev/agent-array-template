@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "local-a",
+      "endpoint": "http://lane-gpu-a.models.svc:8000/v1",
+      "concurrency": 1,
+      "max_output_tokens": 2048
+    },
+    {
+      "id": "local-b",
+      "endpoint": "http://lane-gpu-b.models.svc:8000/v1",
+      "concurrency": 1,
+      "max_output_tokens": 2048
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+entrypoint-check --tool claude
+user="${AA_USER:?AA_USER is required}"
+node="${AA_HOME_NODE:?AA_HOME_NODE is required}"
+pod="${AA_POD_NAME:-${HOSTNAME:-session-0}}"
+ordinal="${pod##*-}"
+prefix="aa-${user}-${node}-${ordinal}"
+case "$prefix" in *[!a-zA-Z0-9._-]*) echo "invalid session name" >&2; exit 2 ;; esac
+dir="/work/$prefix"
+mkdir -p "$dir"
+cd "$dir"
+while ! claude auth status --json 2>/dev/null | jq -e '.loggedIn == true' >/dev/null; do
+  echo "Seat holder login required: claude auth login in the shell window."
+  sleep 20
+done
+policy="${AA_POLICY_DIR:-/etc/claude-code}/managed-settings.json"
+mode="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["permissions"]["defaultMode"])' "$policy")"
+# A listener consumes one pace lease; without per-session hooks its capacity is one.
+aa-lease hold -- claude remote-control \
+  --remote-control-session-name-prefix "$prefix" \
+  --permission-mode "$mode" --spawn same-dir --capacity 1

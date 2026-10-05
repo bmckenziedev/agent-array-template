@@ -1,0 +1,44 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: "mcp-egress-{{MCP_NAME}}"
+  namespace: "{{NS_MCP}}"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "{{MCP_SERVICE_NAME}}"
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              "{{LABEL_PREFIX}}/kind": user-sessions
+          podSelector:
+            matchExpressions:
+              - {key: "{{LABEL_PREFIX}}/user", operator: Exists}
+      ports:
+        - {protocol: TCP, port: {{MCP_PORT}}}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    # DNAT evaluation differs by CNI; the plugin expands every API endpoint address.
+    - to:
+        - ipBlock: {cidr: "{{APISERVER_ENDPOINT_IP}}/32"}
+        - ipBlock: {cidr: "{{APISERVER_SERVICE_IP}}/32"}
+      ports:
+        - {protocol: TCP, port: {{APISERVER_PORT}}}
+    # NetworkPolicy cannot enforce server_egress hostnames. Upgrade to an exact-host gateway.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: {{PRIVATE_CIDRS_JSON}}
+      ports:
+        - {protocol: TCP, port: 443}

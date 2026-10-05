@@ -1,0 +1,15 @@
+name: Bug report
+description: Describe the behavior and evidence.
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Include expected behavior and reproducible steps without credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Include sanitized test results or relevant configuration.

@@ -1,0 +1,110 @@
+name: Images
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: session-claude
+            file: sessions/claude/image/Dockerfile
+          - name: session-codex
+            file: sessions/codex/image/Dockerfile
+          - name: session-kimi
+            file: sessions/kimi/image/Dockerfile
+          - name: panel
+            file: portal/panel/Dockerfile
+          - name: session-runner
+            file: modules/session-jobs/image/Dockerfile
+          - name: pace
+            file: services/pace/Dockerfile
+          - name: farm-mcp
+            file: services/farm-mcp/Dockerfile
+          - name: factory
+            file: modules/factory/Dockerfile
+          - name: hermes-chat
+            file: modules/hermes-ops-chat/image/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: present
+        env:
+          DOCKERFILE: ${{ matrix.file }}
+        run: |
+          if [[ -f "$DOCKERFILE" ]]; then
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'exists=false' >> "$GITHUB_OUTPUT"
+            echo "SKIP: absent $DOCKERFILE"
+          fi
+      - uses: docker/setup-buildx-action@v3
+        if: steps.present.outputs.exists == 'true'
+      - uses: docker/login-action@v3
+        if: steps.present.outputs.exists == 'true' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+        with:
+          registry: ${{ vars.REGISTRY || 'ghcr.io' }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@v6
+        if: steps.present.outputs.exists == 'true'
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
+          tags: ${{ vars.REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/${{ vars.IMAGE_PREFIX || 'agent-array' }}-${{ matrix.name }}:sha-${{ github.sha }}
+      - name: Record digest
+        if: steps.present.outputs.exists == 'true' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+        env:
+          NAME: ${{ matrix.name }}
+          IMAGE: ${{ vars.REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/${{ vars.IMAGE_PREFIX || 'agent-array' }}-${{ matrix.name }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          mkdir -p digests
+          printf '  %s: {tag: "sha-%s", digest: "%s"}\n' "$NAME" "$COMMIT" "$DIGEST" > "digests/$NAME.yaml"
+      - uses: actions/upload-artifact@v4
+        if: steps.present.outputs.exists == 'true' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+        with:
+          name: digest-${{ matrix.name }}
+          path: digests/*.yaml
+  digests:
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: digests
+      - run: |
+          set -euo pipefail
+          echo 'images:' > image-digests.yaml
+          if [[ -d digests ]]; then
+            find digests -name '*.yaml' -print0 | sort -z | xargs -0 -r cat >> image-digests.yaml
+          fi
+          {
+            echo '```yaml'
+            cat image-digests.yaml
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-digests
+          path: image-digests.yaml

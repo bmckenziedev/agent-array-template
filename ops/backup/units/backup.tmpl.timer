@@ -1,0 +1,7 @@
+[Unit]
+Description=Cluster backup schedule
+[Timer]
+OnCalendar={{BACKUP_SCHEDULE}}
+Persistent=true
+[Install]
+WantedBy=timers.target

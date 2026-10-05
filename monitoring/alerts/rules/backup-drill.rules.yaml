@@ -1,0 +1,51 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: '{{PROJECT_NAME}}-backup-drill'
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: alerts
+    release: kps
+spec:
+  groups:
+  - name: agent-array.backup-drill
+    rules:
+    - alert: AgentArrayRestoreDrillFailed
+      expr: aa_backup_restore_drill_last_exit_code != 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentArrayRestoreDrillFailed
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentArrayRestoreDrillOverdue
+      expr: time() - aa_backup_restore_drill_last_success_timestamp_seconds > 35 * 86400
+      for: 1h
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentArrayRestoreDrillOverdue
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentArrayRestoreDrillMetricsMissing
+      expr: 'absent(aa_backup_restore_drill_last_run_timestamp_seconds)
+
+        and on () (count(aa_backup_enabled == 1) > 0)'
+      for: 6h
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentArrayRestoreDrillMetricsMissing
+        description: Inspect the alert labels and metric history before remediation.
+  - name: agent-array.backup-coverage
+    rules:
+    - alert: AgentArrayBackupMissingSealedKey
+      expr: "max(aa_backup_last_sealed_keys)\n  < count(kube_secret_created{job=\"kube-state-metrics\", namespace=\"\
+        {{NS_SYSTEM}}\", secret=~\"sealed-secrets-key.+\"})\n"
+      for: 26h
+      labels:
+        severity: warning
+        namespace: '{{NS_SYSTEM}}'
+      annotations:
+        summary: AgentArrayBackupMissingSealedKey
+        description: Inspect the alert labels and metric history before remediation.

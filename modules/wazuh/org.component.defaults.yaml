@@ -1,0 +1,6 @@
+scope: modules
+name: wazuh
+defaults:
+  enabled: false
+  psa_version: latest
+  upstream_commit: 2c2d13c550248b1fe91a5c3e3671de06a6180769

@@ -1,0 +1,244 @@
+# Bootstrap Namespace, login PVs and TLS before enabling the webhook configuration.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: session-admission
+  namespace: "{{NS_SYSTEM}}"
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: aa-session-admission-lookup
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, pods, persistentvolumeclaims, persistentvolumes]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: aa-session-admission-lookup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aa-session-admission-lookup
+subjects:
+  - kind: ServiceAccount
+    name: session-admission
+    namespace: "{{NS_SYSTEM}}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: session-admission
+  namespace: "{{NS_SYSTEM}}"
+  labels:
+    app.kubernetes.io/name: session-admission
+    app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: session-admission
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: session-admission
+        app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+    spec:
+      serviceAccountName: session-admission
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      runtimeClassName: "{{RUNTIME_CLASS_VM}}"
+      nodeSelector:
+        "{{LABEL_PREFIX}}/role-sessions": "true"
+        "{{LABEL_PREFIX}}/runtime-{{RUNTIME_CLASS_VM}}": "true"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: "{{REGISTRY_PULL_SECRET}}"
+      containers:
+        - name: webhook
+          image: "{{IMAGE_SESSION_CLAUDE}}"
+          command: [/usr/local/bin/aa-admission-webhook]
+          ports:
+            - name: https
+              containerPort: 8443
+          env:
+            - name: AA_APISERVER_URL
+              value: "{{APISERVER_URL}}"
+            - name: AA_LABEL_PREFIX
+              value: "{{LABEL_PREFIX}}"
+            - name: AA_USERNAME_PREFIX
+              value: "{{OIDC_USERNAME_PREFIX}}"
+            - name: AA_BREAKGLASS_GROUP
+              value: "{{OIDC_GROUP_BREAKGLASS}}"
+            - name: AA_LOGIN_STORAGE_CLASS
+              value: "{{STORAGE_CLASS_LOGIN}}"
+            - name: AA_LOGIN_HOST_ROOT
+              value: "{{LOGIN_HOST_ROOT}}"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /healthz
+              port: https
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/admission-tls
+              readOnly: true
+            - name: api
+              mountPath: /var/run/lookup-api
+              readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            secretName: session-admission-tls
+            defaultMode: 288
+        - name: api
+          projected:
+            defaultMode: 288
+            sources:
+              - serviceAccountToken:
+                  expirationSeconds: 3600
+                  path: token
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: session-admission
+  name: session-admission
+  namespace: "{{NS_SYSTEM}}"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: session-admission
+  ports:
+    - name: https
+      port: 443
+      targetPort: https
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: session-admission
+  namespace: "{{NS_SYSTEM}}"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: session-admission
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: "{{APISERVER_ENDPOINT_IP}}/32"
+      ports:
+        - protocol: TCP
+          port: 8443
+  egress:
+    - to:
+        - ipBlock:
+            cidr: "{{APISERVER_ENDPOINT_IP}}/32"
+      ports:
+        - protocol: TCP
+          port: {{APISERVER_PORT}}
+    - to:
+        - ipBlock:
+            cidr: "{{APISERVER_SERVICE_IP}}/32"
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# The CA bundle is a public certificate, never the TLS private key.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: aa-session-lookups
+webhooks:
+  - name: sessions.{{ORG_DOMAIN}}
+    admissionReviewVersions: [v1]
+    sideEffects: None
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    timeoutSeconds: 5
+    clientConfig:
+      service:
+        name: session-admission
+        namespace: "{{NS_SYSTEM}}"
+        path: /validate
+        port: 443
+      caBundle: "{{C_SESSIONS_ADMISSION_CA_BUNDLE}}"
+    namespaceSelector:
+      matchLabels:
+        "{{LABEL_PREFIX}}/kind": user-sessions
+    rules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods, persistentvolumeclaims]
+        scope: Namespaced
+      - apiGroups: [apps]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [statefulsets]
+        scope: Namespaced
+  - name: session-volumes.{{ORG_DOMAIN}}
+    admissionReviewVersions: [v1]
+    sideEffects: None
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    timeoutSeconds: 5
+    clientConfig:
+      service:
+        name: session-admission
+        namespace: "{{NS_SYSTEM}}"
+        path: /validate
+        port: 443
+      caBundle: "{{C_SESSIONS_ADMISSION_CA_BUNDLE}}"
+    matchConditions:
+      - name: login-volumes-only
+        expression: >-
+          (has(object.spec.storageClassName) && object.spec.storageClassName == '{{STORAGE_CLASS_LOGIN}}') ||
+          (has(object.metadata.labels) && '{{LABEL_PREFIX}}/kind' in object.metadata.labels &&
+          object.metadata.labels['{{LABEL_PREFIX}}/kind'] == 'user-login')
+    rules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [persistentvolumes]
+        scope: Cluster

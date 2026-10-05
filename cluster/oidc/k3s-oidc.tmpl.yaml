@@ -1,0 +1,8 @@
+# Install as /etc/rancher/k3s/config.yaml.d/20-oidc.yaml on every server.
+kube-apiserver-arg+:
+  - "oidc-issuer-url={{OIDC_ISSUER_URL}}"
+  - "oidc-client-id={{OIDC_CLIENT_ID}}"
+  - "oidc-username-claim={{OIDC_USERNAME_CLAIM}}"
+  - "oidc-username-prefix={{OIDC_USERNAME_PREFIX}}"
+  - "oidc-groups-claim={{OIDC_GROUPS_CLAIM}}"
+  - "oidc-groups-prefix={{OIDC_GROUPS_PREFIX}}"

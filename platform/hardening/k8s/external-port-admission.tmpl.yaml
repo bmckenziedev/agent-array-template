@@ -1,0 +1,106 @@
+# Server dry-runs (tests/live/check_admission.py): positives FIRST.
+# Positive: plain busybox:1.36 Pod, containers only; plain Deployment using that PodSpec.
+# Negative: NodePort, LoadBalancer, externalIPs; hostPort; privileged/hostPID/hostIPC/
+# hostNetwork/hostPath, direct nodeName, unmasked proc, SYS_ADMIN; forged exporter.
+# Run as Argo application-controller and platform-admin; any unexpected result fails.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: '{{PROJECT_NAME}}-no-external-services'
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - services
+  validations:
+  - expression: (!has(object.spec.type) || object.spec.type == 'ClusterIP') && (!has(object.spec.externalIPs)
+      || size(object.spec.externalIPs) == 0)
+    message: Only ClusterIP Services without externalIPs are allowed
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: '{{PROJECT_NAME}}-no-external-services'
+spec:
+  policyName: '{{PROJECT_NAME}}-no-external-services'
+  validationActions:
+  - Deny
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: Exists
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: '{{PROJECT_NAME}}-no-hostport'
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+      - pods/ephemeralcontainers
+    - apiGroups:
+      - apps
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - deployments
+      - daemonsets
+      - statefulsets
+      - replicasets
+    - apiGroups:
+      - batch
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - jobs
+      - cronjobs
+  validations:
+  - expression: variables.podSpec.containers.all(c, (!has(c.ports) || c.ports.all(p, !has(p.hostPort)
+      || p.hostPort == 0))) && (!has(variables.podSpec.initContainers) || variables.podSpec.initContainers.all(c,
+      (!has(c.ports) || c.ports.all(p, !has(p.hostPort) || p.hostPort == 0)))) && (!has(variables.podSpec.ephemeralContainers)
+      || variables.podSpec.ephemeralContainers.all(c, (!has(c.ports) || c.ports.all(p, !has(p.hostPort)
+      || p.hostPort == 0))))
+    message: hostPort is prohibited
+  variables:
+  - name: podSpec
+    expression: 'object.kind == ''Pod'' ? object.spec : (object.kind == ''CronJob'' ? object.spec.jobTemplate.spec.template.spec
+      : object.spec.template.spec)'
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: '{{PROJECT_NAME}}-no-hostport'
+spec:
+  policyName: '{{PROJECT_NAME}}-no-hostport'
+  validationActions:
+  - Deny
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: Exists

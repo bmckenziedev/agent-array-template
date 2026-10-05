@@ -1,0 +1,16 @@
+scope: components
+name: monitoring
+defaults:
+  retention_days: 15
+  oidc_auth_path: /authorize
+  oidc_token_path: /token
+  oidc_userinfo_path: /userinfo
+  team_receivers: {}
+  litellm_budget_metric: litellm_team_max_budget_metric
+  litellm_remaining_budget_metric: litellm_remaining_team_budget_metric
+  litellm_team_label: team_alias
+  litellm_metrics_secret: litellm-metrics-key
+  litellm_metrics_secret_key: token
+  lease_denials_threshold: 10
+  mcp_auth_denials_threshold: 10
+  factory_starvation_minutes: 15

@@ -1,0 +1,107 @@
+# User and groups are native audit envelope fields.
+# Exec admission supplies the breakglass-ticket audit annotation.
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages:
+- RequestReceived
+omitManagedFields: true
+rules:
+- level: None
+  nonResourceURLs:
+  - /healthz*
+  - /livez*
+  - /readyz*
+  - /version
+  - /version/*
+  - /metrics
+  - /openapi*
+  - /api
+  - /api/*
+  - /apis
+  - /apis/*
+- level: None
+  resources:
+  - group: coordination.k8s.io
+    resources:
+    - leases
+- level: None
+  resources:
+  - group: ''
+    resources:
+    - events
+  - group: events.k8s.io
+    resources:
+    - events
+- level: None
+  userGroups:
+  - system:nodes
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+  resources:
+  - group: ''
+    resources:
+    - nodes
+    - nodes/status
+    - pods/status
+- level: None
+  resources:
+  - group: authentication.k8s.io
+    resources:
+    - tokenreviews
+  - group: authorization.k8s.io
+    resources:
+    - subjectaccessreviews
+    - selfsubjectaccessreviews
+    - selfsubjectrulesreviews
+    - localsubjectaccessreviews
+- level: Metadata
+  resources:
+  - group: ''
+    resources:
+    - secrets
+    - configmaps
+    - serviceaccounts/token
+  - group: bitnami.com
+    resources:
+    - sealedsecrets
+- level: Request
+  resources:
+  - group: ''
+    resources:
+    - pods/exec
+    - pods/attach
+    - pods/portforward
+    - pods/proxy
+    - pods/ephemeralcontainers
+    - services/proxy
+    - nodes/proxy
+- level: Metadata
+  resources:
+  - group: ''
+    resources:
+    - pods/log
+- level: Request
+  verbs:
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+  resources:
+  - group: rbac.authorization.k8s.io
+  - group: admissionregistration.k8s.io
+  - group: networking.k8s.io
+    resources:
+    - networkpolicies
+- level: Metadata
+  verbs:
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+- level: None

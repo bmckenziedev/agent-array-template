@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: factory
+  namespace: "{{NS_FACTORY}}"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: factory-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: factory-api
+        app.kubernetes.io/component: factory
+        app.kubernetes.io/part-of: "{{PROJECT_NAME}}"
+        "{{LABEL_PREFIX}}/llm-client": "true"
+    spec:
+      runtimeClassName: "{{RUNTIME_CLASS_VM}}"
+      serviceAccountName: factory
+      terminationGracePeriodSeconds: 660
+      imagePullSecrets:
+        - name: "{{REGISTRY_PULL_SECRET}}"
+      nodeSelector:
+        "{{LABEL_PREFIX}}/role-factory": "true"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: factory
+          image: "{{IMAGE_FACTORY}}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PROJECT_NAME
+              value: "{{PROJECT_NAME}}"
+            - name: LABEL_PREFIX
+              value: "{{LABEL_PREFIX}}"
+            - name: USER_NS_PREFIX
+              value: "{{USER_NS_PREFIX}}"
+            - name: OIDC_USERNAME_PREFIX
+              value: "{{OIDC_USERNAME_PREFIX}}"
+            - name: FACTORY_STATE_DIR
+              value: /var/lib/factory
+            - name: FACTORY_SNAPSHOT_ROOT
+              value: /var/lib/factory/snap
+            - name: FACTORY_MAX_BATCHES
+              value: "{{M_FACTORY_QUEUE_MAX_BATCHES}}"
+            - name: FACTORY_MAX_CARDS
+              value: "{{M_FACTORY_QUEUE_MAX_CARDS}}"
+            - name: FACTORY_MAX_PAYLOAD_BYTES
+              value: "{{M_FACTORY_QUEUE_MAX_PAYLOAD_BYTES}}"
+            - name: FACTORY_RETENTION_SECONDS
+              value: "{{M_FACTORY_QUEUE_RETENTION_SECONDS}}"
+            - name: FACTORY_STARVATION_N
+              value: "{{M_FACTORY_STARVATION_DISPATCHES}}"
+            - name: FACTORY_WORKER_POLL_SECONDS
+              value: "{{M_FACTORY_WORKER_POLL_SECONDS}}"
+            - name: PACE_URL
+              value: "http://pace.{{NS_SYSTEM}}.svc:8080"
+            - name: MODEL_SERVER_AUTH_FILE
+              value: /var/run/factory/model-auth/token
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/factory
+            - name: model-auth
+              mountPath: /var/run/factory/model-auth
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: config
+              mountPath: /etc/factory
+              readOnly: true
+            - name: org-directory
+              mountPath: /etc/agent-array/org
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: factory-state
+        - name: model-auth
+          secret:
+            secretName: model-server-auth
+            items:
+              - key: api-key
+                path: token
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: factory-config
+        - name: org-directory
+          configMap:
+            name: org-directory

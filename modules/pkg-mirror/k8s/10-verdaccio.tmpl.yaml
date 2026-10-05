@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: verdaccio-config
+  namespace: "{{PROJECT_NAME}}-pkg-mirror"
+  labels: { app.kubernetes.io/name: npm, app.kubernetes.io/part-of: "{{PROJECT_NAME}}" }
+data:
+  config.yaml: |
+    storage: /verdaccio/storage/data
+    plugins: /verdaccio/plugins
+    web:
+      enable: false
+    auth:
+      htpasswd:
+        file: /verdaccio/storage/htpasswd
+        max_users: -1
+    uplinks:
+      npmjs:
+        url: "{{M_PKG_MIRROR_NPM_UPSTREAM}}"
+        timeout: 30s
+        maxage: 10m
+        max_fails: 3
+        fail_timeout: 2m
+        cache: true
+    packages:
+      '**':
+        access: $all
+        publish: pkg-mirror-nobody
+        unpublish: pkg-mirror-nobody
+        proxy: npmjs
+    max_body_size: 1mb
+    server:
+      keepAliveTimeout: 60
+    log: { type: stdout, format: json, level: http }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: verdaccio-storage
+  namespace: "{{PROJECT_NAME}}-pkg-mirror"
+  labels: { app.kubernetes.io/name: npm, app.kubernetes.io/part-of: "{{PROJECT_NAME}}" }
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: "{{STORAGE_CLASS_DEFAULT}}"
+  resources:
+    requests: { storage: "{{M_PKG_MIRROR_STORAGE}}" }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: verdaccio
+  namespace: "{{PROJECT_NAME}}-pkg-mirror"
+  labels: { app.kubernetes.io/name: npm, app.kubernetes.io/part-of: "{{PROJECT_NAME}}" }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app.kubernetes.io/name: npm }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: npm, app.kubernetes.io/part-of: "{{PROJECT_NAME}}" }
+    spec:
+      runtimeClassName: "{{RUNTIME_CLASS_VM}}"
+      nodeSelector:
+        "{{LABEL_PREFIX}}/role-worker": "true"
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: verdaccio
+          image: docker.io/verdaccio/verdaccio:6.10.5@sha256:560744912b640ddc0f23cd475d296b663b656c0fcfa0ba17cc5ca1cbcb620225
+          command: ["verdaccio", "--config", "/verdaccio/conf/config.yaml", "--listen", "http://0.0.0.0:4873"]
+          env:
+            - { name: NODE_ENV, value: production }
+          ports:
+            - { name: http, containerPort: 4873, protocol: TCP }
+          readinessProbe:
+            httpGet: { path: /-/ping, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: { path: /-/ping, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: "2",  memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: config,  mountPath: /verdaccio/conf, readOnly: true }
+            - { name: storage, mountPath: /verdaccio/storage }
+            - { name: tmp,     mountPath: /tmp }
+      volumes:
+        - name: config
+          configMap: { name: verdaccio-config }
+        - name: storage
+          persistentVolumeClaim: { claimName: verdaccio-storage }
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 64Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: npm
+  namespace: "{{PROJECT_NAME}}-pkg-mirror"
+  labels: { app.kubernetes.io/name: npm, app.kubernetes.io/part-of: "{{PROJECT_NAME}}" }
+spec:
+  type: ClusterIP
+  selector: { app.kubernetes.io/name: npm }
+  ports:
+    - { name: http, port: 4873, targetPort: http, protocol: TCP }

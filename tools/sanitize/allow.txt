@@ -1,0 +1,2 @@
+tools/sanitize/denylist.json
+tools/sanitize/tests/fixtures/**

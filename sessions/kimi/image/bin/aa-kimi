@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-}" in
+  --help|-h) echo 'aa-kimi [gate|CLI ARGS]'; exit 0 ;;
+  gate) echo 'Seat holder: kimi login --region global, if the flag is rejected use plain kimi login, then aa-kimi.'; exec bash -l ;;
+esac
+entrypoint-check --tool kimi
+for arg in "$@"; do
+  case "$arg" in -p|--prompt|--prompt=*|--auto|--yolo|--permission-mode*)
+    echo "aa-kimi: automation or permission override refused: $arg" >&2; exit 2 ;;
+  esac
+done
+export AA_KIMI_AUTH_MODE=membership
+aa-kimi-config write
+cd "${AA_WORK_DIR:-/work}"
+exec aa-lease hold -- kimi "$@"

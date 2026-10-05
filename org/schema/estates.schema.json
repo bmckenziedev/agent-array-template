@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-array.example.org/schema/estates.schema.json",
+  "title": "Agent-array estates configuration",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "deny_globs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "estates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "owner_team": {
+            "type": "string"
+          },
+          "data_class": {
+            "type": "string"
+          },
+          "repos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "snapshot_targets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "owner_team",
+          "data_class",
+          "repos",
+          "snapshot_targets"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "version",
+    "deny_globs",
+    "estates"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,10 @@
+# Panel runtime pins; requirements.txt contains the hash-locked closure.
+# Re-lock with the command in requirements.txt after changing these pins.
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+kubernetes==36.0.3
+pyyaml==6.0.3
+# OIDC and Cloudflare Access JWT validation use the RSA backend.
+PyJWT==2.15.1
+cryptography==50.0.2

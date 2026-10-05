@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>agent-array</title>
+<style>
+  :root {
+    --fg:#e6e6e6; --bg:#0d1117; --mut:#8b949e; --acc:#58a6ff; --acc-fg:#0d1117;
+    --card:#161b22; --bd:#30363d; --field:#0d1117;
+    --ok:#3fb950; --warn:#d29922; --err:#f85149;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --fg:#1f2328; --bg:#ffffff; --mut:#656d76; --acc:#0969da; --acc-fg:#ffffff;
+      --card:#f6f8fa; --bd:#d0d7de; --field:#ffffff;
+      --ok:#1a7f37; --warn:#9a6700; --err:#cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+         background:var(--bg); color:var(--fg); margin:0; padding:2rem 16px; line-height:1.5; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size:1.3rem; margin:0 0 .3rem; }
+  h2 { font-size:1rem; margin:0; }
+  .mut { color:var(--mut); }
+  p.lede { margin:.2rem 0 0; }
+  form, #panel, #list { background:var(--card); border:1px solid var(--bd); border-radius:10px;
+                        padding:1.2rem; margin-top:1rem; }
+  label { display:block; margin:.6rem 0 .25rem; font-weight:600; }
+  textarea, input[type=file], select { width:100%; }
+  textarea { background:var(--field); color:var(--fg); border:1px solid var(--bd);
+             border-radius:6px; padding:.6rem; min-height:130px; font: inherit; resize:vertical; }
+  select { background:var(--field); color:var(--fg); border:1px solid var(--bd);
+           border-radius:6px; padding:.45rem .5rem; font: inherit; }
+  input[type=file] { color:var(--mut); }
+  .hint { margin:.3rem 0 0; font-size:.85rem; }
+  .row { display:flex; gap:.75rem; align-items:center; margin-top:1rem; }
+  button { background:var(--acc); color:var(--acc-fg); border:0; border-radius:6px;
+           padding:.6rem 1.2rem; font-weight:700; cursor:pointer; font: inherit; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  button.ghost { background:transparent; color:var(--acc); border:1px solid var(--bd);
+                 padding:.25rem .7rem; font-weight:400; }
+  #err { color:var(--err); margin:0; }
+  #panel[hidden], #list[hidden], div[hidden] { display:none; }
+  .hd { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; flex-wrap:wrap; }
+  code { background:rgba(127,127,127,.15); padding:.05rem .35rem; border-radius:4px; }
+  .badge { font-weight:700; }
+  .badge.ok{color:var(--ok)} .badge.warn{color:var(--warn)} .badge.err{color:var(--err)}
+  .mode { font-weight:700; }
+  .mode.bulk { color:var(--warn); }
+  #log { white-space:pre-wrap; font-size:.85rem; margin:.8rem 0 0; color:var(--mut);
+         max-height:40vh; overflow:auto; }
+  a.btn { display:inline-block; margin-top:1rem; background:var(--acc); color:var(--acc-fg);
+          text-decoration:none; padding:.55rem 1.1rem; border-radius:6px; font-weight:700; }
+  a.btn.warn { background:var(--warn); }
+  a.btn[hidden], p[hidden] { display:none; }
+  .tbl { overflow-x:auto; margin-top:.6rem; }
+  table { width:100%; border-collapse:collapse; font-size:.85rem; }
+  th, td { text-align:left; padding:.3rem .5rem .3rem 0; border-bottom:1px solid var(--bd);
+           vertical-align:top; white-space:nowrap; }
+  td.title { white-space:normal; overflow-wrap:anywhere; }
+  th { color:var(--mut); font-weight:600; }
+  td a { color:var(--acc); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>agent-array <span class="mut">// upload &rarr; diff bundle</span></h1>
+  <p id="identity" class="mut">Loading identity…</p>
+  <p class="lede mut">Upload the files to change and a brief. The result is one bundle
+    (<code>changes.patch</code> + <code>files/</code> + <code>RUNBOOK.md</code>) to apply by
+    hand. Nothing is pushed or synced.</p>
+  <p class="lede mut">Data handling: task files and brief are sent to models permitted by the team policy to plan, write and
+    review the change.
+    The panel deletes the upload once the sandbox has fetched it (or when the task ends),
+    and the sandbox workspace is wiped when the task ends. The result bundle is kept on the
+    panel server until {{RETAIN_AFTER_DOWNLOAD}} after the first download, or
+    {{RETAIN_AFTER_TERMINAL}} after the task ends, whichever comes first.</p>
+
+  <form id="f">
+    <label for="team">Team</label>
+    <select id="team" name="team" required></select>
+    <label for="brief">Brief</label>
+    <textarea id="brief" name="brief" required
+      placeholder="What should change, and how do we know it worked?"></textarea>
+    <label for="files">Files</label>
+    <input id="files" name="files" type="file" multiple>
+    <div id="moderow">
+      <label for="mode">Mode</label>
+      <select id="mode" name="mode">
+        <option value="standard" selected>standard</option>
+        <option id="mode-bulk" value="bulk" disabled>bulk</option>
+      </select>
+      <p id="modehint" class="hint mut"></p>
+    </div>
+    <div class="row">
+      <button id="go" type="submit">Dispatch</button>
+      <p id="err" role="alert"></p>
+    </div>
+  </form>
+
+  <div id="panel" hidden>
+    <div class="hd">
+      <div>task <code id="tid"></code></div>
+      <div>mode: <span id="tmode" class="mode"></span></div>
+      <div>stage: <span id="stage" class="badge">queued</span></div>
+    </div>
+    <div id="log"></div>
+    <a id="dl" class="btn" hidden rel="nofollow">&#8681; download bundle</a>
+    <p id="keep" class="mut" hidden>The panel deletes this bundle {{RETAIN_AFTER_DOWNLOAD}} after
+      the first download.</p>
+  </div>
+
+  <div id="list" hidden>
+    <div class="hd">
+      <h2>Accessible tasks</h2>
+      <button id="refresh" class="ghost" type="button">refresh</button>
+    </div>
+    <p id="tasksnote" class="hint mut"></p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>task</th><th>mode</th><th>stage</th><th>created</th><th>brief</th><th></th></tr></thead>
+        <tbody id="tasks"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+let currentIdentity = null;
+let taskDispatchEnabled = false;
+const TERMINAL_OK = new Set(["done", "needs-review"]);
+const MODE_HINT = {
+  standard: "Standard tasks use the team standard budget and permitted models.",
+  bulk: "Bulk tasks use the team bulk budget and permitted models.",
+};
+
+const stageClass = (stage) => TERMINAL_OK.has(stage) ? (stage === "done" ? "badge ok" : "badge warn")
+  : String(stage || "").startsWith("error") ? "badge err" : "badge";
+
+const ago = (ts) => {
+  if (typeof ts !== "number") return "?";
+  const s = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+};
+
+const showModeHint = () => { $("modehint").textContent = MODE_HINT[$("mode").value] || ""; };
+
+// What this panel supports. GET /api/meta lists the modes it accepts; a panel
+// without it (API v1) has no mode field at all, so none is sent.
+async function loadMeta() {
+  const sel = $("mode"), bulk = $("mode-bulk");
+  let modes = ["standard"], note = "";
+  try {
+    const r = await fetch("/api/meta", { cache: "no-store" });
+    if (r.status === 404) { sel.disabled = true; $("moderow").hidden = true; return; }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const meta = await r.json();
+    taskDispatchEnabled = meta.session_jobs_enabled === true;
+    if (!taskDispatchEnabled) {
+      $("f").hidden = true;
+      $("tasksnote").textContent = "Session-jobs is disabled; task dispatch is unavailable.";
+    }
+    if (Array.isArray(meta.modes)) modes = meta.modes;
+    if (!modes.includes("bulk")) note = " Bulk mode is not available on this panel.";
+  } catch (ex) {
+    note = ` Could not ask the panel which modes it supports (${ex.message || ex}); standard only.`;
+  }
+  const hasBulk = modes.includes("bulk");
+  bulk.disabled = !hasBulk;
+  bulk.hidden = !hasBulk;
+  if (!hasBulk) sel.value = "standard";
+  showModeHint();
+  $("modehint").textContent += note;
+}
+
+async function loadIdentity() {
+  const response = await fetch("/api/me", { cache: "no-store" });
+  if (!response.ok) throw new Error("Identity lookup failed");
+  currentIdentity = await response.json();
+  $("identity").textContent = `${currentIdentity.slug} · ${currentIdentity.teams.join(", ")} · ${currentIdentity.roles.join(", ")}`;
+  for (const team of currentIdentity.teams) {
+    const option = document.createElement("option");
+    option.value = team;
+    option.textContent = team;
+    $("team").append(option);
+  }
+  if (currentIdentity.roles.includes("auditor") || currentIdentity.teams.length === 0) {
+    $("f").hidden = true;
+  }
+}
+
+function cell(text, cls) {
+  const td = document.createElement("td");
+  td.textContent = text;
+  if (cls) td.className = cls;
+  return td;
+}
+
+function taskRow(t) {
+  const tr = document.createElement("tr");
+  const id = String(t.task_id || "");
+  const idCell = document.createElement("td");
+  const code = document.createElement("code");
+  code.textContent = id.slice(0, 8);
+  code.title = id;
+  idCell.append(code);
+  const mode = t.mode || "standard";
+  const stage = String(t.stage || "?");
+  tr.append(idCell, cell(mode, `mode ${mode}`), cell(stage, stageClass(stage)),
+            cell(ago(t.created_ts)), cell(t.title || "", "title"));
+  const act = document.createElement("td");
+  if (TERMINAL_OK.has(stage)) {
+    const a = document.createElement("a");
+    a.href = `/api/tasks/${encodeURIComponent(id)}/bundle`;
+    a.rel = "nofollow";
+    a.textContent = "bundle";
+    act.append(a);
+  }
+  tr.append(act);
+  return tr;
+}
+
+// GET /api/tasks: the caller's own tasks, newest first.
+async function loadTasks() {
+  const note = $("tasksnote");
+  let rows;
+  try {
+    const r = await fetch("/api/tasks?limit=10", { cache: "no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    rows = Array.isArray(data.tasks) ? data.tasks : [];
+  } catch (ex) {
+    note.textContent = `could not load accessible tasks (${ex.message || ex})`;
+    $("list").hidden = false;
+    return;
+  }
+  $("tasks").replaceChildren(...rows.map(taskRow));
+  note.textContent = rows.length ? "" : "no tasks for this identity yet";
+  $("list").hidden = false;
+}
+
+$("mode").addEventListener("change", showModeHint);
+$("refresh").addEventListener("click", loadTasks);
+
+$("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("err").textContent = "";
+  const brief = $("brief").value.trim();
+  if (!brief) { $("err").textContent = "brief is required"; return; }
+
+  $("go").disabled = true;
+  const fd = new FormData($("f"));
+  fd.set("brief", brief);
+  const mode = fd.get("mode") || "standard";
+
+  let task_id;
+  try {
+    const r = await fetch("/api/tasks", { method: "POST", body: fd });
+    if (!r.ok) {
+      let detail = "";
+      try { detail = (await r.json()).detail || ""; } catch (_) { /* not JSON */ }
+      const why = {
+        401: "the sign-in session is missing or expired; reload the page to sign in again",
+        403: detail || "refused",
+        413: detail || "upload too large",
+        422: detail || "the panel refused the form",
+        429: detail || "too many tasks running; try again shortly",
+      }[r.status] || detail || r.statusText;
+      throw new Error(`dispatch failed (${r.status}): ${why}`);
+    }
+    ({ task_id } = await r.json());
+  } catch (ex) {
+    $("err").textContent = String(ex.message || ex);
+    $("go").disabled = false;
+    return;
+  }
+
+  $("panel").hidden = false;
+  $("tid").textContent = task_id;
+  $("tmode").textContent = mode;
+  $("tmode").className = `mode ${mode}`;
+  $("stage").textContent = "queued";
+  $("stage").className = "badge";
+  $("dl").hidden = true;
+  $("keep").hidden = true;
+  const log = $("log");
+  log.textContent = "";
+  delete log.dataset.last;
+  loadTasks();
+  const appendStage = (s) => {
+    const line = s.stage + (s.detail ? ` — ${s.detail}` : "");
+    if (log.dataset.last !== line) { log.textContent += line + "\n"; log.dataset.last = line; }
+    log.scrollTop = log.scrollHeight;
+  };
+
+  const finish = (s) => {
+    $("stage").textContent = s.stage;
+    const dl = $("dl");
+    if (TERMINAL_OK.has(s.stage)) {
+      dl.href = `/api/tasks/${task_id}/bundle`;
+      dl.hidden = false;
+      $("keep").hidden = false;
+      if (s.stage === "needs-review") {
+        dl.className = "btn warn";
+        dl.textContent = "⚠ download bundle (did not fully verify)";
+        $("stage").className = "badge warn";
+      } else {
+        dl.className = "btn";
+        dl.textContent = "⬇ download bundle";
+        $("stage").className = "badge ok";
+      }
+    } else {
+      $("stage").className = "badge err";
+    }
+    $("go").disabled = false;
+    loadTasks();
+  };
+
+  const render = (s) => {
+    $("stage").textContent = s.stage;
+    $("stage").className = "badge";
+    if (s.mode) {
+      $("tmode").textContent = s.mode;
+      $("tmode").className = `mode ${s.mode}`;
+    }
+    appendStage(s);
+    if (TERMINAL_OK.has(s.stage) || s.stage.startsWith("error")) { finish(s); return true; }
+    return false;
+  };
+
+  // Primary transport: SSE. Fallback: poll /status if the stream errors.
+  let done = false;
+  const es = new EventSource(`/api/tasks/${task_id}/events`);
+  es.onmessage = (ev) => {
+    const s = JSON.parse(ev.data);
+    if (render(s)) { done = true; es.close(); }
+  };
+  es.onerror = () => {
+    es.close();
+    if (done) return;
+    (async function poll() {
+      try {
+        const r = await fetch(`/api/tasks/${task_id}/status`);
+        if (r.ok) { const s = await r.json(); if (render(s)) return; }
+      } catch (_) { /* keep polling */ }
+      setTimeout(poll, 2000);
+    })();
+  };
+});
+
+(async () => {
+  try {
+    await loadIdentity();
+    await loadMeta();
+    if (taskDispatchEnabled) await loadTasks();
+  } catch (error) {
+    $("identity").textContent = error.message;
+    $("f").hidden = true;
+  }
+})();
+</script>
+</body>
+</html>

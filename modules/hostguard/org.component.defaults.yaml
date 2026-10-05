@@ -1,0 +1,5 @@
+scope: modules
+name: hostguard
+defaults:
+  enabled: false
+  pod_interfaces: [cni0]

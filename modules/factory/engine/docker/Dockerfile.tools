@@ -1,0 +1,17 @@
+# agent-array factory engine: gate tooling image (parser + type checker + gate code). No repo code.
+# Base pinned by digest (node 22.23.3, Debian bookworm slim; the same digest bench/ resolved ).
+# Build context: modules/factory/engine/js  ->  docker build -t aa-factory-tools:1 -f modules/factory/engine/docker/Dockerfile.tools modules/factory/engine/js
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
+WORKDIR /opt/factory/tools
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund && npm cache clean --force
+# Gate code is baked in as well, so the image works without the host mount (the DockerGateRunner
+# mounts the live js/ over it read-only for development).
+COPY gate.js inventory.js /opt/factory/js/
+COPY lib/ /opt/factory/js/lib/
+RUN ln -s /opt/factory/tools/node_modules /opt/factory/js/node_modules
+ENV NODE_PATH=/opt/factory/tools/node_modules \
+    NPM_CONFIG_UPDATE_NOTIFIER=false \
+    CI=1
+USER node
+WORKDIR /work

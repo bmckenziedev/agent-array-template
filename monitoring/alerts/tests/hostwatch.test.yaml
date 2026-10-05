@@ -1,0 +1,377 @@
+rule_files:
+- ../rules/hostwatch.rules.yaml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: aa:node:info{instance="node-a:9100",host="node-a",nodename="node-a",node="node-a"}
+    values: 1x100
+  - series: aa_reboot_required{job="node-exporter",instance="node-a:9100"}
+    values: 1x100
+  - series: aa_reboot_required_since_timestamp_seconds{job="node-exporter",instance="node-a:9100"}
+    values: -691200x100
+  - series: aa_reboot_required_package{job="node-exporter",instance="node-a:9100",package="libc6"}
+    values: 1x100
+  - series: aa_reboot_required_package{job="node-exporter",instance="node-a:9100",package="linux-image-7.0.0-34-generic"}
+    values: 1x100
+  - series: aa_security_updates_pending{job="node-exporter",instance="node-a:9100"}
+    values: 2x100
+  - series: aa_security_updates_since_timestamp_seconds{job="node-exporter",instance="node-a:9100"}
+    values: -345600x100
+  - series: aa_md_degraded{job="node-exporter",instance="node-a:9100",device="md0"}
+    values: 1x100
+  - series: aa_md_degraded{job="node-exporter",instance="node-a:9100",device="md1"}
+    values: '0x100'
+  - series: aa_md_resyncing{job="node-exporter",instance="node-a:9100",device="md1"}
+    values: 1x100
+  - series: aa_smart_healthy{job="node-exporter",instance="node-a:9100",device="/dev/sda"}
+    values: '0x100'
+  - series: aa_smart_healthy{job="node-exporter",instance="node-a:9100",device="/dev/nvme0n1"}
+    values: 1x100
+  - series: aa_nvme_percentage_used{job="node-exporter",instance="node-a:9100",device="/dev/nvme0n1"}
+    values: 81x100
+  - series: aa_nvme_percentage_used{job="node-exporter",instance="node-a:9100",device="/dev/nvme1n1"}
+    values: 80x100
+  - series: aa_k3s_certificate_not_after_timestamp_seconds{job="node-exporter",instance="node-a:9100",file="/k3s/a.crt"}
+    values: 1728000x100
+  - series: aa_k3s_certificate_not_after_timestamp_seconds{job="node-exporter",instance="node-a:9100",file="/k3s/b.crt"}
+    values: 432000x100
+  - series: aa_k3s_certificate_not_after_timestamp_seconds{job="node-exporter",instance="node-a:9100",file="/k3s/c.crt"}
+    values: 34560000x100
+  - series: aa_tailscale_key_expiry_timestamp_seconds{job="node-exporter",instance="node-a:9100"}
+    values: 1728000x100
+  - series: aa_credential_expiry_timestamp_seconds{job="node-exporter",instance="node-a:9100",secret_namespace="agent-array-llm",secret="ghcr-pull"}
+    values: 432000x100
+  - series: aa_credential_expiry_timestamp_seconds{job="node-exporter",instance="node-b:9100",secret_namespace="agent-array-llm",secret="ghcr-pull"}
+    values: 432000x100
+  - series: aa_credential_expiry_timestamp_seconds{job="node-exporter",instance="node-a:9100",secret_namespace="agent-array-jobs",secret="ghcr-pull"}
+    values: 1728000x100
+  - series: aa_credential_expiry_timestamp_seconds{job="node-exporter",instance="node-a:9100",secret_namespace="frontier",secret="ghcr-pull"}
+    values: 34560000x100
+  - series: aa_credential_expiry_invalid{job="node-exporter",instance="node-a:9100",secret_namespace="monitoring",secret="typo"}
+    values: 1x100
+  - series: aa_time_synchronized{job="node-exporter",instance="node-a:9100"}
+    values: '0x100'
+  - series: aa_hostwatch_last_success_timestamp_seconds{job="node-exporter",instance="node-a:9100"}
+    values: -3600x100
+  - series: aa_smart_up{job="node-exporter",instance="node-a:9100"}
+    values: '0x100'
+  - series: aa_nvme_up{job="node-exporter",instance="node-a:9100"}
+    values: 1x100
+  - series: aa_md_up{job="node-exporter",instance="node-a:9100"}
+    values: 1x100
+  alert_rule_test:
+  - alertname: HostRebootPendingTooLong
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: node-a:9100
+        job: node-exporter
+        host: node-a
+      exp_annotations:
+        summary: HostRebootPendingTooLong
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: HostSecurityUpdatesPendingTooLong
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: node-a:9100
+        job: node-exporter
+        host: node-a
+      exp_annotations:
+        summary: HostSecurityUpdatesPendingTooLong
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: HostRaidDegraded
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        instance: node-a:9100
+        job: node-exporter
+        host: node-a
+        device: md0
+      exp_annotations:
+        summary: HostRaidDegraded
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: HostSmartFailing
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        instance: node-a:9100
+        job: node-exporter
+        host: node-a
+        device: /dev/sda
+      exp_annotations:
+        summary: HostSmartFailing
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: HostNvmeWearHigh
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: node-a:9100
+        job: node-exporter
+        host: node-a
+        device: /dev/nvme0n1
+      exp_annotations:
+        summary: HostNvmeWearHigh
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: HostCertificateExpiring
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: node-a:9100
+        job: node-exporter
+        host: node-a
+        file: /k3s/a.crt
+      exp_annotations:
+        summary: HostCertificateExpiring
+        description: Inspect the alert labels and metric history before remediation.
+    - exp_labels:
+        severity: warning
+        instance: node-a:9100
+        job: node-exporter
+        host: node-a
+        file: /k3s/b.crt
+      exp_annotations:
+        summary: HostCertificateExpiring
+        description: Inspect the alert labels and metric history before remediation.
+    - exp_labels:
+        severity: critical
+        instance: node-a:9100
+        job: node-exporter
+        host: node-a
+        file: /k3s/b.crt
+      exp_annotations:
+        summary: HostCertificateExpiring
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: TailscaleKeyExpiring
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: node-a:9100
+        job: node-exporter
+        host: node-a
+      exp_annotations:
+        summary: TailscaleKeyExpiring
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: CredentialExpiring
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        secret_namespace: agent-array-llm
+        secret: ghcr-pull
+      exp_annotations:
+        summary: CredentialExpiring
+        description: Inspect the alert labels and metric history before remediation.
+    - exp_labels:
+        severity: critical
+        secret_namespace: agent-array-llm
+        secret: ghcr-pull
+      exp_annotations:
+        summary: CredentialExpiring
+        description: Inspect the alert labels and metric history before remediation.
+    - exp_labels:
+        severity: warning
+        secret_namespace: agent-array-jobs
+        secret: ghcr-pull
+      exp_annotations:
+        summary: CredentialExpiring
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: CredentialExpiryAnnotationInvalid
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        secret_namespace: monitoring
+        secret: typo
+      exp_annotations:
+        summary: CredentialExpiryAnnotationInvalid
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: HostClockUnsynchronized
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: node-a:9100
+        job: node-exporter
+        host: node-a
+      exp_annotations:
+        summary: HostClockUnsynchronized
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: HostwatchCollectorStale
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: node-a:9100
+        job: node-exporter
+        host: node-a
+      exp_annotations:
+        summary: HostwatchCollectorStale
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: HostwatchCheckFailing
+    eval_time: 80m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: node-a:9100
+        job: node-exporter
+        check: smart
+      exp_annotations:
+        summary: HostwatchCheckFailing
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: HostRebootPendingTooLong
+    eval_time: 10m
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: aa:node:info{instance="node-b1:9100",host="node-b1",nodename="node-b1",node="node-b1"}
+    values: 1x100
+  - series: aa:node:info{instance="node-b2:9100",host="node-b2",nodename="node-b2",node="node-b2"}
+    values: 1x100
+  - series: aa:node:info{instance="node-b3:9100",host="node-b3",nodename="node-b3",node="node-b3"}
+    values: 1x100
+  - series: aa_reboot_required{job="node-exporter",instance="node-b1:9100"}
+    values: '0x100'
+  - series: aa_reboot_required_since_timestamp_seconds{job="node-exporter",instance="node-b1:9100"}
+    values: -1800000000x100
+  - series: aa_security_updates_pending{job="node-exporter",instance="node-b1:9100"}
+    values: '0x100'
+  - series: aa_security_updates_since_timestamp_seconds{job="node-exporter",instance="node-b1:9100"}
+    values: -1800000000x100
+  - series: aa_md_degraded{job="node-exporter",instance="node-b1:9100",device="md0"}
+    values: '0x100'
+  - series: aa_smart_healthy{job="node-exporter",instance="node-b1:9100",device="/dev/sda"}
+    values: 1x100
+  - series: aa_nvme_percentage_used{job="node-exporter",instance="node-b1:9100",device="/dev/nvme0n1"}
+    values: 12x100
+  - series: aa_k3s_certificate_not_after_timestamp_seconds{job="node-exporter",instance="node-b1:9100",file="/k3s/a.crt"}
+    values: 34560000x100
+  - series: aa_tailscale_key_expiry_timestamp_seconds{job="node-exporter",instance="node-b1:9100"}
+    values: '0x100'
+  - series: aa_credential_expiry_timestamp_seconds{job="node-exporter",instance="node-b1:9100",secret_namespace="agent-array-llm",secret="ghcr-pull"}
+    values: 34560000x100
+  - series: aa_time_synchronized{job="node-exporter",instance="node-b1:9100"}
+    values: 1x100
+  - series: aa_hostwatch_last_success_timestamp_seconds{job="node-exporter",instance="node-b1:9100"}
+    values: 0+60x100
+  - series: aa_smart_up{job="node-exporter",instance="node-b1:9100"}
+    values: 1x100
+  - series: aa_credentials_up{job="node-exporter",instance="node-b1:9100"}
+    values: 1x100
+  - series: aa_reboot_required{job="node-exporter",instance="node-b2:9100"}
+    values: 1x100
+  - series: aa_reboot_required_since_timestamp_seconds{job="node-exporter",instance="node-b2:9100"}
+    values: -518400x100
+  - series: aa_security_updates_pending{job="node-exporter",instance="node-b2:9100"}
+    values: 5x100
+  - series: aa_security_updates_since_timestamp_seconds{job="node-exporter",instance="node-b2:9100"}
+    values: -172800x100
+  - series: aa_k3s_certificate_not_after_timestamp_seconds{job="node-exporter",instance="node-b2:9100",file="/k3s/a.crt"}
+    values: 2678400x100
+  - series: aa_tailscale_key_expiry_timestamp_seconds{job="node-exporter",instance="node-b2:9100"}
+    values: 2678400x100
+  - series: aa_hostwatch_last_success_timestamp_seconds{job="node-exporter",instance="node-b2:9100"}
+    values: 0+60x100
+  - series: aa_reboot_required{job="node-exporter",instance="node-b3:9100"}
+    values: '0x100'
+  - series: aa_reboot_required_since_timestamp_seconds{job="node-exporter",instance="node-b3:9100"}
+    values: -1800000000x100
+  - series: aa_security_updates_pending{job="node-exporter",instance="node-b3:9100"}
+    values: '0x100'
+  - series: aa_security_updates_since_timestamp_seconds{job="node-exporter",instance="node-b3:9100"}
+    values: -1800000000x100
+  - series: aa_hostwatch_last_success_timestamp_seconds{job="node-exporter",instance="node-b3:9100"}
+    values: 0+60x100
+  alert_rule_test:
+  - alertname: HostRebootPendingTooLong
+    eval_time: 80m
+    exp_alerts: []
+  - alertname: HostSecurityUpdatesPendingTooLong
+    eval_time: 80m
+    exp_alerts: []
+  - alertname: HostRaidDegraded
+    eval_time: 80m
+    exp_alerts: []
+  - alertname: HostSmartFailing
+    eval_time: 80m
+    exp_alerts: []
+  - alertname: HostNvmeWearHigh
+    eval_time: 80m
+    exp_alerts: []
+  - alertname: HostCertificateExpiring
+    eval_time: 80m
+    exp_alerts: []
+  - alertname: TailscaleKeyExpiring
+    eval_time: 80m
+    exp_alerts: []
+  - alertname: CredentialExpiring
+    eval_time: 80m
+    exp_alerts: []
+  - alertname: CredentialExpiryAnnotationInvalid
+    eval_time: 80m
+    exp_alerts: []
+  - alertname: HostClockUnsynchronized
+    eval_time: 80m
+    exp_alerts: []
+  - alertname: HostwatchCollectorStale
+    eval_time: 80m
+    exp_alerts: []
+  - alertname: HostwatchCheckFailing
+    eval_time: 80m
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: aa:node:info{instance="node-c:9100",host="node-c",nodename="node-c",node="node-c"}
+    values: 1x100
+  - series: aa:node:info{instance="node-d:9100",host="node-d",nodename="node-d",node="node-d"}
+    values: 1x100
+  - series: aa_hostwatch_last_success_timestamp_seconds{job="node-exporter",instance="node-d:9100"}
+    values: 0+60x100
+  alert_rule_test:
+  - alertname: HostwatchCollectorStale
+    eval_time: 30m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: node-c:9100
+        host: node-c
+        nodename: node-c
+        node: node-c
+      exp_annotations:
+        summary: HostwatchCollectorStale
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: HostRaidDegraded
+    eval_time: 30m
+    exp_alerts: []
+- interval: 1m
+  input_series:
+  - series: aa:node:info{instance="node-e:9100",host="node-e",nodename="node-e",node="node-e"}
+    values: 1x100
+  - series: aa_hostwatch_last_success_timestamp_seconds{job="node-exporter",instance="node-e:9100"}
+    values: '0x100'
+  alert_rule_test:
+  - alertname: HostwatchCollectorStale
+    eval_time: 25m
+    exp_alerts: []
+  - alertname: HostwatchCollectorStale
+    eval_time: 34m
+    exp_alerts: []
+  - alertname: HostwatchCollectorStale
+    eval_time: 40m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        instance: node-e:9100
+        job: node-exporter
+        host: node-e
+      exp_annotations:
+        summary: HostwatchCollectorStale
+        description: Inspect the alert labels and metric history before remediation.

@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+norecursedirs = [".git", "rendered", ".ci-venvs", "node_modules"]
+
+[tool.ruff]
+line-length = 110

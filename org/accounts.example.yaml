@@ -1,0 +1,86 @@
+# Vendor accounts (EXAMPLE). One row per seat, API key or pool: the pacing unit.
+# seat = one named person, interactive only, never pooled or routed to by automation.
+# api  = org API key held only by LiteLLM; pooled per team; automation runs here.
+# pool = local model lanes (no vendor credential).
+version: 1
+default_policy:
+  cap_pct: 80                             # stop routing automation at 80% of every window
+  reserve_pct: 20                         # the last 20% is for the holder's interactive use
+  min_session_spacing_s: 30               # seats: start sessions at least 30 s apart
+
+plans:                                    # plan catalog; calibration is per plan, not per person
+  - {id: claude-team-premium, vendor: anthropic, type: seat}
+  - {id: chatgpt-business, vendor: openai, type: seat}
+  - {id: anthropic-api, vendor: anthropic, type: api}
+  - {id: openai-api, vendor: openai, type: api}
+  - {id: local-lanes, vendor: local, type: pool}
+
+accounts:
+  - id: acct-claude-seat-ana
+    vendor: anthropic
+    type: seat
+    plan: claude-team-premium
+    holder: ana
+    max_concurrent_sessions: 3
+    windows: [5h, weekly]
+    usage_source: manual                  # manual | otel | codex-rollout | litellm
+    timezone: UTC
+  - id: acct-chatgpt-seat-ana
+    vendor: openai
+    type: seat
+    plan: chatgpt-business
+    holder: ana
+    max_concurrent_sessions: 1            # one auth.json per (user, node), one TUI each
+    windows: [weekly]
+    daily_cap_pct_of_week: 20
+    usage_source: codex-rollout
+    timezone: UTC
+  - id: acct-claude-seat-bo
+    vendor: anthropic
+    type: seat
+    plan: claude-team-premium
+    holder: bo
+    max_concurrent_sessions: 3
+    windows: [5h, weekly]
+    usage_source: manual
+    timezone: UTC
+    policy: {cap_pct: 90, reserve_pct: 10}
+  - id: acct-claude-seat-cy
+    vendor: anthropic
+    type: seat
+    plan: claude-team-premium
+    holder: cy
+    max_concurrent_sessions: 3
+    windows: [5h, weekly]
+    usage_source: manual
+    timezone: UTC
+  - id: acct-anthropic-api-payments
+    vendor: anthropic
+    type: api
+    plan: anthropic-api
+    owner_team: payments
+    secret: {namespace: llm, name: llm-provider-anthropic-payments, key: api_key}
+    litellm_models: [claude-api-standard]
+    budget_usd_per_month: 1200
+    windows: [monthly]
+    usage_source: litellm
+  - id: acct-openai-api-shared
+    vendor: openai
+    type: api
+    plan: openai-api
+    owner_team: platform
+    shared_with: [payments]
+    secret: {namespace: llm, name: llm-provider-openai-shared, key: api_key}
+    litellm_models: [openai-api-standard]
+    budget_usd_per_month: 800
+    windows: [monthly]
+    usage_source: litellm
+  - id: acct-local-gpu
+    vendor: local
+    type: pool
+    plan: local-lanes
+    owner_team: platform
+    shared_with: ["*"]
+    litellm_models: [local-coder, local-coder-small]
+    windows: []
+    usage_source: litellm

@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: factory-api
+  namespace: "{{NS_FACTORY}}"
+  labels:
+    app.kubernetes.io/name: factory-api
+    "{{LABEL_PREFIX}}/metrics-job": aa-factory
+spec:
+  selector:
+    app.kubernetes.io/name: factory-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: factory-state
+  namespace: "{{NS_FACTORY}}"
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: "{{STORAGE_CLASS_DEFAULT}}"
+  resources:
+    requests:
+      storage: "{{M_FACTORY_STORAGE_GIB}}Gi"

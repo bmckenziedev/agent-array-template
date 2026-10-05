@@ -1,0 +1,8 @@
+# Kimi Code TUI preferences for aa-kimi-0 (ConfigMap aa-kimi-policy).
+disable_feedback_survey = true
+
+[upgrade]
+auto_install = false                   # a version change is a lockfile bump + rebuild (KIMI_CODE_NO_AUTO_UPDATE=1 too)
+
+[notifications]
+enabled = false

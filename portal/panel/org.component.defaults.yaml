@@ -1,0 +1,7 @@
+scope: components
+name: panel
+defaults:
+  max_active_tasks_per_user: 3
+  max_active_tasks_per_team: 10
+  task_models: [local-coder, local-coder-small]
+  task_duration_seconds: 3900

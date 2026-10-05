@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: wazuh-manager-master
+  namespace: "{{PROJECT_NAME}}-wazuh"
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: false     # the manager never calls the k8s API
+      nodeSelector:
+        "{{LABEL_PREFIX}}/role-control-plane": "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
+      containers:
+        - name: wazuh-manager
+          volumeMounts:
+            - name: organization-audit-rules
+              mountPath: /var/ossec/etc/rules/organization-k8s-audit.xml
+              subPath: rules.xml
+              readOnly: true
+          resources:
+            # upstream: limits 400m / 512Mi, which OOMs once vulnerability
+            # detection starts processing its CTI feed.
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          ports:
+            - containerPort: 1514
+              name: agents-events
+          readinessProbe:
+            tcpSocket:
+              port: 55000              # Wazuh API is the last thing to come up
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 40
+      volumes:
+        - name: organization-audit-rules
+          configMap:
+            name: wazuh-organization-audit
+  volumeClaimTemplates:
+    - metadata:
+        name: wazuh-manager-master
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "{{STORAGE_CLASS_DEFAULT}}"
+        resources:
+          requests:
+            storage: 50Gi              # upstream 500Mi; VD content + alerts/archives

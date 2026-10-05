@@ -1,0 +1,249 @@
+#!/usr/bin/env python3
+"""Apply managed policy to the official global Kimi Code subscription references.
+Never open credential stores or extract OAuth tokens. No API-key mode exists.
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+import tomllib
+from pathlib import Path
+
+POLICY_DIR = Path(os.environ.get("AA_KIMI_POLICY_DIR", "/etc/kimi"))
+KIMI_HOME = Path(os.environ.get("KIMI_CODE_HOME", str(Path.home() / ".kimi-code")))
+WORK = Path(os.environ.get("AA_KIMI_WORK", "/work"))
+# Tool names the policy must deny outright (rule pattern = bare tool name).
+MUST_DENY = ("FetchURL", "WebSearch", "CronCreate", "CreateGoal")
+# Every pattern rule of the shipped policy: with no approval prompt left, the deny list
+# (enforced by aa-kimi-guard) is the in-session control, so a ConfigMap edit may
+# add rules but not drop one of these without an image change.
+REQUIRED_DENY = MUST_DENY + tuple(
+    f"{tool}({p})" for tool, pats in (
+        ("Bash", ("kimi*", "kimi*/**", "node*", "node*/**", "np[mx]*", "np[mx]*/**",
+                  "git push*", "git push*/**", "git config*", "git config*/**",
+                  "git fetch*", "git fetch*/**", "git pull*", "git pull*/**",
+                  "git clone*", "git clone*/**", "git remote*", "git remote*/**",
+                  "git submodule*", "git submodule*/**", "git -c*", "git -c*/**")),
+        ("Write", ("~/.kimi-code/**", "/work/.kimi-code/**", "/work/.agents/**", "/work/AGENTS.md",
+                   "/work/snap/**")),
+        ("Edit", ("~/.kimi-code/**", "/work/.kimi-code/**", "/work/.agents/**", "/work/AGENTS.md",
+                  "/work/snap/**")),
+    ) for p in pats)
+# The PreToolUse hook that enforces the deny rules (the CLI never does in 2.1.1): the
+# guard next to this script (/opt/aa/bin in the image, read-only root), run with
+# `python3 -I` (no PYTHON* variable, no user site) against the read-only policy file.
+GUARD = Path(__file__).resolve().parent / "aa-kimi-guard"
+PYTHON = "/usr/bin/python3" if Path("/usr/bin/python3").exists() else sys.executable
+HOOK_TIMEOUT_S = 20                       # the guard answers in well under a second
+# Top-level keys the policy file may not set: they belong to this script, or they
+# would run commands / widen what the CLI loads.
+FORBIDDEN_TOP = ("providers", "models", "default_model", "hooks", "extra_skill_dirs",
+                 "extra_agent_dirs", "plugins")
+
+
+class ConfigError(Exception):
+    pass
+
+
+# --------------------------------------------------------------------------- #
+# Policy
+# --------------------------------------------------------------------------- #
+def load_policy(path: Path | None = None) -> tuple[str, dict]:
+    p = path or POLICY_DIR / "policy.toml"
+    try:
+        text = p.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ConfigError(f"policy {p} missing (ConfigMap aa-kimi-policy not mounted?): {exc.strerror}")
+    try:
+        doc = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigError(f"policy {p} is not valid TOML: {exc}")
+    return text, doc
+
+
+def policy_problems(doc: dict) -> list[str]:
+    problems = []
+    for k in FORBIDDEN_TOP:
+        if k in doc:
+            problems.append(f"policy must not set {k!r} (aa-kimi-config owns it, or it would widen the CLI)")
+    if doc.get("telemetry") is not False:
+        problems.append("telemetry must be false")
+    if doc.get("default_permission_mode") not in ("manual", "auto", "yolo"):
+        problems.append('default_permission_mode must be manual, auto or yolo ('
+                        'manual and yolo ask)')
+    perm = doc.get("permission") or {}
+    if perm.get("dangerous_command_guard") is False:
+        problems.append("permission.dangerous_command_guard must not be false")
+    rules = perm.get("rules") or []
+    denied = {r.get("pattern") for r in rules if isinstance(r, dict) and r.get("decision") == "deny"}
+    for pat in REQUIRED_DENY:
+        if pat not in denied:
+            problems.append(f"permission.rules must deny {pat!r}")
+    for r in rules:
+        if not isinstance(r, dict) or r.get("decision") != "deny":
+            # allow: pointless in auto mode and would widen a CLI that enforces rules;
+            # ask: would prompt in such a CLI. Neither belongs in a no-prompt policy.
+            problems.append(f"permission.rules may only hold deny rules, not {r!r}")
+    if "background" in doc:
+        problems.append("use [task], not the legacy [background] section (both feed the same settings)")
+    if (doc.get("task") or {}).get("keep_alive_on_exit") is not False:
+        problems.append("task.keep_alive_on_exit must be false (nothing keeps running after you exit, R3)")
+    disabled = set((doc.get("tools") or {}).get("disabled") or [])
+    for tool in MUST_DENY:
+        if tool not in disabled:
+            problems.append(f"tools.disabled must list {tool!r}")
+    if (doc.get("tools") or {}).get("enabled"):
+        problems.append("tools.enabled must not be set (an allowlist there would replace the defaults silently)")
+    mc = doc.get("model_catalog") or {}
+    if mc.get("refresh_on_start") is not False or mc.get("refresh_interval_ms") != 0:
+        problems.append("model_catalog.refresh_on_start must be false and refresh_interval_ms 0")
+    if (doc.get("watch") or {}).get("enabled") is not False:
+        problems.append("watch.enabled must be false (a config edit applies at the next start, which rewrites it)")
+    if doc.get("merge_all_available_skills") is not False:
+        problems.append("merge_all_available_skills must be false")
+    return problems
+
+
+# --------------------------------------------------------------------------- #
+# TOML output (only the shapes written here: strings, ints, bools, string lists)
+# --------------------------------------------------------------------------- #
+def tq(s: str) -> str:
+    return json.dumps(s)                  # a JSON string is a valid TOML basic string
+
+
+def tv(v) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, str):
+        return tq(v)
+    if isinstance(v, dict):
+        return "{ " + ", ".join(tq(k) + " = " + tv(x) for k, x in v.items()) + " }"
+    if isinstance(v, list):
+        return "[" + ", ".join(tv(x) for x in v) + "]"
+    raise ConfigError(f"cannot write {type(v).__name__} to TOML")
+
+
+def guard_command(policy_file: Path) -> str:
+    import shlex
+    return " ".join(shlex.quote(str(x)) for x in (PYTHON, "-I", GUARD, policy_file))
+
+
+def guard_problems(policy_file: Path) -> list[str]:
+    """Run the guard's self-test: the CLI would treat a broken hook as "allow"."""
+    import subprocess
+    if not GUARD.is_file():
+        return [f"{GUARD} missing: the deny rules would not be enforced"]
+    try:
+        p = subprocess.run([PYTHON, "-I", str(GUARD), "--self-test", str(policy_file)],
+                           capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return [f"{GUARD} self-test could not run: {exc}"]
+    if p.returncode != 0:
+        return [f"{GUARD} self-test failed: {(p.stderr or p.stdout).strip()[:400]}"]
+    return []
+
+
+def workspace_problems() -> list[str]:
+    """Things in KIMI_CODE_HOME or /work that would widen what the CLI does without asking."""
+    problems = []
+    for f in (KIMI_HOME / "mcp.json", WORK / ".mcp.json", WORK / ".kimi-code" / "mcp.json"):
+        if f.exists() or f.is_symlink():
+            problems.append(f"{f} exists: the CLI would start the MCP servers it lists (commands of their own) "
+                            f"at launch; remove it (rm {f}) and run aa-kimi again")
+    if (WORK / ".git").exists() or (WORK / ".git").is_symlink():
+        problems.append(f"{WORK} is a git work tree ({WORK / '.git'}): the CLI would then approve every Write/Edit "
+                        f"under {WORK} without asking; keep repos below {WORK}/tasks/<id>/ and remove {WORK / '.git'}")
+    return problems
+
+
+def write_private(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    os.replace(tmp, path)
+
+
+def cmd_write() -> int:
+    text, doc = load_policy()
+    problems = policy_problems(doc)
+    if problems:
+        for p in problems:
+            print(f"aa-kimi-config: policy: {p}", file=sys.stderr)
+        return 1
+    problems = workspace_problems() + guard_problems(POLICY_DIR / "policy.toml")
+    if problems:
+        for p in problems:
+            print(f"aa-kimi-config: refusing: {p}", file=sys.stderr)
+        return 1
+    if os.environ.get("AA_KIMI_AUTH_MODE", "membership") != "membership":
+        raise ConfigError("only Kimi Code subscription authentication is allowed")
+    try:
+        previous = tomllib.loads((KIMI_HOME / "config.toml").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise ConfigError("run kimi login --region global in the shell window first")
+    providers = {k: v for k, v in previous.get("providers", {}).items() if k == "managed:kimi-code"}
+    models = {k: v for k, v in previous.get("models", {}).items() if v.get("provider") in providers}
+    default = previous.get("default_model", "")
+    if not providers or not models or default not in models:
+        raise ConfigError("subscription references incomplete; run kimi login --region global")
+    for provider in providers.values():
+        oauth = provider.get("oauth")
+        if (provider.get("base_url", "").rstrip("/") != "https://api.kimi.ai/coding/v1"
+                or not isinstance(oauth, dict) or oauth.get("oauthHost") != "https://auth.kimi.ai"
+                or provider.get("api_key") or provider.get("api_key_env")):
+            raise ConfigError("only official global subscription endpoint and OAuth references are allowed")
+    source = "Kimi Code subscription (OAuth references preserved)"
+    generated = f"# Managed subscription policy\ndefault_model = {tq(default)}\n" + text.rstrip() + "\n"
+    generated += '\n[[hooks]]\nevent = "PreToolUse"\ncommand = ' + tq(guard_command(POLICY_DIR / "policy.toml")) + '\ntimeout = 20\n'
+    for table, entries in (("providers", providers), ("models", models)):
+        for name, values in entries.items():
+            generated += f"\n[{table}.{tq(name)}]\n"
+            generated += "\n".join(tq(k) + " = " + tv(v) for k, v in values.items()) + "\n"
+    tomllib.loads(generated)
+    aliases = models
+    write_private(KIMI_HOME / "config.toml", generated)
+    tui = POLICY_DIR / "tui.toml"
+    if tui.is_file():
+        tui_text = tui.read_text(encoding="utf-8")
+        tomllib.loads(tui_text)
+        write_private(KIMI_HOME / "tui.toml", tui_text)
+    agents = POLICY_DIR / "AGENTS.md"
+    if agents.is_file() and WORK.is_dir():
+        target = WORK / "AGENTS.md"
+        if target.is_symlink():
+            target.unlink()
+        target.write_text(agents.read_text(encoding="utf-8"), encoding="utf-8")
+    print(f"aa-kimi-config: wrote {KIMI_HOME / 'config.toml'}: default {default}, "
+          f"{len(aliases)} model(s) from {source}")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    cmd = argv[1] if len(argv) > 1 else "write"
+    try:
+        if cmd == "write":
+            return cmd_write()
+        if cmd == "check":
+            pfile = Path(argv[2]) if len(argv) > 2 else POLICY_DIR / "policy.toml"
+            _, doc = load_policy(pfile)
+            problems = policy_problems(doc) + guard_problems(pfile)
+            for p in problems:
+                print(f"aa-kimi-config: policy: {p}", file=sys.stderr)
+            return 1 if problems else 0
+    except ConfigError as exc:
+        print(f"aa-kimi-config: {exc}", file=sys.stderr)
+        return 1
+    if cmd in ("-h", "--help", "help"):
+        print(__doc__)
+        return 0
+    print("usage: aa-kimi-config write|check [POLICY]", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-array.example.org/schema/accounts.schema.json",
+  "title": "Agent-array accounts configuration",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "default_policy": {
+      "type": "object",
+      "properties": {
+        "cap_pct": {
+          "type": "integer"
+        },
+        "reserve_pct": {
+          "type": "integer"
+        },
+        "min_session_spacing_s": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cap_pct",
+        "reserve_pct",
+        "min_session_spacing_s"
+      ],
+      "additionalProperties": false
+    },
+    "plans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "vendor",
+          "type"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "accounts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "seat",
+              "api",
+              "pool"
+            ]
+          },
+          "plan": {
+            "type": "string"
+          },
+          "holder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "max_concurrent_sessions": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null
+          },
+          "windows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "usage_source": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string",
+            "default": "<org.timezone>"
+          },
+          "owner_team": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": null
+          },
+          "shared_with": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "policy": {
+            "type": "object",
+            "properties": {
+              "cap_pct": {
+                "type": "integer"
+              },
+              "reserve_pct": {
+                "type": "integer"
+              },
+              "min_session_spacing_s": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false,
+            "default": {}
+          },
+          "secret": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "namespace": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "namespace",
+                  "name",
+                  "key"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "default": null
+          },
+          "litellm_models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "daily_cap_pct_of_week": {
+            "type": "integer"
+          },
+          "budget_usd_per_month": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "plan",
+          "type",
+          "usage_source",
+          "vendor",
+          "windows"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "seat"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "holder",
+                "max_concurrent_sessions"
+              ],
+              "properties": {
+                "holder": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "max_concurrent_sessions": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "api"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "secret",
+                "owner_team"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "object"
+                },
+                "owner_team": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "pool"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "owner_team"
+              ],
+              "properties": {
+                "owner_team": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "version",
+    "default_policy",
+    "plans",
+    "accounts"
+  ],
+  "additionalProperties": false
+}

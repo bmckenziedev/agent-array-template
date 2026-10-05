@@ -1,0 +1,13 @@
+--- a/modules/session-jobs/task-job.yaml
++++ b/modules/session-jobs/task-job.yaml
+@@ -8,7 +8,9 @@
+     spec:
+       restartPolicy: Never
+       securityContext:
+-        seccompProfile: {type: RuntimeDefault}
++        seccompProfile:
++          type: Localhost
++          localhostProfile: profiles/seccomp-gvisor/runtime-default-clone3-enosys.json
+       containers:
+         - name: task
+           image: busybox:1.36

@@ -1,0 +1,16 @@
+nodeSelector:
+  '{{LABEL_PREFIX}}/role-ci': 'true'
+image:
+  repository: ghcr.io/actions/gha-runner-scale-set-controller
+  tag: "0.15.0@sha256:{{M_ARC_CI_CONTROLLER_DIGEST}}"
+securityContext:
+  runAsNonRoot: true
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+  seccompProfile:
+    type: RuntimeDefault
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: "1", memory: 512Mi}

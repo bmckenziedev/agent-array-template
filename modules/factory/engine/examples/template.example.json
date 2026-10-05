@@ -1,0 +1,38 @@
+{
+  "template": 1,
+  "template_id": "toy-label-docs",
+  "kind": "doc_map",
+  "description": "Describe the label formatter in a synthetic toy repository.",
+  "expand": {
+    "via": "find_undocumented",
+    "repo": "toy-repo",
+    "roots": [
+      "src"
+    ],
+    "include": [
+      "src/labels.js"
+    ],
+    "filter": {
+      "symbols": [
+        "formatLabel"
+      ]
+    },
+    "group": {
+      "max_symbols": 1,
+      "max_chars": 1000
+    },
+    "cap": 1
+  },
+  "card": {
+    "difficulty": "easy",
+    "risk": "R0"
+  },
+  "profile": {
+    "profile": 1,
+    "sources": [
+      "src"
+    ],
+    "language": "JavaScript",
+    "style": "Document parameters and return values with precise JSDoc."
+  }
+}

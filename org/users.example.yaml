@@ -1,0 +1,40 @@
+# Users (EXAMPLE). One entry per person. Slugs are DNS-safe, unique and never reused.
+version: 1
+users:
+  - slug: ana                           # session namespace = namespaces.user_prefix + slug
+    oidc_sub: "00u1example0ana0000"       # immutable IdP subject (claim `sub`)
+    email: ana@example.org
+    github: ana-example
+    teams: [payments]
+    primary_team: payments                # billing/defaults (tier, permission mode)
+    tier: null                            # null = primary team's session_tier
+    status: active                        # active | suspended (scaled to 0, logins kept) | offboarded (not rendered)
+    tools:
+      claude: {account: acct-claude-seat-ana, home_node: node-a, replicas: 1}
+      codex: {account: acct-chatgpt-seat-ana, home_node: node-b, replicas: 1}
+  - slug: bo
+    oidc_sub: "00u1example0bo00000"
+    email: bo@example.org
+    github: bo-example
+    teams: [platform, payments]
+    primary_team: platform
+    tier: null
+    status: active
+    tools:
+      claude: {account: acct-claude-seat-bo, home_node: node-b, replicas: 2}
+  - slug: cy
+    oidc_sub: "00u1example0cy00000"
+    email: cy@example.org
+    github: cy-example
+    teams: [payments]
+    primary_team: payments
+    tier: null
+    status: suspended
+    tools:
+      claude: {account: acct-claude-seat-cy, home_node: auto, replicas: 1}
+
+# Slugs of offboarded users. A tombstoned slug can never be used again.
+tombstones: [old-user]
+
+# Optional per-user forge identity: git: {credential_secret: ana-forge, provider: github, username: ana-example}
+# The Secret contains key token; it is provisioned in the user namespace, never copied from login homes.

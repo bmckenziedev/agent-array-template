@@ -1,0 +1,16 @@
+version: 1
+servers:
+  - name: internal-api
+    description: Example bounded internal API reader
+    transport: http
+    deploy:
+      image: "registry.example.org/mcp/internal-api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      port: 8080
+      path: /mcp
+    auth: pod-identity
+    clients: [claude, codex]
+    allowed_teams: [platform]
+    server_egress:
+      - {host: api.example.org, port: 443}
+    server_secret: {name: mcp-internal-api-upstream, key: token}
+    tool_timeout_s: 60

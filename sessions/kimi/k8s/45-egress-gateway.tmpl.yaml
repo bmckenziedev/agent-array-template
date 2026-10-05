@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kimi-egress
+  namespace: '{{NS_EGRESS}}'
+  labels:
+    app.kubernetes.io/name: kimi-egress
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: sessions
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kimi-egress
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kimi-egress
+    spec:
+      runtimeClassName: '{{RUNTIME_CLASS_VM}}'
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      nodeSelector:
+        '{{LABEL_PREFIX}}/role-sessions': 'true'
+        '{{LABEL_PREFIX}}/runtime-{{RUNTIME_CLASS_VM}}': 'true'
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: egress
+        image: '{{IMAGE_SESSION_KIMI}}'
+        imagePullPolicy: IfNotPresent
+        args:
+        - egress
+        ports:
+        - containerPort: 3128
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        readinessProbe:
+          tcpSocket:
+            port: 3128
+        volumeMounts:
+        - name: denied-cidrs
+          mountPath: /etc/aa-egress
+          readOnly: true
+      imagePullSecrets:
+      - name: '{{REGISTRY_PULL_SECRET}}'
+      volumes:
+      - name: denied-cidrs
+        configMap:
+          name: kimi-egress-denied-cidrs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kimi-egress
+  namespace: '{{NS_EGRESS}}'
+  labels:
+    app.kubernetes.io/name: kimi-egress
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: sessions
+spec:
+  selector:
+    app.kubernetes.io/name: kimi-egress
+  ports:
+  - port: 3128
+    targetPort: 3128
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kimi-egress
+  namespace: '{{NS_EGRESS}}'
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kimi-egress
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          '{{LABEL_PREFIX}}/kind': user-sessions
+      podSelector:
+        matchLabels:
+          '{{LABEL_PREFIX}}/tool': kimi
+    ports:
+    - protocol: TCP
+      port: 3128
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except: {{SESSION_EGRESS_DENY_CIDRS_JSON}}
+    ports:
+    - protocol: TCP
+      port: 443

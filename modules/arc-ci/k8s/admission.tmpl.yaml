@@ -1,0 +1,103 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: arc-runner-pods
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+      - pods/ephemeralcontainers
+  matchConditions:
+  - name: not-being-deleted
+    expression: request.operation != 'UPDATE' || !has(object.metadata.deletionTimestamp) || (has(request.subResource)
+      && request.subResource != '')
+  variables:
+  - name: spec
+    expression: object.spec
+  - name: isLight
+    expression: request.namespace == '{{PROJECT_NAME}}-arc-runners'
+  - name: isHeavy
+    expression: request.namespace == '{{PROJECT_NAME}}-arc-heavy'
+  - name: inits
+    expression: 'has(variables.spec.initContainers) ? variables.spec.initContainers : []'
+  - name: ephemerals
+    expression: 'has(variables.spec.ephemeralContainers) ? variables.spec.ephemeralContainers : []'
+  - name: allContainers
+    expression: variables.spec.containers + variables.inits + variables.ephemerals
+  validations:
+  - expression: has(variables.spec.runtimeClassName) && ((variables.isLight && variables.spec.runtimeClassName
+      == '{{RUNTIME_CLASS_GVISOR}}') || (variables.isHeavy && variables.spec.runtimeClassName == '{{RUNTIME_CLASS_VM}}'))
+    message: runtimeClassName must be gvisor in {{PROJECT_NAME}}-arc-runners and kata in {{PROJECT_NAME}}-arc-heavy
+  - expression: (!has(variables.spec.hostNetwork) || !variables.spec.hostNetwork) && (!has(variables.spec.hostPID)
+      || !variables.spec.hostPID) && (!has(variables.spec.hostIPC) || !variables.spec.hostIPC)
+    message: hostNetwork, hostPID and hostIPC are not allowed in the ARC runner namespaces
+  - expression: '!has(variables.spec.volumes) || variables.spec.volumes.all(v, has(v.emptyDir) || has(v.configMap)
+      || has(v.downwardAPI) || (has(v.projected) && (!has(v.projected.sources) || v.projected.sources.all(s,
+      !has(s.secret)))))'
+    message: volumes may only be emptyDir, configMap, downwardAPI or projected without secrets (no hostPath,
+      secret, PVC/ephemeral or node-mounted types)
+  - expression: variables.allContainers.all(c, (!has(c.envFrom) || c.envFrom.all(e, !has(e.secretRef)))
+      && (!has(c.env) || c.env.all(e, !has(e.valueFrom) || !has(e.valueFrom.secretKeyRef) || (request.userInfo.username
+      == 'system:serviceaccount:{{PROJECT_NAME}}-arc-systems:arc-gha-rs-controller' && c.name == 'runner' && e.name ==
+      'ACTIONS_RUNNER_INPUT_JITCONFIG' && has(e.valueFrom.secretKeyRef.key) && e.valueFrom.secretKeyRef.key
+      == 'jitToken' && has(e.valueFrom.secretKeyRef.name) && e.valueFrom.secretKeyRef.name == object.metadata.name
+      && object.metadata.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?-runner-[a-z0-9]{5}$')))))
+    message: a container may read only its own runner's JIT Secret (secretKeyRef to the Secret named like
+      the pod, <scale set>-runner-<5 chars>); no envFrom secretRef
+  - expression: variables.allContainers.all(c, !has(c.ports) || c.ports.all(p, !has(p.hostPort) || p.hostPort
+      == 0))
+    message: hostPort is not allowed in the ARC runner namespaces
+  - expression: '!has(object.metadata.annotations) || object.metadata.annotations.all(k, !k.startsWith(''io.katacontainers.'')
+      && !k.startsWith(''dev.gvisor.'') && !k.startsWith(''io.gvisor.''))'
+    message: io.katacontainers.* and dev.gvisor.* annotations (sandbox config overrides) are not allowed
+  - expression: variables.spec.containers.all(c, !has(c.securityContext) || !has(c.securityContext.privileged)
+      || !c.securityContext.privileged) && variables.ephemerals.all(c, !has(c.securityContext) || !has(c.securityContext.privileged)
+      || !c.securityContext.privileged) && variables.inits.all(c, !has(c.securityContext) || !has(c.securityContext.privileged)
+      || !c.securityContext.privileged || (variables.isHeavy && c.name == 'dind'))
+    message: privileged is allowed only for the dind sidecar (initContainers, name dind) in {{PROJECT_NAME}}-arc-heavy
+  - expression: variables.spec.containers.all(c, !has(c.securityContext) || !has(c.securityContext.capabilities)
+      || !has(c.securityContext.capabilities.add) || size(c.securityContext.capabilities.add) == 0) &&
+      variables.ephemerals.all(c, !has(c.securityContext) || !has(c.securityContext.capabilities) || !has(c.securityContext.capabilities.add)
+      || size(c.securityContext.capabilities.add) == 0) && variables.inits.all(c, !has(c.securityContext)
+      || !has(c.securityContext.capabilities) || !has(c.securityContext.capabilities.add) || size(c.securityContext.capabilities.add)
+      == 0 || (variables.isHeavy && c.name == 'dind'))
+    message: added capabilities are not allowed (only the {{PROJECT_NAME}}-arc-heavy dind sidecar, which is privileged
+      anyway)
+  - expression: '!has(variables.spec.serviceAccountName) || variables.spec.serviceAccountName == ''default''
+      || (variables.isLight && variables.spec.serviceAccountName == ''arc-light-runner'')
+      || (variables.isHeavy && variables.spec.serviceAccountName == ''arc-heavy-runner'')'
+    message: serviceAccountName must be default or the chart's no-permission one (arc-light-runner
+      in {{PROJECT_NAME}}-arc-runners, arc-heavy-runner in {{PROJECT_NAME}}-arc-heavy)
+  - expression: has(variables.spec.automountServiceAccountToken) && !variables.spec.automountServiceAccountToken
+    message: automountServiceAccountToken must be explicitly false (the runner talks to GitHub, not the
+      Kubernetes API)
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: arc-runner-pods
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+spec:
+  policyName: arc-runner-pods
+  validationActions:
+  - Deny
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: In
+        values:
+        - {{PROJECT_NAME}}-arc-runners
+        - {{PROJECT_NAME}}-arc-heavy

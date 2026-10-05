@@ -1,0 +1,7 @@
+# Network gotchas
+
+A stateless upstream firewall does not infer return traffic from an outbound connection. TCP ACK and UDP reply rules must admit the entire possible SNAT destination-port range. MASQUERADE --random-fully may choose low source ports outside a narrow return rule, causing intermittent connection hangs that resemble DNS or TLS failures. Prefer widening the upstream return range after security review. The optional egress-ports script can constrain pod TCP/UDP MASQUERADE ports when that upstream change is unavailable; configure POD_CIDR, WAN_IF and PORTS explicitly, inspect its plan, then use --yes. No vendor records or addresses are shipped.
+
+The NAT chain is ordered ahead of distribution MASQUERADE rules and only matches pod CIDR egress on the configured interface. Repeated execution is idempotent for unchanged settings. Changing its settings requires reviewing/removing old chain rules first; do not accumulate old ranges. Node-generated traffic is unaffected. Reassert after CNI/kube-proxy rule rewrites if needed, with org-managed scheduling and monitoring.
+
+kube-router may retain a stale node IP after overlay restarts. Confirm the Node internal address, routes, CNI state and policy targets; use a reviewed restart procedure after correcting configuration. Re-run API and internet egress checks from pods after every node/endpoint address change, including low-source-port cases and both TCP/UDP. Do not introduce provider vSwitch assumptions into the contract.

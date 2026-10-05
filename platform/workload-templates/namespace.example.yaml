@@ -1,0 +1,54 @@
+# Only for a NEW app namespace; configured org namespaces belong exclusively to hardening.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: <namespace>
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: app-quota
+  namespace: <namespace>
+  labels:
+    app.kubernetes.io/name: <app-name>
+    app.kubernetes.io/part-of: <project-name>
+    app.kubernetes.io/component: application
+spec:
+  hard:
+    pods: '20'
+    persistentvolumeclaims: '5'
+    requests.cpu: '4'
+    requests.memory: 8Gi
+    limits.cpu: '8'
+    limits.memory: 16Gi
+    requests.storage: 100Gi
+    requests.ephemeral-storage: 2Gi
+    limits.ephemeral-storage: 8Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: app-limits
+  namespace: <namespace>
+  labels:
+    app.kubernetes.io/name: <app-name>
+    app.kubernetes.io/part-of: <project-name>
+    app.kubernetes.io/component: application
+spec:
+  limits:
+  - type: Container
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+      ephemeral-storage: 64Mi
+    default:
+      cpu: '1'
+      memory: 512Mi
+      ephemeral-storage: 256Mi

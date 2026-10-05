@@ -1,0 +1,11 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: aa-session
+  labels:
+    app.kubernetes.io/name: aa-session
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: sessions
+value: 100000
+globalDefault: false
+description: Interactive seat-holder sessions.

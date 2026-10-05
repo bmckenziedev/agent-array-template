@@ -1,0 +1,10 @@
+scope: modules
+name: arc-ci
+defaults:
+  enabled: false
+  runner_light: arc-light
+  runner_heavy: arc-heavy
+  trusted_group: trusted-builds
+  max_light: 4
+  max_heavy: 3
+  controller_digest: REQUIRED

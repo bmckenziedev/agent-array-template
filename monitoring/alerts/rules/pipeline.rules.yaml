@@ -1,0 +1,134 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: '{{PROJECT_NAME}}-pipeline'
+  namespace: '{{NS_MONITORING}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: alerts
+    release: kps
+spec:
+  groups:
+  - name: agent-array.sessions
+    rules:
+    - alert: AgentTaskJobFailed
+      expr: "max by (namespace, job_name) (\n  max_over_time(kube_job_failed{job=\"kube-state-metrics\", namespace=\"\
+        {{NS_SESSION_JOBS}}\", condition=\"true\"}[15m])\n) == 1\n"
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentTaskJobFailed
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentTaskJobsFailingRepeatedly
+      expr: "count(\n  max by (job_name) (\n    max_over_time(kube_job_failed{job=\"kube-state-metrics\", namespace=\"\
+        {{NS_SESSION_JOBS}}\", condition=\"true\"}[1h])\n  ) == 1\n) >= 3\n"
+      for: 1m
+      labels:
+        severity: critical
+        namespace: '{{NS_SESSION_JOBS}}'
+      annotations:
+        summary: AgentTaskJobsFailingRepeatedly
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentTaskJobPastDeadline
+      expr: "(\n  time() - max by (namespace, job_name) (kube_job_status_start_time{job=\"kube-state-metrics\",\
+        \ namespace=\"{{NS_SESSION_JOBS}}\"})\n)\n> on (namespace, job_name)\n(\n  max by (namespace, job_name)\
+        \ (kube_job_spec_active_deadline_seconds{job=\"kube-state-metrics\", namespace=\"{{NS_SESSION_JOBS}}\"})\
+        \ + 600\n)\nand on (namespace, job_name)\nmax by (namespace, job_name) (kube_job_status_active{job=\"kube-state-metrics\"\
+        , namespace=\"{{NS_SESSION_JOBS}}\"}) > 0\n"
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentTaskJobPastDeadline
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentSessionPodStuckTerminating
+      expr: 'time() - max by (namespace, pod) (kube_pod_deletion_timestamp{job="kube-state-metrics", namespace="{{NS_SESSION_JOBS}}"})
+        > 900
+
+        '
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentSessionPodStuckTerminating
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentTaskPodPending
+      expr: 'max by (namespace, pod) (kube_pod_status_phase{job="kube-state-metrics", namespace="{{NS_SESSION_JOBS}}",
+        phase="Pending"}) == 1
+
+        '
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: AgentTaskPodPending
+        description: Inspect the alert labels and metric history before remediation.
+  - name: agent-array.services
+    rules:
+    - alert: AgentArrayDeploymentUnavailable
+      expr: 'max by (namespace, deployment) (kube_deployment_spec_replicas{job="kube-state-metrics", namespace=~"{{NS_LLM}}|{{NS_PORTAL}}"})
+        > 0
+
+        unless on (namespace, deployment)
+
+        max by (namespace, deployment) (kube_deployment_status_replicas_available{job="kube-state-metrics", namespace=~"{{NS_LLM}}|{{NS_PORTAL}}"})
+        > 0
+
+        '
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: AgentArrayDeploymentUnavailable
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: AgentArrayStatefulSetUnavailable
+      expr: 'max by (namespace, statefulset) (kube_statefulset_replicas{job="kube-state-metrics", namespace=~"{{NS_LLM}}|{{NS_PORTAL}}"})
+        > 0
+
+        unless on (namespace, statefulset)
+
+        max by (namespace, statefulset) (kube_statefulset_status_replicas_ready{job="kube-state-metrics", namespace=~"{{NS_LLM}}|{{NS_PORTAL}}"})
+        > 0
+
+        '
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: AgentArrayStatefulSetUnavailable
+        description: Inspect the alert labels and metric history before remediation.
+  - name: agent-array.litellm
+    rules:
+    - alert: LiteLLMHighErrorRate
+      expr: "(\n  sum(rate(litellm_proxy_failed_requests_metric_total{exception_class!=\"BudgetExceededError\"}[15m]))\n\
+        \  /\n  sum(rate(litellm_proxy_total_requests_metric_total[15m]))\n) > 0.25\nand\nsum(increase(litellm_proxy_total_requests_metric_total[15m]))\
+        \ >= 10\n"
+      for: 10m
+      labels:
+        severity: warning
+        namespace: '{{NS_LLM}}'
+      annotations:
+        summary: LiteLLMHighErrorRate
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: LiteLLMBudgetExceeded
+      expr: "sum by (api_key_alias, requested_model) (\n  increase(litellm_proxy_failed_requests_metric_total{exception_class=\"\
+        BudgetExceededError\"}[15m])\n) > 0\n"
+      for: 0m
+      labels:
+        severity: warning
+        namespace: '{{NS_LLM}}'
+      annotations:
+        summary: LiteLLMBudgetExceeded
+        description: Inspect the alert labels and metric history before remediation.
+    - alert: LiteLLMSpendHigh
+      expr: 'sum by (api_provider) (increase(litellm_spend_metric_total[24h])) > 10
+
+        '
+      for: 5m
+      labels:
+        severity: warning
+        namespace: '{{NS_LLM}}'
+      annotations:
+        summary: LiteLLMSpendHigh
+        description: Inspect the alert labels and metric history before remediation.

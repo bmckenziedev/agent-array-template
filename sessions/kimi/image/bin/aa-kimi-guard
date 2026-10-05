@@ -1,0 +1,293 @@
+#!/usr/bin/python3 -I
+"""aa-kimi-guard: enforce the managed deny rules as a PreToolUse hook.
+
+The Kimi Code CLI 2.1.1 parses `[[permission.rules]]` but never applies them
+(aa/kimi/README.md "Managed policy"). Its PreToolUse hooks DO run before every
+tool call of every agent, in every permission mode, `auto` (Never Ask) included, and a
+hook that exits 2 blocks the call; stderr becomes the reason the model sees
+(@moonshot-ai/kimi-code 2.1.1: externalHooks runHook/resultFromExitCode,
+AgentExternalHooksService.registerToolHooks). aa-kimi-config writes this script
+into config.toml as the one managed hook, so the deny list binds although nothing asks.
+
+Input: the hook JSON on stdin (tool_name, tool_input, cwd, ...). Rules: the `deny`
+entries of the managed policy.toml (ConfigMap aa-kimi-policy, read-only):
+  * a bare tool name (FetchURL, ...) blocks that tool;
+  * Bash(GLOB) blocks a command when any simple command in it matches GLOB, after
+    leading VAR=value assignments and wrappers (env, command, exec, nohup, time, nice,
+    timeout, ...) are stripped, with the program as written AND as its basename, and
+    for git also without git's global options (-C dir, --git-dir=..., ...). `bash -c`,
+    `sh -c`, `eval`, $(...) and backticks are searched recursively;
+  * Write(GLOB) / Edit(GLOB) block the Write / Edit tools on a matching path (as
+    requested and as resolved through symlinks), and Bash redirections (> >> &>) or
+    `tee` targets that match. `~` is $HOME.
+  GLOB is a shell glob in which `*` also matches `/` (so each rule's `X*/**` twin, which
+  the CLI's picomatch needs, is redundant here).
+This is a filter on what the model asks for, not a sandbox: a command that reaches the
+same program another way (a script file, python -c, an alias) is not seen. The pod is
+the boundary (aa/kimi/README.md "Managed policy").
+
+Fail closed: anything this script cannot parse or evaluate is BLOCKED (exit 2), because
+the CLI treats a hook that crashes or times out as "allow".
+
+  aa-kimi-guard [POLICY]        hook mode (stdin = hook JSON)
+  aa-kimi-guard --self-test [POLICY]   exit 0 only if known cases behave
+Python 3.11 stdlib only.
+"""
+from __future__ import annotations
+
+import fnmatch
+import json
+import os
+import posixpath
+import re
+import shlex
+import sys
+import tomllib
+
+POLICY = "/etc/kimi/policy.toml"
+SEPARATORS = {";", ";;", "&", "&&", "|", "||", "|&", "(", ")", "\n"}
+SHELLS = {"sh", "bash", "dash", "zsh", "ksh", "busybox"}
+# wrapper -> how many following arguments belong to it before the real program
+WRAPPERS = {"command": 0, "exec": 0, "nohup": 0, "time": 0, "builtin": 0, "setsid": 0,
+            "stdbuf": 0, "unbuffer": 0, "nice": 0, "ionice": 0, "timeout": 1, "chrt": 1,
+            "taskset": 1, "env": 0, "sudo": 0, "doas": 0, "xargs": 0, "flock": 1}
+GIT_GLOBAL_WITH_ARG = {"-C", "--git-dir", "--work-tree", "--namespace", "--super-prefix",
+                       "--exec-path", "--config-env"}
+GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--bare", "--no-replace-objects",
+                    "--literal-pathspecs", "--glob-pathspecs", "--noglob-pathspecs",
+                    "--icase-pathspecs", "--no-optional-locks", "--no-advice"}
+MAX_DEPTH = 6
+
+
+class Blocked(Exception):
+    pass
+
+
+def load_rules(path: str) -> list[tuple[str, str | None, str, str]]:
+    """[(tool, glob or None, reason, pattern)] for every deny rule."""
+    with open(path, "rb") as fh:
+        doc = tomllib.load(fh)
+    rules = []
+    for r in (doc.get("permission") or {}).get("rules") or []:
+        if not isinstance(r, dict) or r.get("decision") != "deny":
+            continue
+        pat = str(r.get("pattern", ""))
+        reason = str(r.get("reason") or "denied by the aa-kimi policy")
+        m = re.fullmatch(r"([A-Za-z][A-Za-z0-9_]*)\((.*)\)", pat, re.S)
+        rules.append((m.group(1), m.group(2), reason, pat) if m else (pat, None, reason, pat))
+    if not rules:
+        raise Blocked(f"no deny rules in {path}")
+    return rules
+
+
+def glob(pattern: str, text: str) -> bool:
+    return fnmatch.fnmatchcase(text, pattern)
+
+
+def expand_home(pattern: str) -> str:
+    home = os.environ.get("HOME") or ""
+    if not home.startswith("/"):                      # not a POSIX path (a Windows dev box)
+        home = "/home/kimi"                           # the pod's HOME
+    return home.rstrip("/") + pattern[1:] if pattern.startswith("~") else pattern
+
+
+def tokens(command: str) -> list[str]:
+    lex = shlex.shlex(command.replace("\r", " ").replace("\n", " ; "), posix=True,
+                      punctuation_chars=True)
+    lex.whitespace_split = True
+    lex.commenters = ""
+    try:
+        return list(lex)
+    except ValueError as exc:                         # unbalanced quotes and the like
+        raise Blocked(f"could not parse the command ({exc})")
+
+
+def strip_wrappers(argv: list[str]) -> list[str]:
+    i = 0
+    while i < len(argv) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", argv[i], re.S):
+        i += 1                                        # VAR=value prefixes
+    while i < len(argv):
+        name = posixpath.basename(argv[i])
+        if name not in WRAPPERS:
+            break
+        i += 1
+        if name == "env":
+            while i < len(argv) and (argv[i].startswith("-") or "=" in argv[i]):
+                i += 2 if argv[i] in ("-u", "--unset", "-C", "--chdir", "-S") else 1
+            continue
+        while i < len(argv) and argv[i].startswith("-"):  # wrapper options
+            i += 2 if argv[i] in ("-n", "-c", "-k", "-s", "-u", "-g", "-o", "-e", "-i") and name != "time" else 1
+        i += WRAPPERS[name]
+    return argv[i:]
+
+
+def git_normalised(argv: list[str]) -> list[str]:
+    rest, i = argv[1:], 0
+    while i < len(rest):
+        a = rest[i]
+        if a in GIT_GLOBAL_WITH_ARG:
+            i += 2
+        elif a.split("=", 1)[0] in GIT_GLOBAL_WITH_ARG or a in GIT_GLOBAL_FLAGS:
+            i += 1
+        else:
+            break
+    return ["git", *rest[i:]]
+
+
+def simple_commands(command: str, depth: int = 0):
+    """Yield (argv, write_targets) for every simple command, nested ones included."""
+    if depth > MAX_DEPTH:
+        raise Blocked("command nesting too deep to check")
+    for inner in re.findall(r"\$\(((?:[^()]|\([^()]*\))*)\)", command) + re.findall(r"`([^`]*)`", command) \
+            + re.findall(r"<\(([^()]*)\)", command):
+        yield from simple_commands(inner, depth + 1)
+    seg: list[str] = []
+    for tok in tokens(command) + [";"]:
+        if tok in SEPARATORS or (tok and set(tok) <= set(";&|()") and tok not in ("&>",)):
+            if seg:
+                yield from expand_segment(seg, depth)
+            seg = []
+        else:
+            seg.append(tok)
+
+
+def expand_segment(seg: list[str], depth: int):
+    def is_redirect(tok: str) -> bool:
+        return bool(tok) and set(tok) <= set("<>&|") and ("<" in tok or ">" in tok)
+
+    argv, targets, i = [], [], 0
+    while i < len(seg):
+        t = seg[i]
+        if re.fullmatch(r"\d+", t) and i + 1 < len(seg) and is_redirect(seg[i + 1]):
+            i += 1                                    # the fd number of "2>file"
+            continue
+        if is_redirect(t) and ">" in t:               # >, >>, &>, >|, >&
+            if i + 1 < len(seg) and not re.fullmatch(r"\d+|-", seg[i + 1]):
+                targets.append(seg[i + 1])            # (not ">&2", which names a descriptor)
+            i += 2
+            continue
+        if is_redirect(t):                            # input redirections: skip the source
+            i += 2
+            continue
+        argv.append(t)
+        i += 1
+    argv = strip_wrappers(argv)
+    if not argv:
+        if targets:
+            yield [], targets
+        return
+    prog = posixpath.basename(argv[0])
+    if prog == "tee":
+        targets += [a for a in argv[1:] if not a.startswith("-")]
+    if prog in SHELLS:
+        for j, a in enumerate(argv[1:], 1):
+            if re.fullmatch(r"-[a-zA-Z]*c[a-zA-Z]*", a) and j + 1 < len(argv):
+                yield from simple_commands(argv[j + 1], depth + 1)
+                break
+    if prog == "eval":
+        yield from simple_commands(" ".join(argv[1:]), depth + 1)
+    yield argv, targets
+
+
+def bash_candidates(argv: list[str]) -> list[str]:
+    out = [" ".join(argv), " ".join([posixpath.basename(argv[0]), *argv[1:]])]
+    if posixpath.basename(argv[0]) == "git":
+        out.append(" ".join(git_normalised(argv)))
+    return out
+
+
+def resolve(path: str, cwd: str) -> list[str]:
+    # POSIX paths only (the pod is Linux; posixpath keeps the tests identical elsewhere)
+    p = expand_home(path) if path == "~" or path.startswith("~/") else path
+    p = p if posixpath.isabs(p) else posixpath.join(cwd or "/work", p)
+    return sorted({posixpath.normpath(p), posixpath.realpath(p)})
+
+
+def check(event: dict, rules) -> str | None:
+    """None = allow; otherwise the reason to block."""
+    tool = str(event.get("tool_name") or "")
+    args = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
+    cwd = str(event.get("cwd") or "/work")
+    for rtool, rglob, reason, pat in rules:
+        if rglob is None and rtool == tool:
+            return f"{reason} (aa-kimi policy: {pat})"
+    if tool == "Bash":
+        command = args.get("command")
+        if not isinstance(command, str):
+            return "Bash call without a command string (aa-kimi guard)"
+        bcwd = str(args.get("cwd") or cwd)
+        for argv, targets in simple_commands(command):
+            cands = bash_candidates(argv) if argv else []
+            paths = [p for t in targets for p in resolve(t, bcwd)]
+            for rtool, rglob, reason, pat in rules:
+                if rglob is None:
+                    continue
+                if rtool == "Bash" and any(glob(rglob, c) for c in cands):
+                    return f"{reason} (aa-kimi policy: {pat})"
+                if rtool in ("Write", "Edit") and any(glob(expand_home(rglob), p) for p in paths):
+                    return f"{reason} (aa-kimi policy: {pat}, via a shell redirection)"
+        return None
+    if tool in ("Write", "Edit"):
+        path = args.get("path")
+        if not isinstance(path, str):
+            return f"{tool} call without a path (aa-kimi guard)"
+        paths = resolve(path, cwd)
+        for rtool, rglob, reason, pat in rules:
+            if rtool == tool and rglob is not None and any(glob(expand_home(rglob), p) for p in paths):
+                return f"{reason} (aa-kimi policy: {pat})"
+    return None
+
+
+SELF_TEST = [
+    ("Bash", {"command": "npm --version"}, True),
+    ("Bash", {"command": "cd /work/tasks && /usr/bin/npx -y x"}, True),
+    ("Bash", {"command": "FOO=1 env -i node -e 1"}, True),
+    ("Bash", {"command": "git -C /work/tasks/x push origin main"}, True),
+    ("Bash", {"command": "git -c protocol.allow=always fetch https://example.com/x"}, True),
+    ("Bash", {"command": "bash -lc 'kimi web'"}, True),
+    ("Bash", {"command": "echo $(git remote -v)"}, True),
+    ("Bash", {"command": "echo x > ~/.kimi-code/config.toml"}, True),
+    ("Bash", {"command": "printf x | tee /work/snap/a/b"}, True),
+    ("Write", {"path": "/work/AGENTS.md", "content": "x"}, True),
+    ("Edit", {"path": "../snap/a/README.md", "old_string": "a", "new_string": "b"}, True),
+    ("FetchURL", {"url": "https://example.com"}, True),
+    ("Bash", {"command": "ls -la /work/snap && git status && rg -n foo /work/snap"}, False),
+    ("Bash", {"command": "git log --oneline -5 | head -3"}, False),
+    ("Write", {"path": "/work/tasks/t1/patch.diff", "content": "x"}, False),
+    ("Edit", {"path": "tasks/t1/a.py", "old_string": "a", "new_string": "b"}, False),
+    ("Read", {"path": "/work/AGENTS.md"}, False),
+]
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) > 1 and argv[1] == "--self-test":
+        rules = load_rules(argv[2] if len(argv) > 2 else POLICY)
+        bad = []
+        for tool, args, want in SELF_TEST:
+            got = check({"tool_name": tool, "tool_input": args, "cwd": "/work/tasks"}, rules) is not None
+            if got != want:
+                bad.append(f"{tool} {json.dumps(args)}: {'blocked' if got else 'allowed'}, want {'blocked' if want else 'allowed'}")
+        for b in bad:
+            print("aa-kimi-guard self-test: " + b, file=sys.stderr)
+        if not bad:
+            print(f"aa-kimi-guard self-test: {len(SELF_TEST)} cases OK, {len(rules)} deny rules")
+        return 1 if bad else 0
+    rules = load_rules(argv[1] if len(argv) > 1 else POLICY)
+    event = json.loads(sys.stdin.read() or "{}")
+    if not isinstance(event, dict):
+        raise Blocked("hook input is not a JSON object")
+    reason = check(event, rules)
+    if reason:
+        print(reason, file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv))
+    except SystemExit:
+        raise
+    except BaseException as exc:                     # fail closed: the CLI would treat a crash as "allow"
+        print(f"aa-kimi guard could not check this call, so it is blocked: {exc}", file=sys.stderr)
+        sys.exit(2)

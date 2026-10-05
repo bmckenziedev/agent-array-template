@@ -1,0 +1,81 @@
+{
+  "apiVersion": "v1",
+  "kind": "Service",
+  "metadata": {
+    "name": "litellm",
+    "namespace": "{{NS_LLM}}",
+    "labels": {
+      "app.kubernetes.io/name": "litellm",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "llm"
+    }
+  },
+  "spec": {
+    "type": "ClusterIP",
+    "selector": {
+      "app.kubernetes.io/name": "litellm"
+    },
+    "ports": [
+      {
+        "name": "http",
+        "port": 4000,
+        "targetPort": 4000
+      },
+      {"name": "metrics", "port": 4001, "targetPort": "metrics"}
+    ]
+  }
+}
+---
+{
+  "apiVersion": "v1",
+  "kind": "Service",
+  "metadata": {
+    "name": "litellm-pg",
+    "namespace": "{{NS_LLM}}",
+    "labels": {
+      "app.kubernetes.io/name": "litellm-pg",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "llm"
+    }
+  },
+  "spec": {
+    "type": "ClusterIP",
+    "selector": {
+      "app.kubernetes.io/name": "litellm-pg"
+    },
+    "ports": [
+      {
+        "name": "tcp",
+        "port": 5432,
+        "targetPort": 5432
+      }
+    ]
+  }
+}
+---
+{
+  "apiVersion": "v1",
+  "kind": "Service",
+  "metadata": {
+    "name": "litellm-redis",
+    "namespace": "{{NS_LLM}}",
+    "labels": {
+      "app.kubernetes.io/name": "litellm-redis",
+      "app.kubernetes.io/part-of": "{{PROJECT_NAME}}",
+      "app.kubernetes.io/component": "llm"
+    }
+  },
+  "spec": {
+    "type": "ClusterIP",
+    "selector": {
+      "app.kubernetes.io/name": "litellm-redis"
+    },
+    "ports": [
+      {
+        "name": "tcp",
+        "port": 6379,
+        "targetPort": 6379
+      }
+    ]
+  }
+}

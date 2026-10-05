@@ -1,0 +1,15 @@
+# Code estates (EXAMPLE): which repos a team may push into sessions as context, and
+# which vendors may see them. Replaces any personal allowlist or deny-glob list.
+version: 1
+deny_globs: ["*secret*", "*.pem", "*.key", "*-NDA*"]   # never leave a laptop, whatever the estate says
+estates:
+  - id: payments-core
+    owner_team: payments
+    data_class: confidential
+    repos: [github.com/example-org/payments-api, github.com/example-org/payments-ledger]
+    snapshot_targets: [claude]
+  - id: platform-infra
+    owner_team: platform
+    data_class: internal
+    repos: [github.com/example-org/infra-modules]
+    snapshot_targets: [claude, codex]

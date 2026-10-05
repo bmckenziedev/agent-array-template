@@ -1,0 +1,9 @@
+scope: components
+name: llm
+defaults:
+  enterprise_license: false
+  models:
+    claude-api-standard: anthropic/claude-sonnet-4-5-20250929
+    openai-api-standard: openai/gpt-4.1
+  fallbacks:
+    local-coder: [local-coder-small]

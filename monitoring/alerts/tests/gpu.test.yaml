@@ -1,0 +1,118 @@
+rule_files:
+- ../rules/gpu.rules.yaml
+evaluation_interval: 1m
+tests:
+- interval: 1m
+  input_series:
+  - series: kube_node_labels{job="kube-state-metrics",node="gpu-a",label_agent_array_example_org_role_gpu="true",value="present",effect="NoSchedule"}
+    values: 1x30
+  - series: kube_node_labels{job="kube-state-metrics",node="gpu-b",label_agent_array_example_org_role_gpu="true",value="present",effect="NoSchedule"}
+    values: 1x30
+  - series: kube_node_labels{job="kube-state-metrics",node="agent-gpu3",label_agent_array_example_org_role_gpu="true",value="present",effect="NoSchedule"}
+    values: 1x30
+  - series: kube_node_spec_unschedulable{job="kube-state-metrics",node="gpu-a"}
+    values: '0x30'
+  - series: kube_node_spec_unschedulable{job="kube-state-metrics",node="gpu-b"}
+    values: '0x30'
+  - series: kube_node_spec_unschedulable{job="kube-state-metrics",node="agent-gpu3"}
+    values: 1x30
+  - series: kube_node_status_condition{job="kube-state-metrics",node="gpu-a",condition="Ready",status="true"}
+    values: 1x30
+  - series: kube_node_status_condition{job="kube-state-metrics",node="gpu-b",condition="Ready",status="true"}
+    values: 1x30
+  - series: kube_node_status_condition{job="kube-state-metrics",node="agent-gpu3",condition="Ready",status="true"}
+    values: '0x30'
+  - series: kube_node_status_allocatable{job="kube-state-metrics",node="gpu-a",resource="nvidia_com_gpu",unit="integer"}
+    values: 1x30
+  - series: kube_node_status_allocatable{job="kube-state-metrics",node="gpu-b",resource="nvidia_com_gpu",unit="integer"}
+    values: '0x30'
+  - series: up{job="dcgm-exporter",namespace="gpu-system",pod="dcgm-exporter-aaaaa"}
+    values: 1x30
+  - series: kube_pod_info{job="kube-state-metrics",namespace="gpu-system",pod="dcgm-exporter-aaaaa",node="gpu-a"}
+    values: 1x30
+  promql_expr_test:
+  - expr: aa:gpu_node:active
+    eval_time: 5m
+    exp_samples:
+    - labels: aa:gpu_node:active{node="gpu-a"}
+      value: 1
+    - labels: aa:gpu_node:active{node="gpu-b"}
+      value: 1
+  alert_rule_test:
+  - alertname: DCGMExporterMissing
+    eval_time: 20m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        node: gpu-b
+      exp_annotations:
+        summary: DCGMExporterMissing
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: GPUNodeNoAllocatableGPU
+    eval_time: 20m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        node: gpu-b
+      exp_annotations:
+        summary: GPUNodeNoAllocatableGPU
+        description: Inspect the alert labels and metric history before remediation.
+- interval: 1m
+  input_series:
+  - series: DCGM_FI_DEV_XID_ERRORS{job="dcgm-exporter",namespace="gpu-system",pod="dcgm-exporter-aaaaa",gpu="0",Hostname="dcgm-exporter-aaaaa"}
+    values: 0x4 43x30
+  - series: DCGM_FI_DEV_XID_ERRORS{job="dcgm-exporter",namespace="gpu-system",pod="dcgm-exporter-bbbbb",gpu="0",Hostname="dcgm-exporter-bbbbb"}
+    values: 0x4 45x30
+  - series: DCGM_FI_DEV_XID_ERRORS{job="dcgm-exporter",namespace="gpu-system",pod="dcgm-exporter-ccccc",gpu="0",Hostname="dcgm-exporter-ccccc"}
+    values: 0x4 79x30
+  - series: kube_pod_info{job="kube-state-metrics",namespace="gpu-system",pod="dcgm-exporter-aaaaa",node="gpu-a"}
+    values: 1x35
+  - series: kube_pod_info{job="kube-state-metrics",namespace="gpu-system",pod="dcgm-exporter-bbbbb",node="gpu-b"}
+    values: 1x35
+  alert_rule_test:
+  - alertname: GPUXidError
+    eval_time: 10m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: dcgm-exporter
+        namespace: gpu-system
+        pod: dcgm-exporter-aaaaa
+        gpu: '0'
+        Hostname: dcgm-exporter-aaaaa
+      exp_annotations:
+        summary: GPUXidError
+        description: Inspect the alert labels and metric history before remediation.
+    - exp_labels:
+        severity: warning
+        job: dcgm-exporter
+        namespace: gpu-system
+        pod: dcgm-exporter-ccccc
+        gpu: '0'
+        Hostname: dcgm-exporter-ccccc
+      exp_annotations:
+        summary: GPUXidError
+        description: Inspect the alert labels and metric history before remediation.
+    - exp_labels:
+        severity: critical
+        job: dcgm-exporter
+        namespace: gpu-system
+        pod: dcgm-exporter-ccccc
+        gpu: '0'
+        Hostname: dcgm-exporter-ccccc
+      exp_annotations:
+        summary: GPUXidError
+        description: Inspect the alert labels and metric history before remediation.
+  - alertname: GPUXidError
+    eval_time: 25m
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        job: dcgm-exporter
+        namespace: gpu-system
+        pod: dcgm-exporter-ccccc
+        gpu: '0'
+        Hostname: dcgm-exporter-ccccc
+      exp_annotations:
+        summary: GPUXidError
+        description: Inspect the alert labels and metric history before remediation.

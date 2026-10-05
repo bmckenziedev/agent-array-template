@@ -1,0 +1,39 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: aa-session-exec
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ''
+      apiVersions:
+      - '*'
+      operations:
+      - CONNECT
+      resources:
+      - pods/exec
+      - pods/attach
+      - pods/portforward
+  validations:
+  - expression: has(namespaceObject.metadata.annotations) && '{{LABEL_PREFIX}}/oidc-sub' in namespaceObject.metadata.annotations
+      && (request.userInfo.username == '{{OIDC_USERNAME_PREFIX}}' + namespaceObject.metadata.annotations['{{LABEL_PREFIX}}/oidc-sub']
+      || (has(request.userInfo.groups) && '{{OIDC_GROUP_BREAKGLASS}}' in request.userInfo.groups
+      && '{{LABEL_PREFIX}}/breakglass-ticket' in namespaceObject.metadata.annotations
+      && namespaceObject.metadata.annotations['{{LABEL_PREFIX}}/breakglass-ticket'] != ''))
+    message: Only the holder or ticketed break-glass may connect to a session.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: aa-session-exec
+spec:
+  policyName: aa-session-exec
+  validationActions:
+  - Deny
+  - Audit
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        '{{LABEL_PREFIX}}/kind': user-sessions
