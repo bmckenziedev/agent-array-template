@@ -42,6 +42,17 @@ class PolicyTests(unittest.TestCase):
         with redirect_stdout(io.StringIO()):
             self.assertEqual(apc.main([POLICY]), 0)
 
+    def test_connect_keeps_metadata_and_stream_start(self):
+        p = load()
+        self.assertNotIn('ResponseStarted', p.get('omitStages', []))
+        for sub in ['exec', 'attach', 'portforward']:
+            for verb in ['get', 'create', 'connect']:
+                self.assertEqual(apc.level_for(p, apc.R(apc.ADMIN, verb, 'pods', sub=sub)), 'Metadata')
+
+    def test_vap_audit_request_records_envelope(self):
+        p = load()
+        self.assertEqual(apc.level_for(p, apc.R(apc.ADMIN, 'create', 'pods', ns='aa-u-ana')), 'Metadata')
+
     def test_request_level_for_secrets_is_caught(self):
         p = load()
         p["rules"].insert(0, {"level": "Request", "resources": [{"group": "", "resources": ["secrets"]}]})

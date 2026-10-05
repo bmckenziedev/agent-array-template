@@ -89,7 +89,7 @@ else
   SENSITIVE_MD=""
 fi
 cat > "$BUNDLE/RUNBOOK.md" <<EOF
-# agent-array change bundle â€” task ${TASK_ID:-unknown}
+# agent-array change bundle - task ${TASK_ID:-unknown}
 
 Generated $(date -u +%Y-%m-%dT%H:%M:%SZ). Nothing was pushed or synced; apply by hand.
 

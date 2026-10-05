@@ -2,7 +2,7 @@
 # Read existing diagnostic pods; a platform admin provisions probes separately.
 set -euo pipefail
 export MSYS_NO_PATHCONV=1
-kubeconfig= namespace= pod= privileged_pod= node=
+kubeconfig='' namespace='' pod='' privileged_pod='' node=''
 while (( $# )); do
   case "$1" in
     --kubeconfig|--namespace|--pod|--privileged-pod|--node)

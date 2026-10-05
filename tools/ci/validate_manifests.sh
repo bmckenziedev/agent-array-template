@@ -26,11 +26,15 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 python - "$root" "$tmp" <<'PY'
 import pathlib, sys, yaml
+sys.path.insert(0, str(pathlib.Path('tools/ci').resolve()))
+from rendered_assets import is_non_manifest
 count = 0
 for f in sorted(pathlib.Path(sys.argv[1]).rglob('*')):
     if f.suffix not in {'.yaml', '.yml'}:
         continue
     for doc in yaml.safe_load_all(f.read_text(encoding='utf-8')):
+        if is_non_manifest(f.relative_to(pathlib.Path(sys.argv[1])).as_posix(), doc):
+            continue
         if isinstance(doc, dict) and 'apiVersion' in doc and 'kind' in doc:
             count += 1
             pathlib.Path(sys.argv[2], f'{count:06d}.yaml').write_text(yaml.safe_dump(doc), encoding='utf-8')

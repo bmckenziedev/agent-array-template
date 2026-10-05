@@ -46,6 +46,16 @@ class ContractsTests(unittest.TestCase):
         self.write("files/oops.yaml", {"apiVersion": "v1", "kind": "ConfigMap"})
         self.assertTrue(any("under files" in e for e in self.check()))
 
+    def test_native_config_allowlist_rejects_missing_kind_and_nested_fragments(self):
+        self.write('files/ops/audit/audit-policy.yaml', {'rules': []})
+        with self.assertRaises(ValueError):
+            self.check()
+        (self.tree / 'files/ops/audit/audit-policy.yaml').unlink()
+        self.write('files/modules/wazuh/overlay/nested/dashboard.yaml', {
+            'apiVersion': 'apps/v1', 'kind': 'Deployment',
+            'metadata': {'name': 'wazuh-dashboard'}, 'spec': {'template': {}}})
+        self.assertTrue(any('under files' in e for e in self.check()))
+
     def test_dns_proxy_and_monitor_ports(self):
         self.write("global/dns.yaml", {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
                    "metadata": {"name": "dns", "namespace": "ns"}, "spec": {"egress": [{

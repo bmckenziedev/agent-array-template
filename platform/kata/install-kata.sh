@@ -99,10 +99,10 @@ fi
 # Restart the k3s unit, then wait until its containerd reports the kata handler as
 # present or absent ($1). Non-zero on timeout (~3 min).
 restart_and_wait() {
-  local want="$1" i info
+  local want="$1" attempt info
   log "restarting ${UNIT} (running containers survive: KillMode=process)"
   systemctl restart "$UNIT" || return 1
-  for i in $(seq 1 90); do
+  for ((attempt=0; attempt<90; attempt++)); do
     if systemctl is-active --quiet "$UNIT"; then
       info="$(k3s crictl info 2>/dev/null || true)"
       if [ -n "$info" ]; then

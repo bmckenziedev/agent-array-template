@@ -111,6 +111,8 @@ spec:
     namespace: '{{USER_NS_PREFIX}}*'
   - server: https://kubernetes.default.svc
     namespace: '{{PROJECT_NAME}}-login-storage'
+  - server: https://kubernetes.default.svc
+    namespace: '{{PROJECT_NAME}}-velero'
   clusterResourceWhitelist:
   - group: '*'
     kind: '*'

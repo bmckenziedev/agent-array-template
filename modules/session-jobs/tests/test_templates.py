@@ -33,6 +33,7 @@ class TemplateTests(unittest.TestCase):
             cm = yaml.safe_load(emitted["global/modules/session-jobs/k8s/job-template.yaml"])
             job = yaml.safe_load(cm["data"]["task-job.template.yaml"])
             pod = job["spec"]["template"]["spec"]
+            self.assertEqual(job["spec"]["template"]["metadata"]["labels"][model["keys"]["LABEL_PREFIX"] + "/llm-client"], "true")
             self.assertEqual(cm["metadata"]["namespace"], model["keys"]["NS_PORTAL"])
             self.assertEqual(pod["runtimeClassName"], model["keys"]["RUNTIME_CLASS_VM" if runtime == "kata" else "RUNTIME_CLASS_GVISOR"])
             self.assertIn("@sha256:", pod["containers"][0]["image"])

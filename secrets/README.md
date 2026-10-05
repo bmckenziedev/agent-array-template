@@ -19,3 +19,16 @@ Restore a prior encrypted manifest only while its credential and sealing key rem
 ## Security notes
 Rotate the upstream credential and re-seal each consumer namespace. A rename or cluster migration
 requires re-sealing. Back up controller keys to an encrypted offline store outside git.
+
+## Registry pull credentials
+Use the registry pull Secret name configured by `org.registry.pull_secret` in every
+active user namespace that runs session images. Run
+`platform/sealed-secrets/seal-registry-pull.sh --namespace <user-namespace> --name <configured-pull-secret> --registry-host <configured-registry-host> --cert <outside-repo-cert>`
+separately for each namespace, using a read-only pull credential. Strict-scope
+sealing produces a distinct manifest under `secrets/k8s/<user-namespace>/` for
+each consumer; never copy a sealed blob into another namespace. Repeat for other
+workload namespaces that reference the same pull Secret name. A verified node
+credential provider is an alternative only when it independently grants pull
+access to every required node without exposing credentials to tenant workloads.
+Provision a newly registered user's pull Secret before starting that user's
+session, and revoke its issuer credential and remove its manifest on offboarding.

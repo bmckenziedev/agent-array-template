@@ -276,6 +276,8 @@ class FarmTests(unittest.TestCase):
                     if doc["kind"] == "Deployment":
                         pod = doc["spec"]["template"]
                         self.assertEqual(pod["metadata"]["labels"][keys["LABEL_PREFIX"] + "/llm-client"], "true")
+                        mint = next(v for v in pod["spec"]["volumes"] if v["name"] == "mint")
+                        self.assertEqual(mint["secret"]["items"], [{"key": "LITELLM_MINT_KEY", "path": "key"}])
                     if doc["kind"] == "RoleBinding":
                         self.assertEqual(doc["metadata"]["namespace"], entity["USER_NS"])
                         self.assertEqual(doc["subjects"][0]["namespace"], keys["NS_SYSTEM"])

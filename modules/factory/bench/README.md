@@ -39,3 +39,10 @@ Retain prior profiles and results, restore the previous lane selection, and reru
 ## Security notes
 
 Model output executes only within bounded Docker containers without network access. Source paths cannot escape the selected snapshot. Changed source hashes invalidate the profile.
+
+Self-test summaries report unavailable production tooling under `skipped` and
+`skip_reasons`; skipped gates never contribute to `passed`. Install Node 22 and
+run `npm ci --ignore-scripts --prefix modules/factory/engine/js` to exercise
+the documentation gates. Executable candidate gates additionally require Docker
+with a reachable daemon and the pinned gate image. They retain an unprivileged
+UID, read-only filesystem, and disabled network.

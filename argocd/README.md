@@ -41,3 +41,10 @@ Revert rendered Git and sync manually. Avoid force/replace and namespace pruning
 ClusterIP only. server.insecure is false; enable it only with a verified access proxy that terminates TLS and exclusive ingress from that proxy, never on a generally reachable server. Platform/hardening owns default-deny. Add narrowly reviewed DNS/IdP HTTPS and repo-server Git egress (SSH 22 or HTTPS 443 to the org Git host) plus internal Argo component flows. A chart ingress policy allowing all would defeat proxy-only ingress because NetworkPolicies are additive. VERIFY these flows before adopting; chart defaults are not an egress security boundary.
 
 Bootstrap order is a manual runbook. Sync waves between Applications are advisory; they do not replace manual completion and verification of prerequisite applications.
+
+The values paths were checked against
+[chart 10.9.6 values](https://github.com/argoproj/argo-helm/blob/argo-cd-10.9.6/charts/argo-cd/values.yaml):
+`controller.clusterRoleRules`, `server.clusterRoleRules`, per-component `image.tag`,
+`dex.initImage.tag`, `global.networkPolicy.create`, and `configs.cm` are supported.
+`configs.cm.admin.enabled` is the string `"false"`, matching the ConfigMap data
+contract; `configs.rbac.create=false` delegates RBAC to the registry producer.

@@ -118,6 +118,33 @@ class GitOpsTests(unittest.TestCase):
                                     self.assertEqual(spec['clusterResourceWhitelist'], [{'group': '', 'kind': 'Namespace'}])
         self.assertGreater(count, 30)
 
+    def test_pinned_chart_paths_and_string_admin_switch(self):
+        values = yaml.safe_load(subst((ROOT / 'helm/argocd/values.tmpl.yaml').read_text(), MODEL['keys']))
+        self.assertEqual(values['configs']['cm']['admin.enabled'], 'false')
+        self.assertIs(values['global']['networkPolicy']['create'], False)
+        self.assertIs(values['configs']['rbac']['create'], False)
+        self.assertTrue(values['controller']['clusterRoleRules']['enabled'])
+        for component in ['controller', 'server', 'repoServer', 'applicationSet',
+                          'notifications', 'redisSecretInit', 'dex', 'redis']:
+            self.assertIn('@sha256:', values[component]['image']['tag'])
+        self.assertIn('@sha256:', values['dex']['initImage']['tag'])
+        secrets = yaml.safe_load((ROOT / 'secrets.required.yaml').read_text())
+        self.assertEqual(secrets['secrets'][0]['required_when'], 'always')
+
+    def test_sealed_secrets_and_backup_manifest_coverage(self):
+        owners = []
+        for path in (ROOT / 'k8s/apps').rglob('*.tmpl.yaml'):
+            for app in yaml.safe_load_all(subst(path.read_text(), MODEL['keys'])):
+                if app.get('kind') != 'Application':
+                    continue
+                sources = app['spec'].get('sources', [app['spec'].get('source', {})])
+                owners.extend(app['metadata']['name'] for source in sources
+                              if source.get('path') == 'rendered/global/platform/sealed-secrets/k8s')
+        self.assertEqual(owners, [MODEL['keys']['PROJECT_NAME'] + '-10-secrets'])
+        backup = yaml.safe_load(subst((ROOT / 'k8s/apps/backup/85-backup-policy.tmpl.yaml').read_text(), MODEL['keys']))
+        self.assertEqual(backup['spec']['source']['path'], 'rendered/global/ops/velero/k8s')
+        self.assertNotIn('automated', backup['spec']['syncPolicy'])
+
     def test_manual_policy_and_secret_apps(self):
         for name in ['00-platform-hardening', '02-kata', '08-cluster', '10-secrets', '40-sessions-platform']:
             app = yaml.safe_load(subst((ROOT / 'k8s/apps' / (name + '.tmpl.yaml')).read_text(), MODEL['keys']))

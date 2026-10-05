@@ -45,3 +45,14 @@ def render(model, emit):
                "# VERIFY Cilium/Calico service policy semantics and DNS pod labels.\n")
     emit("global/platform/sealed-secrets/k8s/controller-egress.yaml",
          comment + json.dumps(policy, indent=2, sort_keys=True) + "\n")
+
+    ingress = {
+        "apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+        "metadata": {"name": "sealed-secrets-metrics-ingress", "namespace": "kube-system"},
+        "spec": {"podSelector": {"matchLabels": selector}, "policyTypes": ["Ingress"],
+                 "ingress": [{"from": [{"namespaceSelector": {"matchLabels": {
+                     "kubernetes.io/metadata.name": keys["NS_MONITORING"]}}}],
+                     "ports": [{"protocol": "TCP", "port": 8081}]}]},
+    }
+    emit("global/platform/sealed-secrets/k8s/metrics-ingress.yaml",
+         json.dumps(ingress, indent=2, sort_keys=True) + "\n")

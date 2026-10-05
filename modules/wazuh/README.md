@@ -10,7 +10,7 @@ Agents send events/enrollment to manager ports 1514/1515; the dashboard calls it
 API on 55000 and the indexer on 9200. The rendered manager overlay mounts the
 `wazuh-organization-audit` ConfigMap at its local rule directory. Audit JSON uses
 Wazuh's built-in JSON decoder; no custom decoder is necessary. Local IDs
-100800–100819 are reserved: 100809 is user-session exec/attach, 100810 is break-glass
+100800â€“100819 are reserved: 100809 is user-session exec/attach, 100810 is break-glass
 group use, 100811 is an API audit annotation containing a break-glass ticket.
 
 The audit policy must retain ResponseStarted for streaming requests and record
@@ -87,3 +87,18 @@ and upstream initialization traffic require explicit review. Standard NetworkPol
 does not constrain node-originated traffic or override other selecting allows.
 API endpoint egress is preserved, though agents do not mount API credentials.
 Do not claim this policy or root/DAC behavior fully hardened until live validation.
+
+The files under `rendered/files/modules/wazuh/overlay/` are strategic-merge and
+removal fragments, not standalone Kubernetes objects. Kustomization also consumes
+external pinned upstream workloads and privately generated TLS/bcrypt assets.
+Applying fragments directly would create incomplete workloads or demo Secret
+stubs. `tools/ci/rendered_assets.py` validates exact file/kind/name/fragment shapes;
+unknown resources under files remain errors. The installer assembles and validates
+the final manifests before server dry-run. Namespace patches and the standalone
+namespace both prohibit Argo prune/delete. This external assembly remains manual;
+only the ordinary manifests under k8s are managed by template GitOps.
+
+Rules 100812 and 100813 alert on the native VAP validation-failure audit annotation
+and break-glass streaming exec/attach/portforward activity, respectively. VAP Audit
+success HTTP status does not suppress an alert. Test the built-in JSON decoder
+against both successful and refused synthetic events before deployment.

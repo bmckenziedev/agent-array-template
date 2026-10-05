@@ -7,8 +7,8 @@ Policy, k3s drop-in and generic kube-apiserver flags. audit_policy_check.py exit
 ## Configuration
 Global namespace, identity, runtime, image and cluster network keys follow the organisation configuration.
 
-- `log_path` → `C_AUDIT_LOG_PATH`, default `/var/log/kubernetes/audit.log`.
-- `retention_days` → `C_AUDIT_RETENTION_DAYS`, default `30`.
+- `log_path` â†’ `C_AUDIT_LOG_PATH`, default `/var/log/kubernetes/audit.log`.
+- `retention_days` â†’ `C_AUDIT_RETENTION_DAYS`, default `30`.
 
 ## Secrets
 Names and key names only; see [secrets.required.yaml](secrets.required.yaml). No values are committed.
@@ -44,3 +44,11 @@ Secrets, ConfigMaps and service-account token requests stay at Metadata in every
 The monitoring task ships events to SIEM with user/team correlation and org retention.
 Secrets/ConfigMaps are Metadata everywhere, so namespace additions never depend on a stale namespace list.
 The probe is read-only; generating ConfigMap/Role probes is a separate approved maintenance action.
+
+`rendered/files/ops/audit/audit-policy.yaml` is API-server startup configuration
+(`audit.k8s.io/v1 Policy`), not an API resource. Keep it outside GitOps apply paths.
+The exact native document shape is checked by `tools/ci/rendered_assets.py`.
+CONNECT subresources retain Metadata and ResponseStarted, so identity, groups,
+VAP Audit failure annotations and ticket annotations survive without request
+bodies. Wazuh rules 100812/100813 consume these signals; native annotations must
+be verified with synthetic positive/negative API-server and vendor logtest evidence.

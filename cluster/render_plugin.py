@@ -11,7 +11,7 @@ def render(model, emit):
     config["nodePathMap"].extend({"node": n["NODE_NAME"], "paths": [keys["LOGIN_HOST_ROOT"]]}
                                  for n in sorted(nodes, key=lambda n: n["NODE_NAME"]))
     cm = {"apiVersion": "v1", "kind": "ConfigMap",
-          "metadata": {"name": "login-local-path-config", "namespace": keys["NS_SYSTEM"]},
+          "metadata": {"name": "login-local-path-config", "namespace": keys["PROJECT_NAME"] + "-login-storage"},
           "data": {"config.json": json.dumps(config, sort_keys=True)}}
     emit("global/cluster/k8s/login-storage/config.yaml", json.dumps(cm, indent=2) + "\n")
     endpoints = set(json.loads(keys["APISERVER_ENDPOINT_IPS_JSON"]))
@@ -19,7 +19,7 @@ def render(model, emit):
     peers = [{"ipBlock": {"cidr": ip + ("/128" if ":" in ip else "/32")}}
              for ip in sorted(endpoints)]
     policy = {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
-              "metadata": {"name": "login-local-path-api", "namespace": keys["NS_SYSTEM"]},
+              "metadata": {"name": "login-local-path-api", "namespace": keys["PROJECT_NAME"] + "-login-storage"},
               "spec": {"podSelector": {"matchLabels": {"app.kubernetes.io/name": "login-local-path"}},
                        "policyTypes": ["Egress"], "egress": [{"to": peers,
                        "ports": [{"protocol": "TCP", "port": int(keys["APISERVER_PORT"])},

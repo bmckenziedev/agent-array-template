@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=lib.sh
 source "$(dirname "$0")/lib.sh"
 load_env "$@"
 role=agent

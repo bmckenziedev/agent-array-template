@@ -214,7 +214,7 @@ configs:
   params:
     server.insecure: false
   cm:
-    admin.enabled: false
+    admin.enabled: "false"
     url: https://{{HOST_ARGOCD}}
     oidc.config: "name: Organization\nissuer: {{OIDC_ISSUER_URL}}\nclientID: {{OIDC_CLIENT_ID}}\n\
       clientSecret: $argocd-oidc:clientSecret\nrequestedScopes: [openid, profile,\

@@ -274,7 +274,7 @@ is_mounted() {  # a mount at, or anywhere below, $1
   awk -v p="$1" '$0 == p || index($0, p "/") == 1 {f = 1} END {exit !f}' <<<"$mounts"
 }
 
-log "node $NODE: ${n_known} sandboxes known to containerd, ${n_shims} kata shim(s) running, ${#dirs_of[@]} sandbox id(s) with state on disk, min age ${MIN_AGE}s$( (( DRY_RUN )) && printf ' (dry run)' || true)"
+log "node $NODE: ${n_known} sandboxes known to containerd, ${n_shims} kata shim(s) running, ${#dirs_of[@]} sandbox id(s) with state on disk, min age ${MIN_AGE}s$(if (( DRY_RUN )); then printf ' (dry run)'; fi)"
 
 # ---- sweep ------------------------------------------------------------------------------
 NOW=$(date +%s)

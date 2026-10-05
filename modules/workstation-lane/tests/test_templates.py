@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import unittest
+import sys
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +39,13 @@ def fixture():
 
 
 class TemplateTests(unittest.TestCase):
+    def test_time_defaults_follow_renderer_subset(self):
+        sys.path.insert(0, str(ROOT.parents[1] / 'tools/render'))
+        from aa_render.yamlsub import load
+        defaults = load(ROOT / 'org.component.defaults.yaml')['defaults']
+        self.assertEqual(defaults['window_start'], '19:00')
+        self.assertEqual(defaults['window_stop'], '08:00')
+
     def test_all_templates_and_plugins(self):
         model, keys = fixture()
         count = 0

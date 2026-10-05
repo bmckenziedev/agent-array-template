@@ -76,4 +76,4 @@ spec:
           secret:
             secretName: litellm-mint
             items:
-              - {key: key, path: key}
+              - {key: LITELLM_MINT_KEY, path: key}

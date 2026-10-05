@@ -4,6 +4,14 @@ Begin with two pilot users and evidence for every boundary. Review [architecture
 [security](SECURITY.md) and [multi-user rules](MULTI-USER.md). Legal approval is a deployment
 gate, never inferred from a successful CLI login.
 
+## Side-by-side adoption
+
+Existing services must never be affected. Deploy side by side in a new cluster or new
+isolated namespaces. Share no identities, secrets, service accounts, DNS names, ingress,
+storage or data with any existing system. Do not change existing clusters, CI, IdP groups,
+firewalls or DNS. Access existing systems read-only only where an adoption step needs it.
+Stop and report when a step would touch an existing service.
+
 ## Prerequisites
 
 - Kubernetes satisfying the [cluster contract](../cluster/README.md): supported APIs,

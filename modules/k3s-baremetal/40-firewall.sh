@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=lib.sh
 source "$(dirname "$0")/lib.sh"
 load_env "$@"
 : "${SSH_PORT:?missing SSH_PORT}" "${OVERLAY_CIDR:?missing OVERLAY_CIDR}"

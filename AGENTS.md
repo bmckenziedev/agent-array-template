@@ -122,6 +122,7 @@ a marker from an assumption or Ready pod.
 
 ## Do not
 
+- Affect existing services during adoption: deploy side by side in a new cluster or new isolated namespaces, share no identities, secrets, service accounts, DNS names, ingress, storage or data with existing systems, make no changes to existing clusters, CI, IdP groups, firewalls or DNS, use existing systems read-only only when an adoption step requires it, and stop and report any step that would touch an existing service.
 - Add personal identifiers, private topology, live reports or source history.
 - Put secrets/login files/real ciphertext fixtures in org.yaml or examples.
 - Make live changes from CI or leave detached processes.
@@ -136,3 +137,9 @@ audit and a dedicated rotating connector credential; console comparison checks e
 configured credential in constant time. Forge credentials are per-user named Secrets,
 provisioned/revoked with the registry identity. Check account/user refusal lists before
 leases; stale readings and near-cap advisory never authorise seat automation.
+
+## Session supervision
+
+Policy lives in services/supervisor/org.component.defaults.yaml, team_policies and the plugin-produced supervisor-policy ConfigMap. Notifiers and work-item adapters live in aa_supervisor/notifiers and aa_supervisor/adapters; the policy hook uses the same redacted projected-token relay path. The connector lives in aa_supervisor/connector.py, with PROTOCOL.md and console_ref/verify.py defining receiver trust.
+
+Never weaken holder-only spawn, separate PID namespaces, transcript-only mounts, same-UID/drop-ALL hardening, private control mounts, request-only permission sockets, no Secret/listeners/PID signals, O_NOFOLLOW, redaction, per-command authority, input limits or the stop governor. Confirm pinned Claude stream-json and permission contracts, Codex stdin/JSON/input/id, tmux argv/literal keys/socket/version, MCP env inheritance and tini subreaper before clearing reviewed VERIFY gates. VERIFY 08 VM FIFO/token-rotation checks and gVisor remain deploy-phase evidence.

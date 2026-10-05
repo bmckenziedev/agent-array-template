@@ -68,7 +68,7 @@ rules:
   - group: bitnami.com
     resources:
     - sealedsecrets
-- level: Request
+- level: Metadata
   resources:
   - group: ''
     resources:
@@ -76,9 +76,13 @@ rules:
     - pods/attach
     - pods/portforward
     - pods/proxy
-    - pods/ephemeralcontainers
     - services/proxy
     - nodes/proxy
+- level: Request
+  resources:
+  - group: ''
+    resources:
+    - pods/ephemeralcontainers
 - level: Metadata
   resources:
   - group: ''

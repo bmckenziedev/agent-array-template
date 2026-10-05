@@ -10,7 +10,7 @@ checks, for events at or after SINCE_EPOCH:
 
   configmap create/delete   level Metadata, no request or response body
   role create/delete        level Request, request body present
-  pods/exec (missing pod)   level Request
+  pods/exec (missing pod)   level Metadata
   secrets list              level Metadata, no request or response body
   invariant                 NO event about secrets/configmaps/tokenreviews/
                             serviceaccounts/token carries a request or response body
@@ -89,7 +89,7 @@ def main(argv):
         ("configmaps", "delete"): ("Metadata", False),
         ("roles", "create"): ("Request", True),
         ("roles", "delete"): ("Request", None),
-        ("pods/exec", "any"): ("Request", None),
+        ("pods/exec", "any"): ("Metadata", False),
         ("secrets", "list"): ("Metadata", False),
     }
     fails = attribution_failures

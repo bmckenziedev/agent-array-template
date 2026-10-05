@@ -45,10 +45,15 @@ def gate(unit: dict, output: str) -> str:
         return "skip: Docker daemon unavailable; executable gates require isolation"
     with tempfile.TemporaryDirectory() as scratch:
         work = Path(scratch)
+        # The isolated unprivileged container must traverse its read-only fixture.
+        work.chmod(0o755)
         source = source_file.read_text()
         (work / unit["target"]).parent.mkdir(parents=True, exist_ok=True)
         (work / unit["target"]).write_text(source, encoding="utf-8", newline="\n")
         (work / "candidate.test.cjs").write_text(output, encoding="utf-8", newline="\n")
+        for staged in work.rglob("*"):
+            staged.chmod(0o755 if staged.is_dir() else 0o644)
+
         def execute() -> bool:
             name = "factory-bench-" + uuid.uuid4().hex
             try:
@@ -76,23 +81,24 @@ def gate(unit: dict, output: str) -> str:
 def selftest() -> dict:
     units = json.loads((ROOT / "examples/units.json").read_text())
     checks = []
+    skipped = []
     for unit in units:
         if unit["kind"] == "doc_map":
             reference = json.dumps(unit["reference"])
             result = gate(unit, reference)
-            checks.append(result == "pass" or result.startswith("skip:"))
             if result.startswith("skip:"):
-                print(result)
+                skipped.append(result)
             else:
+                checks.append(result == "pass")
                 checks.append(gate(unit, reference.replace(unit["exports"][0], "invented")) == "scope")
                 checks.append(gate(unit, json.dumps({unit["exports"][0]: "/** TODO */"})) == "hygiene")
         else:
             checks.append(gate(unit, "console.log('no assertions');") == "schema")
             result = gate(unit, unit["reference"])
-            checks.append(result == "pass" or result.startswith("skip:"))
             if result.startswith("skip:"):
-                print(result)
+                skipped.append(result)
             else:
+                checks.append(result == "pass")
                 ineffective = (
                     "const assert = require('node:assert/strict');\n"
                     f"const {{{unit['symbol']}}} = require('./{unit['target']}');\n"
@@ -101,4 +107,6 @@ def selftest() -> dict:
                 checks.append(gate(unit, ineffective) == "mutation")
                 broken = ineffective.replace("assert.equal(1, 1)", "assert.equal(1, 2)")
                 checks.append(gate(unit, broken) == "runtime")
-    return {"units": len(units), "checks": len(checks), "passed": sum(checks), "failed": checks.count(False)}
+    return {"units": len(units), "checks": len(checks), "passed": sum(checks),
+            "failed": checks.count(False), "skipped": len(skipped),
+            "skip_reasons": sorted(set(skipped))}

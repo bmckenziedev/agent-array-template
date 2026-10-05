@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Inspect a pre-provisioned diagnostic pod; no resource creation or removal.
 set -euo pipefail
-kubeconfig= namespace= pod=
+kubeconfig='' namespace='' pod=''
 while (( $# )); do
   case "$1" in
     --kubeconfig) kubeconfig=${2:?}; shift 2 ;;

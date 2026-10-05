@@ -31,7 +31,7 @@ trap cleanup EXIT
 BIN=$T/bin FAKE=$T/fake PROC=$T/proc OUT=$T/metrics
 SBS=$T/run/vc/sbs SHARED=$T/run/kata/shared/sandboxes
 PROM=$OUT/aa_kata_gc.prom
-SECRET=SECRET-MARKER-9f3a7c
+SECRET="SECRET-MARKER-9f3a7c"
 mkdir -p "$BIN"
 
 # ---- stubs ---------------------------------------------------------------------------------
@@ -148,7 +148,11 @@ valid_prom() {  # the metric file is well-formed exposition text, complete and w
   ! grep -vEq '^(# HELP [a-z_]+ .+|# TYPE [a-z_]+ (gauge|counter)|[a-z_]+(\{[a-z_]+="[^"]*"(,[a-z_]+="[^"]*")*\})? [0-9]+)$' "$f" || return 1
   awk '/^# TYPE/ {t[$3] = 1; next} /^#/ {next} {n = $1; sub(/\{.*/, "", n); if (!(n in t)) bad = 1} END {exit bad}' "$f" || return 1
   [[ -z $(grep -v '^#' "$f" | awk '{print $1}' | sort | uniq -d) ]] || return 1
-  [[ -z $(ls -A "$OUT" | grep -vx 'aa_kata_gc.prom' || true) ]]
+  local entry
+  for entry in "$OUT"/* "$OUT"/.[!.]* "$OUT"/..?*; do
+    [[ -e $entry || -L $entry ]] || continue
+    [[ $entry == "$PROM" ]] || return 1
+  done
 }
 tree_of() { find "$SBS" "$SHARED" -mindepth 1 | sort | sed "s|$T||"; }
 
@@ -158,11 +162,17 @@ for f in kata-gc.sh install-kata-gc.sh tests/test-kata-gc.sh; do
   check "bash -n $f" bash -n "$here/../$f"
 done
 for f in kata-gc.sh install-kata-gc.sh kata-gc.service kata-gc.timer tests/test-kata-gc.sh; do
+  # Shell fragments below are interpreted by the child bash, not this test.
+  # shellcheck disable=SC2016
   check "$f has LF line endings" bash -c '! grep -q $'"'"'\r'"'"' "$1"' _ "$here/../$f"
 done
 check "service runs the installed script" grep -qx 'ExecStart=/usr/local/sbin/kata-gc.sh --yes' "$here/../kata-gc.service"
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 check "timer is hourly with a randomized delay" bash -c \
   'grep -qx "OnUnitActiveSec=1h" "$1" && grep -Eq "^RandomizedDelaySec=[0-9]+" "$1"' _ "$here/../kata-gc.timer"
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 check "script never uses pgrep, pkill or ps (process table comes from /proc)" bash -c \
   '! grep -Eq "^[^#]*(\b(pgrep|pkill)\b|(^|[;&|(])[[:space:]]*ps[[:space:]])" "$1"' _ "$gc" --yes
 
@@ -190,7 +200,7 @@ fake_proc 101 /opt/kata/libexec/virtiofsd "--shared-dir=$SHARED/$vmm/shared" --s
 fake_proc 102 bash -c "echo $decoy_bash"                      # mentions an id, is not a kata process
 fake_proc 103 /usr/bin/containerd-shim-runc-v2 -namespace k8s.io -id "$decoy_runc"
 fake_proc 4321 sleep 100
-printf '%s %s\n' "99 1 0:99 / $SHARED/$mounted/shared rw - tmpfs tmpfs rw" >>"$PROC/self/mountinfo"
+printf '%s\n' "99 1 0:99 / $SHARED/$mounted/shared rw - tmpfs tmpfs rw" >>"$PROC/self/mountinfo"
 printf '0000000000000000: 00000002 00000000 00010000 0001 01 777 %s/shim-monitor.sock\n' "$SBS/$live_sock" >>"$PROC/net/unix"
 printf '4321\n' >"$SBS/$live_pid/pid"
 printf '99999\n' >"$SBS/$dead_pid/pid"
@@ -210,12 +220,10 @@ before_tree=$(tree_of)
 
 run --dry-run
 eq "dry run exits 0" 0 "$RC"
-has "(dry run)" && ok "dry run says so" || bad "dry run says so"
-has "3 sandboxes known to containerd, 1 kata shim(s) running" && ok "inventory counts: 3 containerd, 1 shim" || bad "inventory counts ($OUTPUT)"
-has "sbs: live 5, would remove 5, kept by state 3, too young 2, mounted-kept 1, failed 0, other $other" \
-  && ok "dry-run sbs counts" || bad "dry-run sbs counts ($OUTPUT)"
-has "shared: live 5, would remove 5, kept by state 3, too young 2, mounted-kept 1, failed 0, other 0" \
-  && ok "dry-run shared counts" || bad "dry-run shared counts"
+if has "(dry run)"; then ok "dry run says so"; else bad "dry run says so"; fi
+if has "3 sandboxes known to containerd, 1 kata shim(s) running"; then ok "inventory counts: 3 containerd, 1 shim"; else bad "inventory counts ($OUTPUT)"; fi
+if has "sbs: live 5, would remove 5, kept by state 3, too young 2, mounted-kept 1, failed 0, other $other"; then ok "dry-run sbs counts"; else bad "dry-run sbs counts ($OUTPUT)"; fi
+if has "shared: live 5, would remove 5, kept by state 3, too young 2, mounted-kept 1, failed 0, other 0"; then ok "dry-run shared counts"; else bad "dry-run shared counts"; fi
 eq "dry run lists every dir it would remove" 10 "$(grep -c 'would remove /' <<<"$OUTPUT")"
 eq "dry run changed nothing on disk" "$before_tree" "$(tree_of)"
 check "dry run wrote no metrics" absent "$PROM"
@@ -223,13 +231,13 @@ check "dry run output has no secret" lacks "$SECRET"
 
 run
 eq "real run exits 0" 0 "$RC"
-has "sbs: live 5, removed 5, kept by state 3, too young 2, mounted-kept 1, failed 0, other $other" \
-  && ok "real-run sbs counts" || bad "real-run sbs counts ($OUTPUT)"
-has "shared: live 5, removed 5, kept by state 3, too young 2, mounted-kept 1, failed 0, other 0" \
-  && ok "real-run shared counts" || bad "real-run shared counts"
+if has "sbs: live 5, removed 5, kept by state 3, too young 2, mounted-kept 1, failed 0, other $other"; then ok "real-run sbs counts"; else bad "real-run sbs counts ($OUTPUT)"; fi
+if has "shared: live 5, removed 5, kept by state 3, too young 2, mounted-kept 1, failed 0, other 0"; then ok "real-run shared counts"; else bad "real-run shared counts"; fi
 check "run output has no secret" lacks "$SECRET"
 check "no 'would remove' lines outside dry run" lacks "would remove"
 for id in "$orphan" "$orphan_sbs" "$orphan_shared" "$dead_pid" "$decoy_bash" "$decoy_runc"; do
+  # Shell fragments below are interpreted by the child bash, not this test.
+  # shellcheck disable=SC2016
   check "orphan ${id:58} removed from both roots" bash -c '[[ ! -e $1/$3 && ! -e $2/$3 ]]' _ "$SBS" "$SHARED" "$id"
 done
 check "orphan with a stale socket and a dead pid file is gone" absent "$SBS/$dead_pid"
@@ -237,6 +245,8 @@ for pair in "crictl pod:$cri" "crictl container:$cri_ps" "ctr sandbox:$ctr_only"
             "VMM/virtiofsd:$vmm" "live socket:$live_sock" "live pid file:$live_pid" \
             "unreadable pid file:$garbage_pid" "young:$young" "mounted:$mounted" "half-young pair:$pair_young"; do
   desc=${pair%%:*} id=${pair#*:}
+  # Shell fragments below are interpreted by the child bash, not this test.
+  # shellcheck disable=SC2016
   check "kept ($desc): sbs and shared both intact" bash -c '[[ -d $1/$3 && -d $2/$3 ]]' _ "$SBS" "$SHARED" "$id"
 done
 check "kept: persist.json of a live sandbox untouched" test -f "$SBS/$cri/persist.json"
@@ -262,15 +272,21 @@ eq "exit code metric" 0 "$(mval last_exit_code)"
 eq "live shims metric" 1 "$(mval live_shims)"
 eq "known sandboxes metric" 3 "$(mval known_sandboxes)"
 ts=$(mval last_run_timestamp_seconds)
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 check "last-run timestamp is now" bash -c '(( $(date +%s) - $1 < 60 && $1 > 0 ))' _ "$ts"
 eq "removed_total sbs" 5 "$(mval removed_total ',root="sbs"')"
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 check "metric file is world-readable" bash -c '[[ $(stat -c %a "$1") == 644 ]]' _ "$PROM"
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 check "metrics hold no secret" bash -c '! grep -q "$1" "$2"' _ "$SECRET" "$PROM"
 
 echo "== second run: idempotent, counters cumulative"
 run
 eq "second run exits 0" 0 "$RC"
-has "sbs: live 5, removed 0, kept by state 3, too young 2" && ok "nothing left to remove" || bad "second-run counts ($OUTPUT)"
+if has "sbs: live 5, removed 0, kept by state 3, too young 2"; then ok "nothing left to remove"; else bad "second-run counts ($OUTPUT)"; fi
 eq "last_removed resets" 0 "$(mval last_removed ',root="sbs"')"
 eq "removed_total survives" 5 "$(mval removed_total ',root="sbs"')"
 new_orphan=$(sid 30); mk "$new_orphan"
@@ -311,6 +327,8 @@ for scenario in crictl_fails ctr_fails crictl_garbage empty_inventory mountinfo_
   esac
   run
   check "$scenario: exits non-zero" nonzero
+  # Shell fragments below are interpreted by the child bash, not this test.
+  # shellcheck disable=SC2016
   check "$scenario: orphan-looking dirs kept" bash -c '[[ -d $1/$3 && -d $2/$3 ]]' _ "$SBS" "$SHARED" "$victim"
   eq "$scenario: exit-code metric" 1 "$(mval last_exit_code)"
   eq "$scenario: inventory error metric" 1 "$(mval last_errors ',kind="inventory"')"
@@ -319,7 +337,7 @@ for scenario in crictl_fails ctr_fails crictl_garbage empty_inventory mountinfo_
 done
 reset; mk "$(sid 52)"
 run
-has "not trusting an empty inventory" && ok "empty inventory is named in the error" || bad "empty inventory message ($OUTPUT)"
+if has "not trusting an empty inventory"; then ok "empty inventory is named in the error"; else bad "empty inventory message ($OUTPUT)"; fi
 
 echo "== unsupported rs and unknown layouts refuse live and dead fixtures"
 for layout in rs unknown missing mixed; do
@@ -365,7 +383,7 @@ reset
 "$REAL_RM" -rf -- "$SBS" "$SHARED"
 run
 eq "missing roots: exit 0" 0 "$RC"
-has "absent, nothing to do" && ok "missing roots: says nothing to do" || bad "missing roots message ($OUTPUT)"
+if has "absent, nothing to do"; then ok "missing roots: says nothing to do"; else bad "missing roots message ($OUTPUT)"; fi
 eq "missing roots: metrics are zero" 0 "$(mval last_kept ',root="shared",reason="live"')"
 check "missing roots: metric file valid" valid_prom
 run --dry-run
@@ -379,7 +397,7 @@ run --dry-run extra;    eq "extra argument: exit 64" 64 "$RC"
 run --help;             eq "--help: exit 0" 0 "$RC"
 KATA_GC_MIN_AGE_SEC=abc run; check "non-numeric min age is refused" nonzero
 FAKE_UID=1000 run;      check "non-root is refused" nonzero
-has "run as root" && ok "...with a clear message" || bad "run-as-root message"
+if has "run as root"; then ok "...with a clear message"; else bad "run-as-root message"; fi
 eq "refused runs left the metrics alone" "$hash_before" "$(cat "$PROM")"
 check "refused runs removed nothing" test -d "$SBS/$(sid 72)"
 if [[ -n $REAL_FLOCK ]]; then
@@ -390,7 +408,7 @@ else
   FAKE_LOCK_HELD=1 run
 fi
 check "second instance while the lock is held: refused" nonzero
-has "another kata-gc run holds" && ok "...with a clear message" || bad "lock message ($OUTPUT)"
+if has "another kata-gc run holds"; then ok "...with a clear message"; else bad "lock message ($OUTPUT)"; fi
 eq "refused instance did not overwrite the metrics" "$hash_before" "$(cat "$PROM")"
 check "refused instance removed nothing" test -d "$SBS/$(sid 72)"
 KATA_GC_MIN_AGE_SEC=0 run

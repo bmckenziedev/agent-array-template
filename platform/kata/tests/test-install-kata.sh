@@ -30,10 +30,10 @@ printf 'imports = ["config-v3.toml.d/*.toml"]\n' >"$KATA_CONTAINERD_DIR/config.t
 
 make_bundle() {
   local runtime=$1 dest cfg shim digest
-  dest=$KATA_ROOT/4.2.0-$runtime
+  dest="${KATA_ROOT}/4.2.0-${runtime}"
   if [[ $runtime == rs ]]; then
     cfg=share/defaults/kata-containers/runtime-rs/configuration-clh-runtime-rs.toml
-    shim=runtime-rs/bin/containerd-shim-kata-v2
+    shim="runtime-rs/bin/containerd-shim-kata-v2"
     digest=b828904fa3f1e49ddd7dc799c72cb1503cd1e772d354c3987c8d4189b2a623a8
   else
     cfg=share/defaults/kata-containers/configuration-clh.toml
@@ -72,6 +72,8 @@ check 'runtime-rs shim path reaches the versioned rs tree' grep -Fq \
   "$KATA_ROOT/4.2.0-rs/runtime-rs/bin/containerd-shim-kata-v2" "$drop"
 check 'runtime-rs source config path is selected' grep -Fq 'configuration-clh-runtime-rs.toml' "$cfg"
 check 'runtime-rs keeps kubelet-accounted emptyDirs' grep -qx 'emptydir_mode = "shared-fs"' "$cfg"
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 check 'runtime-rs paths are versioned' bash -c '! grep -Eq "^[^#]*\"/opt/kata/" "$1"' _ "$cfg"
 check 'containerd forwards no annotations' grep -Fq 'pod_annotations = []' "$drop"
 
@@ -88,10 +90,14 @@ out=$(KATA_VERSION=4.2.0 KATA_RUNTIME=bogus bash "$installer" --yes 2>&1); rc=$?
 set -e
 check 'invalid runtime fails before touching the node' test "$rc" -ne 0
 check 'invalid runtime explains the accepted values' grep -Fq 'KATA_RUNTIME must be rs or go' <<<"$out"
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 check 'runtime-rs uses the kata-static bundle name' grep -Fq 'TARBALL="${BUNDLE}-${VERSION}-${KARCH}.tar.zst"' "$installer"
 check 'Go 4.x selects the kata-go-static bundle' grep -Fq 'BUNDLE=kata-go-static' "$installer"
 
 check 'installer parses' bash -n "$installer"
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 check 'installer has LF line endings' bash -c '! grep -q $'"'"'\r'"'"' "$1"' _ "$installer"
 if (( fail )); then printf 'FAIL: %d checks failed\n' "$fail" >&2; exit 1; fi
 printf 'PASS: 14 checks (4.2 bundles, runtime-rs and Go paths, configs, safety overrides, failure path)\n'

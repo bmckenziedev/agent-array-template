@@ -51,3 +51,12 @@ An organisation may instead use External Secrets with Vault or a cloud secret ma
 VERIFY provider authentication, least-privilege per-namespace policies, refresh behaviour and outage
 handling before adoption. Keep references in git and credential values in the external store;
 remove conflicting SealedSecrets before switching ownership of a native Secret.
+
+Chart 2.20.0's `templates/service.yaml` creates the main and metrics Services
+under the single `createController` gate; it has no independent metrics Service
+disable key. The separately named `sealed-secrets-platform-metrics` Service is
+owned by GitOps and exposes the chart Pod's `metrics` port (8081) in kube-system.
+The platform ServiceMonitor selects only `component=platform-metrics`, so the
+chart's `component=metrics` Service is not scraped a second time. Chart
+`metrics.serviceMonitor.enabled` remains false. The source contract is pinned at
+[chart 2.20.0 service template](https://github.com/bitnami-labs/sealed-secrets/blob/helm-v2.20.0/helm/sealed-secrets/templates/service.yaml).

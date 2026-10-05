@@ -344,21 +344,27 @@ class RepoTest(unittest.TestCase):
         users.write_text(users.read_text().replace('    oidc_sub: "00u1example0ana0000"',
             '    git: {credential_secret: forge-ana, provider: github, username: example-login}\n    oidc_sub: "00u1example0ana0000"'))
         write(self.root / "sessions/org.component.defaults.yaml", (REPO / "sessions/org.component.defaults.yaml").read_text())
+        write(self.root / "services/supervisor/org.component.defaults.yaml",
+              (REPO / "services/supervisor/org.component.defaults.yaml").read_text())
         normalized = model.load_model(self.root, self.org)
         user = next(u for u in normalized["users"] if u["slug"] == "ana")
         self.assertEqual(user["git"]["credential_secret"], "forge-ana")
         entity = next(u for u in normalized["entities"]["user_tool"] if u["ENTITY_ID"] == "ana/claude")
         import yaml
-        text = subst((REPO / "sessions/claude/k8s/statefulset.per-user-tool.tmpl.yaml").read_text(),
-                     dict(normalized["keys"], **entity), "session")
-        pod = yaml.safe_load(text)["spec"]["template"]["spec"]
-        volume = next(v for v in pod["volumes"] if v["name"] == "git-credential")
-        self.assertEqual(volume["secret"]["secretName"], "forge-ana")
-        for container in pod["containers"]:
-            mounts = [m for m in container.get("volumeMounts", []) if m["name"] == "git-credential"]
-            self.assertEqual(bool(mounts), container["name"] == "claude")
-            if mounts:
-                self.assertTrue(mounts[0]["readOnly"])
+        paths = sorted((REPO / "sessions/claude").rglob("statefulset.per-user-tool.tmpl.yaml"))
+        self.assertTrue(paths, "Claude session variants must exist")
+        for path in paths:
+            with self.subTest(variant=path.relative_to(REPO)):
+                text = subst(path.read_text(), dict(normalized["keys"], **entity), "session")
+                pod = yaml.safe_load(text)["spec"]["template"]["spec"]
+                volume = next(v for v in pod["volumes"] if v["name"] == "git-credential")
+                self.assertEqual(volume["secret"]["secretName"], "forge-ana")
+                for container in pod["containers"]:
+                    mounts = [m for m in container.get("volumeMounts", []) if m["name"] == "git-credential"]
+                    self.assertEqual(bool(mounts), container["name"] == "claude")
+                    if mounts:
+                        self.assertTrue(mounts[0]["readOnly"])
+
 
 
 class ParserTests(unittest.TestCase):

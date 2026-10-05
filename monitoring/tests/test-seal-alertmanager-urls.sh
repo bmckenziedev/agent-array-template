@@ -30,7 +30,7 @@ printf 'synthetic public certificate\n' >"$work/cert"
 export PATH="$work/bin:$PATH"
 printf 'synthetic receiver value\n' | bash "$HERE/../alertmanager/seal-alertmanager-urls.sh" example-monitoring team-receiver url "$work/cert" "$work/output" >"$work/log" 2>&1
 [[ -s $work/output ]]
-! grep -q 'synthetic receiver value' "$work/output" "$work/log" "$work/kubectl.argv"
+if grep -q 'synthetic receiver value' "$work/output" "$work/log" "$work/kubectl.argv"; then exit 1; fi
 rm "$work/output"
 if printf 'synthetic receiver value\n' | SEAL_TEST_FAIL=1 bash "$HERE/../alertmanager/seal-alertmanager-urls.sh" example-monitoring team-receiver url "$work/cert" "$work/output" >/dev/null 2>&1; then exit 1; fi
 [[ ! -e $work/output ]]

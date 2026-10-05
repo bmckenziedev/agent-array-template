@@ -14,6 +14,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      PUBLISH_IMAGES: ${{ vars.PUBLISH_IMAGES == 'true' && vars.REGISTRY != '' && vars.IMAGE_PREFIX != '' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') }}
     strategy:
       fail-fast: false
       matrix:
@@ -53,21 +55,24 @@ jobs:
       - uses: docker/setup-buildx-action@v3
         if: steps.present.outputs.exists == 'true'
       - uses: docker/login-action@v3
-        if: steps.present.outputs.exists == 'true' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+        if: steps.present.outputs.exists == 'true' && env.PUBLISH_IMAGES == 'true'
         with:
           registry: ${{ vars.REGISTRY || 'ghcr.io' }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Explain publishing configuration
+        if: env.PUBLISH_IMAGES != 'true'
+        run: echo 'SKIP publishing - set PUBLISH_IMAGES=true, REGISTRY and IMAGE_PREFIX repository variables after granting registry access. All present Dockerfiles still build.'
       - id: build
         uses: docker/build-push-action@v6
         if: steps.present.outputs.exists == 'true'
         with:
           context: .
           file: ${{ matrix.file }}
-          push: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
+          push: ${{ env.PUBLISH_IMAGES == 'true' }}
           tags: ${{ vars.REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/${{ vars.IMAGE_PREFIX || 'agent-array' }}-${{ matrix.name }}:sha-${{ github.sha }}
       - name: Record digest
-        if: steps.present.outputs.exists == 'true' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+        if: steps.present.outputs.exists == 'true' && env.PUBLISH_IMAGES == 'true'
         env:
           NAME: ${{ matrix.name }}
           IMAGE: ${{ vars.REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/${{ vars.IMAGE_PREFIX || 'agent-array' }}-${{ matrix.name }}
@@ -79,13 +84,13 @@ jobs:
           mkdir -p digests
           printf '  %s: {tag: "sha-%s", digest: "%s"}\n' "$NAME" "$COMMIT" "$DIGEST" > "digests/$NAME.yaml"
       - uses: actions/upload-artifact@v4
-        if: steps.present.outputs.exists == 'true' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+        if: steps.present.outputs.exists == 'true' && env.PUBLISH_IMAGES == 'true'
         with:
           name: digest-${{ matrix.name }}
           path: digests/*.yaml
   digests:
     needs: build
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    if: vars.PUBLISH_IMAGES == 'true' && vars.REGISTRY != '' && vars.IMAGE_PREFIX != '' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

@@ -15,10 +15,14 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 # the venv and the bundle, in node RAM (medium: Memory) -- until the Job's
 # ttlSecondsAfterFinished GC deletes it; the bundle already lives on the panel.
 # Contents only (the mounts stay), never "/", and only files we own.
+# ShellCheck does not follow this EXIT trap callback; cleanup must run on every exit.
+# shellcheck disable=SC2317
 wipe() {
   local d
   for d in "$WORKSPACE" "$HOME" "${TMPDIR:-/tmp}"; do
-    [ -n "$d" ] && [ "$d" != "/" ] && [ -d "$d" ] || continue
+    if [ -z "$d" ] || [ "$d" = "/" ] || [ ! -d "$d" ]; then
+      continue
+    fi
     find "$d" -mindepth 1 -maxdepth 1 -user "$(id -u)" -exec rm -rf -- {} + 2>/dev/null || true
   done
 }

@@ -19,11 +19,19 @@ make_stub() {
   chmod +x "$stub_dir/$name"
 }
 
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 make_stub id 'echo "${FAKE_UID:-0}"'
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 make_stub findmnt 'echo "${FAKE_ROOT:-/dev/mapper/ubuntu--vg-ubuntu--lv ext4}"'
 make_stub lvs 'if [[ "$*" == *"vg_name,lv_name"* ]]; then echo " ubuntu-vg ubuntu-lv"; else echo "LVS $*"; fi'
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 make_stub vgs 'if [[ "$*" == *"vg_free"* ]]; then echo "${FAKE_FREE:-107374182400}"; else echo "VGS $*"; fi'
 make_stub df 'echo "DF $*"'
+# Shell fragments below are interpreted by the child bash, not this test.
+# shellcheck disable=SC2016
 make_stub lvextend 'printf "%s\n" "$*" >>"$CALL_LOG"'
 
 run() {

@@ -18,6 +18,10 @@ No API-server OIDC client secret is required for ID-token validation. Bootstrap 
 
 ## Deploy
 
+`rendered/files/cluster/oidc/kubeconfig-oidc.yaml` is a client configuration of
+kind `Config`, consumed by `kubectl --kubeconfig` and `aa login`. It is not a
+Kubernetes API resource and must remain outside GitOps manifest directories.
+
 Render, register the provider client/scopes, install server configuration, test a non-admin OIDC login and group bindings, then escrow bootstrap credentials. No static admin kubeconfigs on laptops.
 
 ## Verify

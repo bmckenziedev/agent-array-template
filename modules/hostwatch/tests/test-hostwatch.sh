@@ -140,7 +140,7 @@ run_collect() {
     HOSTWATCH_TEXTFILE_DIR="$C/out" HOSTWATCH_STATE_DIR="$C/state" HOSTWATCH_ROOT="$C/root" \
     HOSTWATCH_PROC_ROOT="$C/proc" HOSTWATCH_SYS_ROOT="$C/sys" HOSTWATCH_K3S_ROOT="$C/k3s" \
     HOSTWATCH_KUBECONFIG="$C/kubeconfig" HOSTWATCH_APT_CHECK="${APT_CHECK_PATH:-$B/apt-check}" \
-    HOSTWATCH_NOW="${NOW:-1700000000}" "$@" "$BASH" "$COLLECT"
+    HOSTWATCH_NOW="${NOW:-1700000000}" "$BASH" "$COLLECT"
 }
 
 PROM() { printf '%s' "$C/out/aa_hostwatch.prom"; }
@@ -149,7 +149,7 @@ lacks() { if grep -Fq -- "$1" "$(PROM)"; then fail "unexpected: $1"; else ok; fi
 count() { local n; n="$(grep -c -- "$1" "$(PROM)" || true)"; if [[ $n == "$2" ]]; then ok; else fail "expected $2 lines matching '$1', got $n"; fi; }
 valid() { if validate "$(PROM)"; then ok; else fail "exposition invalid"; fi; }
 ts()   { date -u -d "$1" +%s; }
-run_ok() { if run_collect "$@" >"$C/stdout" 2>"$C/stderr"; then ok; else fail "collector exited non-zero: $(cat "$C/stderr")"; fi; }
+run_ok() { if run_collect >"$C/stdout" 2>"$C/stderr"; then ok; else fail "collector exited non-zero: $(cat "$C/stderr")"; fi; }
 no_leak() {
   if grep -rq 'CERT-CONTENT-MUST-NOT-LEAK' "$C/out" "$C/stdout" "$C/stderr" "$C/state" 2>/dev/null; then fail "certificate content leaked"; else ok; fi
 }
@@ -413,7 +413,7 @@ bad_cases=(
   'counter|# HELP a x\n# TYPE a counter\na 1\n'
 )
 for entry in "${bad_cases[@]}"; do
-  printf "${entry#*|}" >"$C/out/aa_hostwatch.prom"
+  printf '%b' "${entry#*|}" >"$C/out/aa_hostwatch.prom"
   if validate "$(PROM)" 2>/dev/null; then fail "validator accepted broken exposition '${entry%%|*}'"; else ok; fi
 done
 printf '# HELP a_total x\n# TYPE a_total counter\na_total{k="1"} 1\n' >"$C/out/aa_hostwatch.prom"

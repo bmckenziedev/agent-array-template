@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: '{{PROJECT_NAME}}-85-backup-policy'
+  namespace: '{{NS_ARGOCD}}'
+  labels:
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: cluster
+spec:
+  project: platform-infra
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: '{{PROJECT_NAME}}-velero'
+  source:
+    repoURL: '{{ORG_GIT_REMOTE}}'
+    targetRevision: '{{GIT_REVISION}}'
+    path: rendered/global/ops/velero/k8s
+    directory:
+      recurse: true
+      include: '*.yaml'
+  syncPolicy:
+    syncOptions:
+      - FailOnSharedResource=true
+      - PruneLast=true

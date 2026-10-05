@@ -75,5 +75,19 @@ class Audit(unittest.TestCase):
         self.assertFalse(matches(ticket,{'stage':'ResponseComplete'}))
 
 
+    def test_vap_audit_and_breakglass_connect(self):
+        root = rendered_rules()
+        rule = root.find("rule[@id='100812']")
+        field = 'annotations.validation.policy.admission.k8s.io/validation_failure'
+        for stage in ['ResponseStarted', 'ResponseComplete']:
+            self.assertTrue(matches(rule, {field: '[{"validationActions":["Audit"]}]', 'stage': stage}))
+        self.assertFalse(matches(rule, {'stage': 'ResponseComplete'}))
+        connect = root.find("rule[@id='100813']")
+        for sub in ['exec', 'attach', 'portforward']:
+            self.assertTrue(matches(connect, {'objectRef.resource': 'pods', 'objectRef.subresource': sub, 'stage': 'ResponseStarted'}))
+        self.assertFalse(matches(connect, {'objectRef.resource': 'pods', 'objectRef.subresource': 'log', 'stage': 'ResponseComplete'}))
+        self.assertEqual(connect.findtext('if_sid'), '100810')
+
+
 if __name__ == '__main__':
     unittest.main()

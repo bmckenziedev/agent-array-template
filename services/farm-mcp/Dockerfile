@@ -1,4 +1,4 @@
-ARG PYTHON_IMAGE
+ARG PYTHON_IMAGE=python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
 FROM ${PYTHON_IMAGE}
 WORKDIR /opt/agent-array
 COPY mcp/servers/_template/aa_mcp.py mcp/servers/_template/aa_mcp.py

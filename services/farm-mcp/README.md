@@ -47,7 +47,7 @@ in-cluster API token. The scale RoleBinding is generated per non-offboarded user
 
 ## Secrets
 
-See [secrets.required.yaml](secrets.required.yaml). Secret `litellm-mint`, key `key`, is mounted
+See [secrets.required.yaml](secrets.required.yaml). Secret `litellm-mint`, key `LITELLM_MINT_KEY`, is mounted
 by name in the system namespace. It permits only `/key/generate`, `/key/delete`, `/key/info`.
 No LiteLLM master key is read. Provider credentials stay in the LLM namespace. Call keys are
 short-lived and removed after use; cleanup failure returns a sanitized error and expiry remains

@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 
 import yaml
+from rendered_assets import is_non_manifest
 
 CLUSTER_KINDS = {"Namespace", "ClusterRole", "ClusterRoleBinding", "StorageClass",
                  "RuntimeClass", "PriorityClass", "CustomResourceDefinition",
@@ -22,10 +23,13 @@ DOCKERFILES = ("sessions/claude/image/Dockerfile", "sessions/codex/image/Dockerf
 
 def documents(tree):
     result = []
-    for path in sorted(tree.rglob("*.yaml")):
+    for path in sorted(p for p in tree.rglob("*") if p.suffix in {".yaml", ".yml"}):
         for doc in yaml.safe_load_all(path.read_text(encoding="utf-8")):
+            relative = path.relative_to(tree).as_posix()
+            if is_non_manifest(relative, doc):
+                continue
             if isinstance(doc, dict) and "apiVersion" in doc and "kind" in doc:
-                result.append((path.relative_to(tree).as_posix(), doc))
+                result.append((relative, doc))
     return result
 
 

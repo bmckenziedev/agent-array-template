@@ -31,6 +31,19 @@ class NodeContractTests(unittest.TestCase):
         self.assertIn('example.org/gpu=true:NoSchedule', commands[1])
         self.assertFalse(any(arg.endswith('-') for cmd in commands for arg in cmd))
 
+    def test_kubeconfig_is_native_client_configuration(self):
+        import yaml
+        model = json.loads((ROOT / 'tests/fixtures/org.fixture.json').read_text())
+        import re
+        text = (ROOT / 'oidc/kubeconfig-oidc.tmpl.yaml').read_text()
+        text = re.sub(r"\{\{([A-Z][A-Z0-9_]*)\}\}", lambda m: model['keys'][m[1]], text)
+        config = yaml.safe_load(text)
+        self.assertEqual(config['kind'], 'Config')
+        self.assertEqual(config['apiVersion'], 'v1')
+        self.assertNotIn('metadata', config)
+        self.assertEqual(config['users'][0]['user']['exec']['command'], 'kubectl')
+        self.assertEqual(config['clusters'][0]['cluster']['server'], model['keys']['APISERVER_URL'])
+
     def test_invalid_node_refused(self):
         self.data['node'] = '--all'
         with self.assertRaises(ValueError):
@@ -72,6 +85,10 @@ class NodeContractTests(unittest.TestCase):
         output = {}
         load(ROOT / 'render_plugin.py').render(model, output.__setitem__)
         cm = json.loads(output['global/cluster/k8s/login-storage/config.yaml'])
+        self.assertEqual(model['keys']['PROJECT_NAME'] + '-login-storage', cm['metadata']['namespace'])
+        policy = json.loads(output['global/cluster/k8s/login-storage/api-egress.yaml'])
+        self.assertEqual(cm['metadata']['namespace'], policy['metadata']['namespace'])
+        self.assertNotEqual(model['keys']['NS_SYSTEM'], cm['metadata']['namespace'])
         paths = json.loads(cm['data']['config.json'])['nodePathMap']
         self.assertEqual(paths[0]['paths'], [])
         self.assertNotIn('gpu-a', [node['node'] for node in paths])

@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 rendered=${1:?Usage: promtool_tests.sh RENDERED}
+org=${2:-org/org.yaml}
+[[ -f "$org" ]] || org=org/org.example.yaml
 promtool=${PROMTOOL:-promtool}
 command -v "$promtool" >/dev/null || { echo "SKIP: promtool absent"; exit 0; }
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-python - "$rendered" "$tmp" "$promtool" <<'PY'
+python - "$rendered" "$tmp" "$promtool" "$org" <<'PY'
 import pathlib, subprocess, sys, yaml
 rendered, temporary = map(pathlib.Path, sys.argv[1:3])
 promtool = sys.argv[3]
+sys.path.insert(0, str(pathlib.Path('tools/render').resolve()))
+from aa_render.model import load_model
+from aa_render.templates import subst
+model = load_model(pathlib.Path('.').resolve(), pathlib.Path(sys.argv[4]).resolve(), False)
 rules = {}
 for file in sorted((rendered / 'files').rglob('*.yaml')):
     if file.parent.name != 'rules':
@@ -25,7 +31,8 @@ for file in sorted((rendered / 'files').rglob('*.yaml')):
 for index, test in enumerate(sorted(pathlib.Path('.').rglob('*.test.yaml'))):
     if test.parent.name != 'tests' or any(part in {'.git', 'rendered', '.ci-venvs'} for part in test.parts):
         continue
-    doc = yaml.safe_load(test.read_text(encoding='utf-8'))
+    # Test expressions use the same configured metrics/thresholds as rule producers.
+    doc = yaml.safe_load(subst(test.read_text(encoding='utf-8'), model['keys']))
     resolved = []
     for reference in doc.get('rule_files', []):
         name = pathlib.Path(reference).name

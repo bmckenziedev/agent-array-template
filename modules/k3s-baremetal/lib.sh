@@ -6,7 +6,11 @@ load_env() {
   [[ $# -ge 2 ]] || die 'usage: script cluster.env node.env [--yes]'
   [[ -r $1 && -r $2 ]] || die 'missing env file'
   # Environment files are trusted executable input, reviewed before staging.
+  # Trusted adoption env input has no static source path.
+  # shellcheck source=/dev/null
   source "$1"
+  # Trusted adoption env input has no static source path.
+  # shellcheck source=/dev/null
   source "$2"
   shift 2
   if [[ $# != 0 ]]; then

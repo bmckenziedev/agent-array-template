@@ -39,7 +39,7 @@ GOOD = [
     ev("delete", "configmaps", "Metadata"),
     ev("create", "roles", "Request", group="rbac.authorization.k8s.io", req=True),
     ev("delete", "roles", "Request", group="rbac.authorization.k8s.io", req=True),
-    ev("create", "pods", "Request", sub="exec"),
+    ev("create", "pods", "Metadata", sub="exec"),
     ev("list", "secrets", "Metadata", name=""),
 ]
 
@@ -73,6 +73,11 @@ class ProbeTests(unittest.TestCase):
         bad = [ev("create", "configmaps", "Request", req=True)] + GOOD[1:]
         rc, out = run(bad)
         self.assertEqual(rc, 1, out)
+
+    def test_connect_body_is_refused(self):
+        bad = [event for event in GOOD if event['objectRef'].get('subresource') != 'exec']
+        bad.append(ev('create', 'pods', 'Metadata', sub='exec', req=True))
+        self.assertEqual(run(bad)[0], 1)
 
     def test_missing_exec_event_fails(self):
         rc, out = run([e for e in GOOD if e["objectRef"].get("subresource") != "exec"])

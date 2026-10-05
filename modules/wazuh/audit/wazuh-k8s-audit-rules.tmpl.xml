@@ -88,4 +88,19 @@
     <description>Break-glass ticket attached to API access by $(user.username)</description>
     <group>breakglass,</group>
   </rule>
+  <rule id="100812" level="12">
+    <if_sid>100800</if_sid>
+    <field name="annotations.validation.policy.admission.k8s.io/validation_failure" type="pcre2">.+</field>
+    <field name="stage" type="pcre2">^(ResponseStarted|ResponseComplete)$</field>
+    <description>ValidatingAdmissionPolicy Audit validation failure by $(user.username)</description>
+    <group>k8s_admission_audit,</group>
+  </rule>
+  <rule id="100813" level="14">
+    <if_sid>100810</if_sid>
+    <field name="objectRef.resource" type="pcre2">^pods$</field>
+    <field name="objectRef.subresource" type="pcre2">^(exec|attach|portforward)$</field>
+    <field name="stage" type="pcre2">^(ResponseStarted|ResponseComplete)$</field>
+    <description>Break-glass CONNECT access by $(user.username)</description>
+    <group>breakglass_connect,</group>
+  </rule>
 </group>
