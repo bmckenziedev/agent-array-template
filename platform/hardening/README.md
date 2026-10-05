@@ -64,7 +64,7 @@ Every optional CEL field is guarded with has(). Missing initContainers, ports, s
 
 The export includes no ARC service accounts. Audit attribution, Metadata-level secret/configmap events and SIEM enrichment for per-user namespaces (inventory D04) are responsibilities of the ops audit task. Runtime isolation, admission, network policy and host controls are complementary; IdP/MFA, image signing/SBOM, classification, incident response and SIEM retention remain organisation controls.
 
-Kube-system enforces privileged PSA because k3s local-path helper pods and klipper svclb need host access. Warn/audit remain baseline; the host-access admission policy is the compensating control. Keep API endpoint IPs current. Disabling k3s network policy leaves stale iptables rules; kube-router does not protect the pod startup default-deny window (k3s issue 14711). Cilium uses toEntities kube-apiserver; Calico iptables requires post-DNAT endpoint addresses.
+Kube-system enforces privileged PSA because k3s local-path helper pods and klipper svclb need host access. Warn/audit remain baseline. A verified kube-system host-access admission policy is required as the compensating control; the existing monitoring-scoped guard does not provide that protection. Deployment remains blocked until the platform owner supplies and tests it. Keep API endpoint IPs current. Disabling k3s network policy leaves stale iptables rules; kube-router does not protect the pod startup default-deny window (k3s issue 14711). Cilium uses toEntities kube-apiserver; Calico iptables requires post-DNAT endpoint addresses.
 
 API endpoint rules match post-DNAT kube-router/Calico iptables traffic; the Service-IP
 rule is harmless there and portable to pre-DNAT implementations. Cilium adds

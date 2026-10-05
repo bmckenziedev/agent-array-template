@@ -39,7 +39,7 @@ services/supervisor is absent. The existing .git directory was left untouched.
 | Example render / all-module render | Blocked by defaults line 6 |
 | Placeholder lint | Same blocker |
 | Production rendered contracts / schema / CEL | Blocked because neither render exists |
-| Diagnostic all-module CEL | Passed before final template refresh; rerun recorded below |
+| Diagnostic all-module CEL | 0 fail after final template refresh (temporary diagnostic copy only) |
 | promtool | Absent; explicit tool skip, not passing rule evidence |
 | Linkcheck | 0 fail |
 | Sanitization | 0 fail; dated synthetic fixture warnings remain |
@@ -181,3 +181,9 @@ need owner verification. Current supervisor amendments override the older shared
 Optional git identity validates named Secret/provider/username, normalises into users.json
 and all fixture copies, mounts only into the CLI, and uses an HTTPS-host-confined helper.
 Coverage additions are recorded in architecture, multi-user, context and AGENTS docs.
+
+Focused reruns after the complete suite: sessions 55, renderer 99, MCP 15, Argo 9, CI 19, panel 22, hardening 17 and LiteLLM 21 tests passed. Argo has one explicit kubeconform-unavailable skip. Diagnostic deterministic rerender and placeholder lint exited 0; the diagnostic contract checker retained 21 owner-dependent errors. These results do not replace the blocked production-tree renders.
+
+The kube-system privileged PSA change requires a platform-owner host-access compensating policy and live positive/negative verification before deployment.
+
+Final checks: linkcheck 0 fail; repository sanitizer 0 fail (19 synthetic-date warnings); CODEX sanitize_selfcheck over the entire tree, including every touched file, 0 fail (53 warnings). Temporary render directories and generated dependency/cache directories were removed. The .git directory remains untouched.

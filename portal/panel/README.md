@@ -24,7 +24,7 @@ Team `litellm.task_budget_usd` sets each mode's budget; models intersect team, a
 `ACCESS_KIND=oidc-proxy` validates bearer ID/access tokens or the proxy's forwarded signed token against
 `OIDC_ISSUER_URL` and `OIDC_CLIENT_ID`. Discovery validates the issuer and obtains HTTPS JWKS.
 `cloudflare-access` validates `Cf-Access-Jwt-Assertion` against `CF_ACCESS_TEAM` and the `CF_ACCESS_AUD` Secret value.
-Both modes require a stable `sub` that matches `users.json`; Cloudflare subject mapping must be provisioned in the directory.
+OIDC mode maps `sub` to the directory. Cloudflare Access mode maps the verified `email` claim to `users.json`; unknown or ambiguous identities fail closed.
 JWKS cache lifetime is one hour; unknown kids trigger a refresh no more often than every ten seconds.
 A freshly rotated key may be refused during that short refresh interval. Stale keys expire even if refresh fails.
 `OIDC_GROUPS_CLAIM`, `GROUP_PLATFORM_ADMIN` and `GROUP_AUDITOR` configure claims and privileged groups.

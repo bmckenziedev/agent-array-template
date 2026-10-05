@@ -17,6 +17,7 @@ class BridgeTests(unittest.TestCase):
         bridge = importlib.util.module_from_spec(spec)
         loader.exec_module(bridge)
         seen = []
+        protocols = []
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args):
@@ -25,11 +26,15 @@ class BridgeTests(unittest.TestCase):
             def do_POST(self):
                 request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 seen.append((self.headers["Authorization"], self.headers.get("Mcp-Session-Id")))
+                protocols.append(self.headers.get("MCP-Protocol-Version"))
                 self.send_response(200)
-                self.send_header("Content-Type", "application/json")
+                streaming = request.get("method") == "initialize"
+                self.send_header("Content-Type", "text/event-stream" if streaming else "application/json")
                 self.send_header("Mcp-Session-Id", "test-session")
                 self.end_headers()
-                self.wfile.write(json.dumps({"jsonrpc": "2.0", "id": request["id"], "result": {}}).encode())
+                result = {"jsonrpc": "2.0", "id": request["id"], "result": {"protocolVersion": "2025-06-18"} if streaming else {}}
+                body = json.dumps(result)
+                self.wfile.write(("data: " + body + "\n\n" if streaming else body).encode())
 
         with tempfile.TemporaryDirectory() as temporary:
             token = Path(temporary) / "token"
@@ -42,6 +47,10 @@ class BridgeTests(unittest.TestCase):
                         token.write_text(f"synthetic-{i}")
                         self.assertEqual(client.request({"jsonrpc": "2.0", "id": i, "method": "tools/list"})[0]["id"], i)
                     self.assertEqual(seen, [("Bearer synthetic-0", None), ("Bearer synthetic-1", "test-session")])
+                    client.request({"jsonrpc": "2.0", "id": 5, "method": "initialize"})
+                    self.assertEqual(client.protocol, "2025-06-18")
+                    client.request({"jsonrpc": "2.0", "id": 6, "method": "tools/list"})
+                    self.assertEqual(protocols[-1], "2025-06-18")
                     with self.assertRaises(ValueError):
                         client.request({"jsonrpc": "2.0", "id": 3, "params": "x" * bridge.LIMIT})
                 finally:

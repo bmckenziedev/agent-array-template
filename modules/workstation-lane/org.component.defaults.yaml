@@ -3,6 +3,6 @@ name: workstation-lane
 defaults:
   enabled: false
   window_start: '19:00'
-  window_stop: 08:00
+  window_stop: '08:00'
   timezone: UTC
   drain_minutes: 15

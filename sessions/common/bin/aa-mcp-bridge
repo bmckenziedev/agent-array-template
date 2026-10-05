@@ -26,11 +26,18 @@ class Bridge:
         self.protocol = "2025-03-26"
         self.opener = urllib.request.build_opener(NoRedirect())
 
+    def negotiated(self, message, result):
+        if message.get("method") == "initialize" and isinstance(result, dict):
+            protocol = result.get("result", {}).get("protocolVersion", self.protocol)
+            if not isinstance(protocol, str) or len(protocol) > 128 or any(c.isspace() for c in protocol):
+                raise ValueError("invalid protocol version")
+            self.protocol = protocol
+
     def request(self, message):
         token = self.token_file.read_text(encoding="utf-8").strip()
         if not token or len(token) > 16384 or any(c.isspace() for c in token):
             raise ValueError("pod token unavailable")
-        body = json.dumps(message, separators=(",", ":")).encode()
+        body = json.dumps(message, separators=(",", ":"), allow_nan=False).encode()
         if len(body) > LIMIT:
             raise ValueError("request too large")
         headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json",
@@ -61,6 +68,7 @@ class Bridge:
                         data.append(text[5:].lstrip())
                     elif not text and data:
                         result = json.loads("\n".join(data))
+                        self.negotiated(message, result)
                         messages.append(result)
                         data = []
                         if "id" in message and result.get("id") == message["id"]:
@@ -70,8 +78,7 @@ class Bridge:
             if len(raw) > LIMIT:
                 raise ValueError("response too large")
             result = json.loads(raw) if raw else None
-            if message.get("method") == "initialize" and isinstance(result, dict):
-                self.protocol = result.get("result", {}).get("protocolVersion", self.protocol)
+            self.negotiated(message, result)
             return [result] if result is not None else []
 
 
