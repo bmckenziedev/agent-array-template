@@ -123,11 +123,11 @@ data:
 
     set -eu
 
-    mkdir -p "$VOL_DIR"
+    mkdir -p "$VOL_DIR" "$VOL_DIR/projects" "$VOL_DIR/sessions"
 
-    chmod 0700 "$VOL_DIR"
+    chmod 0700 "$VOL_DIR" "$VOL_DIR/projects" "$VOL_DIR/sessions"
 
-    chown 1000:1000 "$VOL_DIR"
+    chown 1000:1000 "$VOL_DIR" "$VOL_DIR/projects" "$VOL_DIR/sessions"
 
     '
   teardown: '#!/bin/sh
@@ -139,16 +139,14 @@ data:
     exit 1
 
     '
-  helperPod.yaml: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: login-storage-helper\n\
-    \  labels:\n    app.kubernetes.io/name: login-local-path\nspec:\n  nodeSelector:\n\
-    \    '{{LABEL_PREFIX}}/role-sessions': 'true'\n  securityContext:\n    runAsUser:\
-    \ 0\n    seccompProfile:\n      type: RuntimeDefault\n  containers:\n  - name:\
-    \ helper-pod\n    image: busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662\n\
-    \    securityContext:\n      allowPrivilegeEscalation: false\n      readOnlyRootFilesystem:\
-    \ true\n      capabilities:\n        drop:\n        - ALL\n        add:\n    \
-    \    - CHOWN\n        - DAC_OVERRIDE\n        - FOWNER\n    resources:\n     \
-    \ requests:\n        cpu: 10m\n        memory: 16Mi\n      limits:\n        cpu:\
-    \ 100m\n        memory: 64Mi\n  automountServiceAccountToken: false\n"
+  helperPod.yaml: "apiVersion: v1\nkind: Pod\nmetadata:\n  name: login-storage-helper\n  labels:\n    app.kubernetes.io/name:\
+    \ login-local-path\nspec:\n  nodeSelector:\n    '{{LABEL_PREFIX}}/role-sessions': 'true'\n  securityContext:\n\
+    \    runAsUser: 0\n    seccompProfile:\n      type: RuntimeDefault\n  containers:\n  - name: helper-pod\n\
+    \    image: busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662\n  \
+    \  securityContext:\n      allowPrivilegeEscalation: false\n      readOnlyRootFilesystem: true\n      capabilities:\n\
+    \        drop:\n        - ALL\n        add:\n        - CHOWN\n        - DAC_OVERRIDE\n        - FOWNER\n\
+    \    resources:\n      requests:\n        cpu: 10m\n        memory: 16Mi\n      limits:\n        cpu: 100m\n\
+    \        memory: 64Mi\n  automountServiceAccountToken: false\n"
 ---
 apiVersion: apps/v1
 kind: Deployment

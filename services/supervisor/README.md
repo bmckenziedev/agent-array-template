@@ -56,11 +56,11 @@ The private atomic state journal retains spawned handles, lease IDs and sequence
 
 ## Secrets
 
-No Secret reaches a supervised session pod. Audience-specific projected tokens authenticate pace, the connector and hook relays. No upstream credential belongs to a notifier. Login claim roots and home are absent from the sidecar; only read-only transcript subPaths are mounted.
+No console or notifier Secret reaches a supervised session pod. An optional registry-named forge Secret is a CLI-only exception; it is never mounted into the supervisor. Audience-specific projected tokens authenticate pace, the connector and hook relays. No upstream credential belongs to a notifier. Login claim roots and home are absent from the sidecar; only read-only transcript subPaths are mounted.
 
 ## Deploy
 
-Render organisation configuration and review the selected StatefulSets and per-user ConfigMaps before GitOps sync. Start the connector disabled. Login provisioning must pre-create projects/sessions directories with CLI ownership. Integration Part B must extend admission, managed MCP and image CI before deployment.
+Render organisation configuration and review the selected StatefulSets and per-user ConfigMaps before GitOps sync. Start the connector disabled. Login provisioning must pre-create projects/sessions directories with CLI ownership. Admission, managed aa-permission MCP configuration and supervisor image CI are integrated. Tier quotas include sidecar resources and login provisioning creates both transcript subdirectories; deployment VERIFY gates remain open.
 
 Launch is blocked by committed [verified.json](aa_supervisor/verified.json) and the runner's build-time VERIFIED table until pinned CLI/tmux evidence exists. These are reviewed artifact gates, never runtime bypass flags. A platform admin records evidence, updates both gates and rebuilds the images. Permission routing additionally requires the managed aa-permission MCP server and confirmed response shape. Unsupported routing falls back to the team's managed permission mode.
 
@@ -76,7 +76,7 @@ Disable components.supervisor.enabled and render again to select plain StatefulS
 
 ## Security notes
 
-Holder-only spawn, separate PID namespaces, transcript-only mounts, dedicated Memory tmux volume, private control mount, drop ALL, read-only root, no Secret and no listeners are mandatory. Shared files require O_NOFOLLOW and type checks. The sidecar never signals a PID, types into a shell, uses pipe-pane or runs caller shell commands. Every outgoing byte uses Egress, including replies, frames, hooks, plugins, audit and private state files. Prompts and tool payloads never enter audit detail.
+Holder-only spawn, separate PID namespaces, transcript-only mounts, dedicated Memory tmux volume, private control mount, drop ALL, read-only root, no supervisor credential mount and no listeners are mandatory. Shared files require O_NOFOLLOW and type checks. The sidecar never signals a PID, types into a shell, uses pipe-pane or runs caller shell commands. Every outgoing byte uses Egress, including replies, frames, hooks, plugins, audit and private state files. Prompts and tool payloads never enter audit detail.
 
 Redaction prefix table: sk-/sk-ant-/sk-proj-, gh[pousr]_/github_pat_, glpat-, xox[baprcs]-/xapp-, AKIA/ASIA, ya29./1//, rt_/oai-rt-, Bearer, JWT, signed URL parameters and PEM blocks. URL user:pass credentials and named Secret keys are masked. OAuth access/refresh field names are always masked; arbitrary opaque secrets without a recognised shape or key need extra patterns. Extra patterns extend coverage. Generate committed names with `python services/supervisor/tools/gen_secret_names.py --root .`; freshness is tested.
 

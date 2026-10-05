@@ -33,10 +33,10 @@ class WorkflowTests(unittest.TestCase):
             self.assertTrue(all(lane['gguf_sha256'] != 'REPLACE_WITH_VERIFIED_SHA256'
                                 for lane in parsed['modules']['gpu-lanes']['lanes']))
 
-    def test_all_nine_images_build_and_publishing_requires_configuration(self):
+    def test_all_ten_images_build_and_publishing_requires_configuration(self):
         workflow = yaml.safe_load((ROOT / '.github/workflows/images.yml').read_text())
         build = workflow['jobs']['build']
-        self.assertEqual(len(build['strategy']['matrix']['include']), 9)
+        self.assertEqual(len(build['strategy']['matrix']['include']), 10)
         for image in build['strategy']['matrix']['include']:
             self.assertTrue((ROOT / image['file']).is_file())
         condition = build['env']['PUBLISH_IMAGES']

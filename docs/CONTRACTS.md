@@ -99,11 +99,32 @@ Secret key is token, provisioned/revoked for that user; the CLI-only read-only m
 helper never rely on a credential left in a home. Commit email and author come from the
 registry. Unsupported providers require an approved helper extension.
 
-Supervision is absent from this build. Its future contract keeps separate PID namespaces,
+Enabled supervision selects gated StatefulSet variants and keeps separate PID namespaces,
 UID 1000 for CLI/supervisor, read-only transcript subPaths and a sidecar-private control
 socket. Only the request-only permission socket is shared. Allowed token audiences are
 <project>-mcp, -pace, -supervisor and -supervisor-hook, with expiry <=3600 and supervisor
 tokens confined to the appropriate container. No console credential Secret enters pods.
 Only holders spawn/type/decide; audited break-glass may observe/interrupt/stop. Notifier
-credentials belong to an external relay extension. Enablement requires image, admission,
-MCP permission shim and cross-component checks together.
+credentials belong to an external relay extension. The sidecar uses the exact configured
+digest-pinned image and a per-user supervisor-policy
+ConfigMap with a content hash. Console/hook egress uses exact configured CIDR/port pairs;
+no inbound Service or metrics listener is emitted. Managed Claude configuration always
+includes aa-permission, including holders without other MCP entitlements, with matching
+allowlist entries and hashes. Strict rendering refuses all-zero C_*_IMAGE digests.
+
+Holder RBAC already grants pods/exec create; no portforward grant is needed. The CONNECT
+guard restricts exec/attach into supervisor to the holder, because local control is
+holder-equivalent. Ticketed break-glass console actors may observe/interrupt/stop, never
+spawn/type/decide. The aa sessions supervise wrapper selects the labelled holder pod and
+executes aa-supervise in the sidecar with stdin preserved.
+
+Supervised CLI env contains registry GIT_AUTHOR_* and GIT_COMMITTER_* identity; plain
+variants receive no GIT_* additions. Optional named forge credentials remain CLI-only;
+they do not grant the supervisor credential access. No console/notifier Secret is allowed.
+Tier quotas reserve 50m/64Mi requests and 500m/256Mi limits per permitted pod when enabled.
+Login provisioning pre-creates projects and sessions with uid/gid 1000 and mode 0700.
+Kubelet subPath behavior still requires deployment verification.
+
+The offline checker verifies image admission coverage, policy producers and hashes, MCP
+permission configuration and hashes, private mounts, exact token audiences/expiry,
+transcript subPaths, same uid/gid, separate PID namespaces and bounded RAM socket volumes.

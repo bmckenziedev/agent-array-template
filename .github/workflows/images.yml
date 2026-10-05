@@ -30,6 +30,8 @@ jobs:
             file: portal/panel/Dockerfile
           - name: session-runner
             file: modules/session-jobs/image/Dockerfile
+          - name: supervisor
+            file: services/supervisor/Dockerfile
           - name: pace
             file: services/pace/Dockerfile
           - name: farm-mcp

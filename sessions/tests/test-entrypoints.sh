@@ -50,7 +50,7 @@ for tool in claude codex kimi; do
         KIMI_CODE_MODEL_CATALOG_REFRESH_INTERVAL_MS=0 KIMI_CODE_WATCH=0
         KIMI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT=0
         AA_KIMI_EGRESS_PROXY=http://gateway.example.org:3128
-        HTTPS_PROXY=http://gateway.example.org:3128 NO_PROXY=127.0.0.1,localhost)
+        HTTPS_PROXY=http://gateway.example.org:3128 "NO_PROXY=127.0.0.1,localhost")
       ;;
   esac
   : > "$policy/.rendered.sha256"

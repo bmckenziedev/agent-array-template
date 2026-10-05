@@ -308,6 +308,23 @@ class RepoTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("copy org/org.example.yaml", error)
 
+    def test_supervisor_quota_reserves_each_tier_pod(self):
+        defaults = self.root / "services/supervisor/org.component.defaults.yaml"
+        write(defaults, "scope: components\nname: supervisor\ndefaults: {enabled: true}\n")
+        enabled = model.load_model(self.root, self.org)
+        base = {u["USER_SLUG"]: u for u in self.model["entities"]["user"]}
+        for user in enabled["entities"]["user"]:
+            previous = base[user["USER_SLUG"]]
+            pods = int(previous["TIER_PODS"])
+            self.assertEqual(user["TIER_REQUESTS_CPU"], str(int(previous["TIER_REQUESTS_CPU"]) * 1000 + 50 * pods) + "m")
+            self.assertEqual(user["TIER_LIMITS_CPU"], str(int(previous["TIER_LIMITS_CPU"]) * 1000 + 500 * pods) + "m")
+            self.assertEqual(int(user["TIER_LIMITS_MEMORY"]), int(previous["TIER_LIMITS_MEMORY"][:-2]) * 1024**3 + 256 * 1024**2 * pods)
+            self.assertEqual(int(user["TIER_REQUESTS_MEMORY"]), int(previous["TIER_REQUESTS_MEMORY"][:-2]) * 1024**3 + 64 * 1024**2 * pods)
+        write(defaults, "scope: components\nname: supervisor\ndefaults: {enabled: false}\n")
+        disabled = model.load_model(self.root, self.org)
+        for user in disabled["entities"]["user"]:
+            self.assertEqual(user["TIER_REQUESTS_CPU"], base[user["USER_SLUG"]]["TIER_REQUESTS_CPU"])
+
     def test_component_zero_image_digest_is_strict(self):
         org = yamlsub.load(self.org)
         org["components"] = {"supervisor": {"image": "registry.example.org/project/supervisor@sha256:" + "0" * 64}}

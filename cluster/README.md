@@ -53,3 +53,8 @@ Revert reviewed manifests and sync manually. Do not prune retained PVs. Drain no
 Login storage runs in the dedicated project login-storage namespace, with privileged enforcement and restricted warnings/audit. Local-path helpers require hostPath restricted to LOGIN_HOST_ROOT by host-access admission.
 
 Adoption verifies encrypted login-root ancestry, local-path helper permissions and retention, managed-provider subject/group mapping, and auditor discovery coverage. Preserve executable modes for shell helpers; apply only reviewed node/runtime labels.
+
+Pre-bound login PV directories are prepared by the generated node-scoped
+`bash rendered/files/cluster/node-prep/<node>/prepare-login-homes.sh` after encrypted root
+preparation. It defaults to dry-run and creates CLI-owned transcript subdirectories;
+see [login storage](login-storage/README.md).

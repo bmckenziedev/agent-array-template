@@ -118,6 +118,20 @@ def additional_denials(valid, sts, source):
         "command override",
         lambda obj: cli(obj).update(command=["/bin/sh", "-c", "sleep 3600"]),
     )
+    if any(c["name"] == "supervisor" for c in valid["spec"]["containers"]):
+        def supervisor(obj):
+            return next(c for c in obj["spec"]["containers"] if c["name"] == "supervisor")
+        pod_case("supervisor wrong image", lambda obj: supervisor(obj).update(image="example.invalid/unapproved@sha256:" + "a" * 64))
+        pod_case("supervisor mismatched pod gid", lambda obj: obj["spec"]["securityContext"].update(runAsGroup=1001))
+        pod_case("supervisor default container", lambda obj: obj["spec"]["containers"].insert(0, obj["spec"]["containers"].pop(-1)))
+        pod_case("supervisor mismatched uid", lambda obj: supervisor(obj)["securityContext"].update(runAsUser=1001))
+        pod_case("shared PID namespace", lambda obj: obj["spec"].update(shareProcessNamespace=True))
+        pod_case("supervisor added capability", lambda obj: supervisor(obj)["securityContext"]["capabilities"].update(add=["SYS_PTRACE"]))
+        pod_case("CLI private control mount", lambda obj: cli(obj)["volumeMounts"].append({"name": "supervisor-run", "mountPath": "/control"}))
+        pod_case("CLI supervisor token mount", lambda obj: cli(obj)["volumeMounts"].append({"name": "supervisor-token", "mountPath": "/token", "readOnly": True}))
+        pod_case("supervisor full login mount", lambda obj: next(m for m in supervisor(obj)["volumeMounts"] if m["name"] == "login").pop("subPath"))
+        pod_case("supervisor writable transcript", lambda obj: next(m for m in supervisor(obj)["volumeMounts"] if m["name"] == "login").update(readOnly=False))
+        pod_case("supervisor TCP listener", lambda obj: supervisor(obj).update(ports=[{"containerPort": 8080}]))
     namespace = valid["metadata"]["namespace"]
     bad_sts = copy.deepcopy(sts)
     bad_sts["metadata"]["name"] = "unapproved-session-name"

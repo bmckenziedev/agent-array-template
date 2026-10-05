@@ -55,7 +55,7 @@ OPTIONAL = {
 
 def subst(text, keys):
     defaults = yaml.safe_load((ROOT.parent / "services/supervisor/org.component.defaults.yaml").read_text())["defaults"]
-    keys = {**{"C_SUPERVISOR_" + name.upper(): str(value) for name, value in defaults.items()}, **keys}
+    keys = {**{"C_SUPERVISOR_" + name.upper(): str(value).lower() if isinstance(value, bool) else str(value) for name, value in defaults.items()}, **keys}
     return KEY_RE.sub(lambda m: keys[m[1]], text)
 
 
@@ -73,12 +73,13 @@ def rendered(enabled=True):
         "defaults"
     ]
     keys.update(
-        {"C_SESSIONS_" + name.upper(): str(value) for name, value in defaults.items()}
+        {"C_SESSIONS_" + name.upper(): str(value).lower() if isinstance(value, bool) else str(value) for name, value in defaults.items()}
     )
     sup_defaults = yaml.safe_load((ROOT.parent / "services/supervisor/org.component.defaults.yaml").read_text())["defaults"]
-    keys.update({"C_SUPERVISOR_" + name.upper(): str(value) for name, value in sup_defaults.items()})
+    keys.update({"C_SUPERVISOR_" + name.upper(): str(value).lower() if isinstance(value, bool) else str(value) for name, value in sup_defaults.items()})
     model = json.loads(json.dumps(FIXTURE))
     model["org"].setdefault("components", {})["supervisor"] = {"enabled": enabled}
+    keys["C_SUPERVISOR_ENABLED"] = str(enabled).lower()
     import sys
     sys.path.insert(0, str(ROOT.parent / "tools/render"))
     from aa_render.templates import condition

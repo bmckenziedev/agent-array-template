@@ -143,3 +143,22 @@ class RenderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_supervisor_permission_server_without_other_entitlements(self):
+        self.model["org"].setdefault("components", {})["supervisor"] = {"enabled": True}
+        for team in self.model["teams"]:
+            team["mcp_servers"] = []
+        output = self.rendered()
+        for user in self.model["users"]:
+            if user["status"] == "offboarded" or "claude" not in user["tools"]:
+                continue
+            data = json.loads(output[f"users/{user['slug']}/mcp/claude-mcp.yaml"])["data"]
+            self.assertEqual(json.loads(data["managed-mcp.json"])["mcpServers"], {
+                "aa-permission": {"type": "stdio", "command": "/usr/local/bin/aa-permission-mcp",
+                                  "args": [], "env": {}}})
+            self.assertEqual(json.loads(data["allowed-mcp-servers.json"]), [{"serverName": "aa-permission"}])
+            hashes = json.loads(data["mcp-rendered.json"])["sha256"]
+            for name, digest in hashes.items():
+                self.assertEqual(hashlib.sha256(data[name].encode()).hexdigest(), digest)
+        self.model["org"]["components"]["supervisor"]["enabled"] = False
+        self.assertFalse(any(p.endswith("claude-mcp.yaml") for p in self.rendered()))

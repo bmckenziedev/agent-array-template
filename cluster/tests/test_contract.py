@@ -94,5 +94,60 @@ class NodeContractTests(unittest.TestCase):
         self.assertNotIn('gpu-a', [node['node'] for node in paths])
 
 
+    def test_login_setup_precreates_private_transcript_directories(self):
+        import yaml
+        documents = yaml.safe_load_all((ROOT / "k8s/login-storage/provisioner.tmpl.yaml").read_text())
+        setup = next(d["data"]["setup"] for d in documents if d["kind"] == "ConfigMap")
+        for command in ('mkdir -p', 'chmod 0700', 'chown 1000:1000'):
+            line = next(line for line in setup.splitlines() if line.startswith(command))
+            self.assertIn('"$VOL_DIR/projects"', line)
+            self.assertIn('"$VOL_DIR/sessions"', line)
+        if os.name != "nt":
+            with tempfile.TemporaryDirectory() as tmp:
+                volume = Path(tmp) / "login"
+                # Stub ownership change; CI is an ordinary unprivileged account.
+                scripts = Path(tmp) / "bin"
+                scripts.mkdir()
+                stub = scripts / "chown"
+                stub.write_text('#!/bin/sh\nexit 0\n')
+                stub.chmod(0o755)
+                subprocess.run(["sh", "-c", setup], check=True, env={
+                    **os.environ, "VOL_DIR": str(volume), "PATH": str(scripts) + os.pathsep + os.environ["PATH"]})
+                for path in (volume, volume / "projects", volume / "sessions"):
+                    self.assertTrue(path.is_dir())
+                    self.assertEqual(path.stat().st_mode & 0o777, 0o700)
+
+    def test_prebound_login_home_plans_are_node_scoped_and_dry_run(self):
+        model = json.loads((ROOT / 'tests/fixtures/org.fixture.json').read_text())
+        with tempfile.TemporaryDirectory() as tmp:
+            model['keys']['LOGIN_HOST_ROOT'] = str(Path(tmp) / 'logins').replace('\\', '/')
+            output = {}
+            load(ROOT / 'render_plugin.py').render(model, output.__setitem__)
+            for node in model['entities']['node']:
+                if node['NODE_IS_SESSION'] != 'true':
+                    continue
+                script = output['files/cluster/node-prep/' + node['NODE_NAME'] + '/prepare-login-homes.sh']
+                self.assertIn('home node mismatch', script)
+                self.assertIn('symlink login path refused', script)
+                for entity in model['entities']['user_tool']:
+                    login = model['keys']['LOGIN_HOST_ROOT'] + '/' + entity['USER_SLUG'] + '/' + entity['TOOL'] + '/' + entity['TOOL_HOME_NODE']
+                    if entity['TOOL_HOME_NODE'] == node['NODE_NAME']:
+                        self.assertIn(login + '/projects', script)
+                        self.assertIn(login + '/sessions', script)
+                    else:
+                        self.assertNotIn(login, script)
+                if os.name != 'nt':
+                    result = subprocess.run(['bash', '-c', script], check=True, capture_output=True)
+                    self.assertIn(b'1000 -g 1000 -m 0700', result.stdout)
+                    self.assertFalse(Path(model['keys']['LOGIN_HOST_ROOT']).exists())
+                    target = Path(tmp) / 'target'
+                    target.mkdir(exist_ok=True)
+                    link = Path(model['keys']['LOGIN_HOST_ROOT'])
+                    link.symlink_to(target, target_is_directory=True)
+                    denied = subprocess.run(['bash', '-c', script], capture_output=True)
+                    self.assertNotEqual(denied.returncode, 0)
+                    self.assertIn(b'symlink login path refused', denied.stderr)
+                    link.unlink()
+
 if __name__ == '__main__':
     unittest.main()

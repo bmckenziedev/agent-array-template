@@ -39,6 +39,17 @@ class LiveCaseConstruction(unittest.TestCase):
         names = {name for name, _, _ in cases}
         self.assertTrue(
             {
+                "supervisor wrong image",
+                "supervisor mismatched uid",
+                "supervisor mismatched pod gid",
+                "supervisor default container",
+                "shared PID namespace",
+                "supervisor added capability",
+                "CLI private control mount",
+                "CLI supervisor token mount",
+                "supervisor full login mount",
+                "supervisor writable transcript",
+                "supervisor TCP listener",
                 "privileged",
                 "privilege escalation",
                 "writable root",

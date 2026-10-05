@@ -94,3 +94,48 @@ class ContractsTests(unittest.TestCase):
         self.write("global/policy.yaml", {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {
             "name": "claude-policy", "namespace": "ns"}})
         self.assertFalse(any("ConfigMap ns/claude-policy has no producer" in error for error in self.check()))
+
+    def test_real_supervised_shapes_and_isolation_mutations(self):
+        import copy
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "render"))
+        from aa_render.model import load_model
+        from aa_render.templates import subst
+        import yaml
+        root = Path(__file__).resolve().parents[3]
+        model = load_model(root, root / "org/org.example.yaml")
+        entities = model["entities"]["user_tool"]
+        entity = next(e for e in entities if e["TOOL"] == "claude")
+        template = root / "sessions/claude/sts-supervised/k8s/statefulset.per-user-tool.tmpl.yaml"
+        pod = yaml.safe_load(subst(template.read_text(), {**model["keys"], **entity}, "test"))["spec"]["template"]["spec"]
+        self.assertEqual(contracts.supervisor_errors(pod), [])
+        def sidecar(p):
+            return next(c for c in p["containers"] if c["name"] == "supervisor")
+        def cli(p):
+            return next(c for c in p["containers"] if c["name"] == "claude")
+        def token(p):
+            return next(v for v in p["volumes"] if v["name"] == "supervisor-token")["projected"]["sources"][0]["serviceAccountToken"]
+        changes = [
+            lambda p: p.update(shareProcessNamespace=True),
+            lambda p: sidecar(p)["securityContext"].update(runAsUser=1001),
+            lambda p: sidecar(p)["securityContext"]["capabilities"].update(add=["SYS_PTRACE"]),
+            lambda p: sidecar(p).update(ports=[{"containerPort": 8080}]),
+            lambda p: sidecar(p).update(command=["sh"]),
+            lambda p: sidecar(p)["volumeMounts"].append({"name": "home", "mountPath": "/home"}),
+            lambda p: next(m for m in sidecar(p)["volumeMounts"] if m["name"] == "login").pop("subPath"),
+            lambda p: next(m for m in sidecar(p)["volumeMounts"] if m["name"] == "login").update(readOnly=False),
+            lambda p: cli(p)["volumeMounts"].append({"name": "supervisor-run", "mountPath": "/control"}),
+            lambda p: cli(p)["volumeMounts"].append({"name": "supervisor-token", "mountPath": "/token"}),
+            lambda p: next(v for v in p["volumes"] if v["name"] == "aa-tmux")["emptyDir"].pop("medium"),
+            lambda p: token(p).update(audience="https://kubernetes.default.svc"),
+            lambda p: token(p).update(expirationSeconds=3601),
+            lambda p: p["volumes"].append({"name": "console", "secret": {"secretName": "console"}}),
+        ]
+        for index, mutate in enumerate(changes):
+            with self.subTest(case=index):
+                changed = copy.deepcopy(pod)
+                mutate(changed)
+                self.assertTrue(contracts.supervisor_errors(changed))
+        for entity in entities:
+            template = next((root / "sessions" / entity["TOOL"] / "sts-supervised").rglob("statefulset.per-user-tool.tmpl.yaml"))
+            pod = yaml.safe_load(subst(template.read_text(), {**model["keys"], **entity}, "test"))["spec"]["template"]["spec"]
+            self.assertEqual(contracts.supervisor_errors(pod), [])

@@ -26,29 +26,22 @@ spec:
       resources:
       - statefulsets
   validations:
-  - expression: >-
-      has(variables.ps.volumes) && variables.ps.volumes.all(v,
-      (v.name != 'base' || (has(v.configMap) && has(v.configMap.name) && v.configMap.name == variables.tool + '-policy')) &&
-      (v.name != 'mcp' || (has(v.configMap) && has(v.configMap.name) && v.configMap.name == variables.tool + '-mcp')) &&
-      (v.name != 'context' || (has(v.configMap) && has(v.configMap.name) && v.configMap.name == 'context-policy')) &&
-      (v.name != 'policy' || has(v.emptyDir))) &&
-      variables.allContainers.all(c, !has(c.volumeMounts) || c.volumeMounts.all(m,
-      (m.name != 'base' || m.mountPath == '/policy/base') &&
-      (m.name != 'mcp' || m.mountPath == '/policy/mcp') &&
-      (m.name != 'context' || m.mountPath == '/etc/aa-context')))
+  - expression: has(variables.ps.volumes) && variables.ps.volumes.all(v, (v.name != 'base' || (has(v.configMap)
+      && has(v.configMap.name) && v.configMap.name == variables.tool + '-policy')) && (v.name != 'mcp' || (has(v.configMap)
+      && has(v.configMap.name) && v.configMap.name == variables.tool + '-mcp')) && (v.name != 'context' ||
+      (has(v.configMap) && has(v.configMap.name) && v.configMap.name == 'context-policy')) && (v.name != 'policy'
+      || has(v.emptyDir))) && variables.allContainers.all(c, !has(c.volumeMounts) || c.volumeMounts.all(m,
+      (m.name != 'base' || m.mountPath == '/policy/base') && (m.name != 'mcp' || m.mountPath == '/policy/mcp')
+      && (m.name != 'context' || m.mountPath == '/etc/aa-context')))
     message: Managed base, MCP fragments and context volumes cannot alias each other's trust paths.
-  - expression: >-
-      variables.allContainers.all(c, !has(c.volumeMounts) || c.volumeMounts.all(m,
-      m.name != 'git-credential' || (c.name == variables.tool &&
-      m.mountPath == '/var/run/agent-array/git-credential' && has(m.readOnly) && m.readOnly &&
-      !has(m.subPath) && !has(m.subPathExpr))))
+  - expression: variables.allContainers.all(c, !has(c.volumeMounts) || c.volumeMounts.all(m, m.name != 'git-credential'
+      || (c.name == variables.tool && m.mountPath == '/var/run/agent-array/git-credential' && has(m.readOnly)
+      && m.readOnly && !has(m.subPath) && !has(m.subPathExpr))))
     message: The optional registry-named forge credential is mounted only into the seat CLI read-only.
-  - expression: >-
-      has(variables.ps.priorityClassName) && variables.ps.priorityClassName == 'aa-session' &&
-      variables.allContainers.all(c, has(c.securityContext) &&
-      (!has(c.securityContext.runAsUser) || c.securityContext.runAsUser == 1000) &&
-      (!has(c.securityContext.runAsGroup) || c.securityContext.runAsGroup == 1000) &&
-      (!has(c.securityContext.runAsNonRoot) || c.securityContext.runAsNonRoot))
+  - expression: has(variables.ps.priorityClassName) && variables.ps.priorityClassName == 'aa-session' && variables.allContainers.all(c,
+      has(c.securityContext) && (!has(c.securityContext.runAsUser) || c.securityContext.runAsUser == 1000)
+      && (!has(c.securityContext.runAsGroup) || c.securityContext.runAsGroup == 1000) && (!has(c.securityContext.runAsNonRoot)
+      || c.securityContext.runAsNonRoot))
     message: Container identities cannot override the non-root session uid, gid or priority.
   - expression: has(variables.pm.labels) && has(namespaceObject.metadata.labels) && '{{LABEL_PREFIX}}/user'
       in variables.pm.labels && '{{LABEL_PREFIX}}/user' in namespaceObject.metadata.labels && variables.pm.labels['{{LABEL_PREFIX}}/user']
@@ -80,10 +73,12 @@ spec:
   - expression: has(variables.ps.securityContext) && has(variables.ps.securityContext.runAsNonRoot) && variables.ps.securityContext.runAsNonRoot
       && has(variables.ps.securityContext.runAsUser) && variables.ps.securityContext.runAsUser == 1000 && has(variables.ps.securityContext.seccompProfile)
       && has(variables.ps.securityContext.seccompProfile.type) && variables.ps.securityContext.seccompProfile.type
-      == 'RuntimeDefault'
+      == 'RuntimeDefault' && has(variables.ps.securityContext.runAsGroup) && variables.ps.securityContext.runAsGroup
+      == 1000
     message: The pod runs as uid 1000 with RuntimeDefault seccomp.
-  - expression: 'variables.allContainers.all(c, c.image == (variables.tool == ''claude'' ? ''{{IMAGE_SESSION_CLAUDE}}''
-      : variables.tool == ''codex'' ? ''{{IMAGE_SESSION_CODEX}}'' : ''{{IMAGE_SESSION_KIMI}}'') && c.image.matches(''.*@sha256:[0-9a-f]{64}$''))'
+  - expression: 'variables.allContainers.all(c, c.image == (c.name == ''supervisor'' ? ''{{C_SUPERVISOR_IMAGE}}''
+      : variables.tool == ''claude'' ? ''{{IMAGE_SESSION_CLAUDE}}'' : variables.tool == ''codex'' ? ''{{IMAGE_SESSION_CODEX}}''
+      : ''{{IMAGE_SESSION_KIMI}}'') && c.image.matches(''.*@sha256:[0-9a-f]{64}$''))'
     message: Every container image must be an approved digest-pinned session image.
   - expression: variables.allContainers.all(c, has(c.securityContext) && (!has(c.securityContext.privileged)
       || !c.securityContext.privileged) && has(c.securityContext.allowPrivilegeEscalation) && !c.securityContext.allowPrivilegeEscalation
@@ -116,15 +111,20 @@ spec:
     message: Only Kimi may use the managed exact-host egress proxy.
   - expression: 'has(variables.ps.volumes) && variables.ps.volumes.all(v, (has(v.emptyDir) && has(v.emptyDir.medium)
       && v.emptyDir.medium == ''Memory'' && has(v.emptyDir.sizeLimit)) || (has(v.configMap) && has(v.configMap.name)
-      && v.configMap.name in [variables.tool + ''-policy'', variables.tool + ''-mcp'', ''context-policy''])
-      || (has(v.secret) && v.name == ''git-credential'' && has(v.secret.secretName) && has(namespaceObject.metadata.annotations) && ''{{LABEL_PREFIX}}/git-secret'' in namespaceObject.metadata.annotations && v.secret.secretName == namespaceObject.metadata.annotations[''{{LABEL_PREFIX}}/git-secret''] && v.secret.secretName != '''') || (has(v.persistentVolumeClaim) && v.name == ''login'') || (has(v.projected) && v.name in [''mcp-token'',
-      ''pace-token''] && has(v.projected.sources) && v.projected.sources.all(s, has(s.serviceAccountToken)
-      && has(s.serviceAccountToken.audience) && s.serviceAccountToken.audience == (v.name == ''mcp-token''
-      ? ''{{PROJECT_NAME}}-mcp'' : ''{{PROJECT_NAME}}-pace'') && has(s.serviceAccountToken.expirationSeconds)
-      && s.serviceAccountToken.expirationSeconds > 0 && s.serviceAccountToken.expirationSeconds <= 3600 &&
-      has(s.serviceAccountToken.path) && s.serviceAccountToken.path == ''token'')))'
-    message: Only bounded RAM volumes, managed ConfigMaps, the login claim and the two short-lived projected
-      audiences are permitted.
+      && v.configMap.name in [variables.tool + ''-policy'', variables.tool + ''-mcp'', ''context-policy'',
+      ''supervisor-policy'']) || (has(v.secret) && v.name == ''git-credential'' && has(v.secret.secretName)
+      && has(namespaceObject.metadata.annotations) && ''{{LABEL_PREFIX}}/git-secret'' in namespaceObject.metadata.annotations
+      && v.secret.secretName == namespaceObject.metadata.annotations[''{{LABEL_PREFIX}}/git-secret''] && v.secret.secretName
+      != '''') || (has(v.persistentVolumeClaim) && v.name == ''login'') || (has(v.projected) && v.name in [''mcp-token'',
+      ''pace-token'', ''supervisor-token'', ''supervisor-hook-token''] && has(v.projected.sources) && v.projected.sources.size()
+      == 1 && v.projected.sources.all(s, has(s.serviceAccountToken) && has(s.serviceAccountToken.audience)
+      && s.serviceAccountToken.audience == (v.name == ''mcp-token'' ? ''{{PROJECT_NAME}}-mcp'' : v.name ==
+      ''pace-token'' ? ''{{PROJECT_NAME}}-pace'' : v.name == ''supervisor-token'' ? ''{{PROJECT_NAME}}-supervisor''
+      : ''{{PROJECT_NAME}}-supervisor-hook'') && has(s.serviceAccountToken.expirationSeconds) && s.serviceAccountToken.expirationSeconds
+      > 0 && s.serviceAccountToken.expirationSeconds <= 3600 && has(s.serviceAccountToken.path) && s.serviceAccountToken.path
+      == ''token'')))'
+    message: Only bounded RAM volumes, managed ConfigMaps, registry-named CLI forge credentials, the login
+      claim and four short-lived audiences are permitted.
   - expression: has(variables.ps.nodeSelector) && 'kubernetes.io/hostname' in variables.ps.nodeSelector &&
       variables.loginClaims.size() == 1 && variables.loginClaims.all(v, has(v.persistentVolumeClaim) && has(v.persistentVolumeClaim.claimName)
       && v.persistentVolumeClaim.claimName == variables.tool + '-home-' + variables.stsName.substring(variables.tool.size()
@@ -134,17 +134,19 @@ spec:
   - expression: 'variables.allContainers.all(c, !has(c.volumeMounts) || c.volumeMounts.all(m, m.name != ''login''
       || (c.name == variables.tool && m.mountPath == ''/home/'' + variables.tool + (variables.tool == ''claude''
       ? ''/.claude'' : variables.tool == ''codex'' ? ''/.codex'' : ''/.kimi-code'') && !has(m.subPath) && !has(m.subPathExpr))
-      || (c.name == ''usage'' && variables.tool == ''codex'' && has(m.subPath) && m.subPath == ''sessions''
-      && !has(m.subPathExpr) && has(m.readOnly) && m.readOnly)))'
-    message: Only the seat CLI mounts the whole login; Codex usage mounts only the sessions subPath read-only;
-      estate never mounts a home claim.
+      || (c.name == ''usage'' && variables.tool == ''codex'' && m.mountPath == ''/usage/sessions'' && has(m.subPath)
+      && m.subPath == ''sessions'' && !has(m.subPathExpr) && has(m.readOnly) && m.readOnly) || (c.name == ''supervisor''
+      && variables.tool in [''claude'',''codex''] && m.mountPath == ''/transcripts/'' + variables.tool && has(m.subPath)
+      && m.subPath == (variables.tool == ''claude'' ? ''projects'' : ''sessions'') && !has(m.subPathExpr) &&
+      has(m.readOnly) && m.readOnly)))'
+    message: Only CLI mounts whole login; usage and supervisor mount exact read-only transcript subPaths.
   - expression: variables.allContainers.all(c, !has(c.volumeMounts) || c.volumeMounts.all(m, (m.name != 'mcp-token'
       || (c.name == variables.tool && m.mountPath == '/var/run/agent-array/mcp-token' && has(m.readOnly) &&
-      m.readOnly)) && (m.name != 'pace-token' || (c.name in [variables.tool,'usage'] && m.mountPath == '/var/run/agent-array/pace-token'
-      && has(m.readOnly) && m.readOnly))))
-    message: Projected MCP tokens go only to the CLI; pace tokens go only to CLI and usage.
-  - expression: variables.ps.containers.all(c, c.name in [variables.tool,'estate', 'usage'] && (c.name != 'usage'
-      || variables.tool == 'codex')) && (!has(variables.ps.initContainers) || variables.ps.initContainers.all(c,
+      m.readOnly)) && (m.name != 'pace-token' || (c.name in [variables.tool,'usage','supervisor'] && m.mountPath
+      == '/var/run/agent-array/pace-token' && has(m.readOnly) && m.readOnly))))
+    message: MCP tokens are CLI-only; pace tokens are CLI, usage and supervisor only.
+  - expression: variables.ps.containers.all(c, c.name in [variables.tool,'estate', 'usage', 'supervisor'] &&
+      (c.name != 'usage' || variables.tool == 'codex')) && (!has(variables.ps.initContainers) || variables.ps.initContainers.all(c,
       c.name == 'policy-merge'))
     message: Only the official seat CLI, estate receiver, Codex usage and managed policy init containers are
       allowed.
@@ -156,10 +158,11 @@ spec:
   - expression: 'variables.ps.containers.all(c, (c.name == variables.tool && !has(c.command) && has(c.args)
       && c.args == [variables.tool]) || (c.name == ''estate'' && has(c.command) && c.command == [''/usr/local/bin/aa-snapshot'',
       ''serve''] && !has(c.args)) || (c.name == ''usage'' && has(c.command) && c.command.size() == 3 && c.command[0]
-      == ''/usr/local/bin/aa-usage-report'' && c.command[1] == ''--loop'' && !has(c.args))) && (!has(variables.ps.initContainers)
-      || variables.ps.initContainers.all(c, has(c.command) && c.command == [''/usr/local/bin/aa-policy-merge'',
-      ''--tool'',variables.tool,''--base'', ''/policy/base'', ''--mcp'', ''/policy/mcp'', ''--out'',variables.tool
-      == ''claude'' ? ''/etc/claude-code'' : ''/etc/'' + variables.tool] && !has(c.args)))'
+      == ''/usr/local/bin/aa-usage-report'' && c.command[1] == ''--loop'' && !has(c.args)) || (c.name == ''supervisor''
+      && !has(c.command) && !has(c.args))) && (!has(variables.ps.initContainers) || variables.ps.initContainers.all(c,
+      has(c.command) && c.command == [''/usr/local/bin/aa-policy-merge'', ''--tool'',variables.tool,''--base'',
+      ''/policy/base'', ''--mcp'', ''/policy/mcp'', ''--out'',variables.tool == ''claude'' ? ''/etc/claude-code''
+      : ''/etc/'' + variables.tool] && !has(c.args)))'
     message: The vendor image entrypoint is mandatory; only managed helpers may override commands.
   - expression: variables.ps.containers.exists(c, c.name == variables.tool && has(c.env) && c.env.exists(e,
       e.name == 'AA_LOGIN_STORAGE' && has(e.value) && e.value == '{{LOGIN_STORAGE}}'))
@@ -168,11 +171,14 @@ spec:
       'KIMI_DISABLE_TELEMETRY']) || (has(e.value) && e.value == '1')))
     message: Kimi scheduling and telemetry cannot be re-enabled.
   - expression: variables.allContainers.all(c, has(c.volumeMounts) && c.volumeMounts.all(m, (c.name == 'policy-merge'
-      && m.name in ['base', 'mcp', 'policy'] && (m.name == 'policy' || (has(m.readOnly) && m.readOnly))) ||
-      (c.name == 'estate' && m.name in ['snap', 'estate-tmp', 'context'] && (m.name != 'context' || (has(m.readOnly)
-      && m.readOnly))) || (c.name == 'usage' && m.name in ['login', 'pace-token'] && has(m.readOnly) && m.readOnly)
-      || (c.name == variables.tool && m.name in ['home', 'login', 'tmp', 'work', 'snap', 'policy', 'mcp-token',
-      'pace-token'] && (!(m.name in ['snap', 'policy', 'mcp-token', 'pace-token']) || (has(m.readOnly) && m.readOnly)))))
+      && m.name in ['base','mcp','policy'] && (m.name == 'policy' || (has(m.readOnly) && m.readOnly))) || (c.name
+      == 'estate' && m.name in ['snap','estate-tmp','context'] && (m.name != 'context' || (has(m.readOnly)
+      && m.readOnly))) || (c.name == 'usage' && m.name in ['login','pace-token'] && has(m.readOnly) && m.readOnly)
+      || (c.name == variables.tool && m.name in ['home','login','tmp','work','snap','policy','mcp-token','pace-token','git-credential','aa-tmux','aa-shared']
+      && (!(m.name in ['snap','policy','mcp-token','pace-token','git-credential']) || (has(m.readOnly) && m.readOnly)))
+      || (c.name == 'supervisor' && m.name in ['aa-tmux','aa-shared','supervisor-run','supervisor-tmp','supervisor-policy','supervisor-token','supervisor-hook-token','pace-token','login']
+      && (!(m.name in ['supervisor-policy','supervisor-token','supervisor-hook-token','pace-token','login'])
+      || (has(m.readOnly) && m.readOnly)))))
     message: Each managed container mounts only its owned storage; estate and init cannot read logins or tokens,
       and CLI cannot modify policy or snapshots.
   - expression: 'variables.ps.containers.all(c, c.name != variables.tool || (has(c.volumeMounts) && c.volumeMounts.exists(m,
@@ -191,6 +197,42 @@ spec:
   - expression: variables.allContainers.all(c, !has(c.env) || c.env.all(e, e.name != 'ENABLE_CLAUDEAI_MCP_SERVERS'
       || (has(e.value) && e.value == 'false')))
     message: Managed Claude connectors cannot be enabled through an environment override.
+  - expression: 'variables.ps.containers.filter(c,c.name == ''supervisor'').size() == ({{C_SUPERVISOR_ENABLED}}
+      ? 1 : 0)'
+    message: Supervisor enablement selects exactly one approved sidecar or none.
+  - expression: 'variables.allContainers.all(c, !has(c.volumeMounts) || c.volumeMounts.all(m, !(m.name in [''supervisor-run'',''supervisor-tmp'',''supervisor-policy'',''supervisor-token'',''supervisor-hook-token''])
+      || (c.name == ''supervisor'' && !has(m.subPath) && !has(m.subPathExpr) && m.mountPath == (m.name == ''supervisor-run''
+      ? ''/run/aa-supervisor'' : m.name == ''supervisor-tmp'' ? ''/tmp'' : m.name == ''supervisor-policy''
+      ? ''/etc/aa-supervisor'' : ''/var/run/agent-array/'' + m.name))))'
+    message: Private control storage and supervisor tokens are sidecar-only at exact paths.
+  - expression: 'has(variables.ps.volumes) && variables.ps.volumes.all(v, v.name != ''supervisor-policy'' ||
+      (has(v.configMap) && has(v.configMap.name) && v.configMap.name == ''supervisor-policy'')) && variables.ps.volumes.all(v,
+      !(v.name in [''aa-tmux'',''aa-shared'',''supervisor-run'',''supervisor-tmp'']) || (has(v.emptyDir) &&
+      has(v.emptyDir.medium) && v.emptyDir.medium == ''Memory'' && has(v.emptyDir.sizeLimit) && v.emptyDir.sizeLimit
+      == (v.name == ''aa-tmux'' ? ''8Mi'' : v.name == ''supervisor-tmp'' ? ''64Mi'' : ''16Mi'')))'
+    message: Supervision volumes cannot alias credentials or durable storage.
+  - expression: 'variables.allContainers.all(c, !has(c.volumeMounts) || c.volumeMounts.all(m, !(m.name in [''aa-tmux'',''aa-shared''])
+      || (c.name in [variables.tool,''supervisor''] && m.mountPath == (m.name == ''aa-tmux'' ? ''/run/aa-tmux''
+      : ''/run/aa'') && (!has(m.readOnly) || !m.readOnly) && !has(m.subPath) && !has(m.subPathExpr))))'
+    message: Only CLI and supervisor share complete writable tmux and request volumes.
+  - expression: variables.ps.containers.all(c, c.name != 'supervisor' || (has(c.securityContext) && has(c.securityContext.runAsUser)
+      && c.securityContext.runAsUser == 1000 && has(c.securityContext.runAsGroup) && c.securityContext.runAsGroup
+      == 1000 && !has(c.ports)))
+    message: Supervisor has the CLI uid/gid and no network listeners.
+  - expression: 'variables.allContainers.all(c, !has(c.env) || c.env.all(e, !(e.name in [''AA_SUPERVISOR'',''TMUX_TMPDIR'',''TINI_SUBREAPER''])
+      || (c.name == variables.tool && {{C_SUPERVISOR_ENABLED}} && has(e.value) && e.value == (e.name == ''TMUX_TMPDIR''
+      ? ''/run/aa-tmux'' : ''1''))))'
+    message: Supervision CLI overrides are exact and require enablement.
+  - expression: has(variables.ps.volumes) && variables.ps.volumes.all(v, !(v.name in ['mcp-token','pace-token','supervisor-token','supervisor-hook-token'])
+      || has(v.projected))
+    message: Token volume names always identify projected tokens, never aliases.
+  - expression: 'variables.ps.containers.all(c, c.name != ''supervisor'' || (has(c.volumeMounts) && c.volumeMounts.size()
+      == (variables.tool == ''kimi'' ? 8 : 9) && [''aa-tmux'',''aa-shared'',''supervisor-run'',''supervisor-tmp'',''supervisor-policy'',''supervisor-token'',''supervisor-hook-token'',''pace-token''].all(n,
+      c.volumeMounts.exists(m, m.name == n)) && (variables.tool == ''kimi'' || c.volumeMounts.exists(m,m.name
+      == ''login''))))'
+    message: Supervisor requires its complete private control, policy, projected tokens and transcript shape.
+  - expression: variables.ps.containers.size() > 0 && variables.ps.containers[0].name == variables.tool
+    message: The CLI is the default container; omitted-container exec never selects private supervisor control.
   variables:
   - name: ps
     expression: 'request.kind.kind == ''Pod'' ? object.spec : (has(object.spec.template) && has(object.spec.template.spec)

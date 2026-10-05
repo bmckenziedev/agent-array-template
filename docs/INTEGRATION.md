@@ -1,10 +1,11 @@
 # Integration verification
 
-Phase 2 closes the Part A owner fixes in the authored production tree. The workstation
+Phase 2 closes the Part A owner fixes and Part B supervisor integration in the authored production tree. The workstation
 window defaults are quoted; the example and synthetic all-module configurations render.
 No live cluster, vendor login, source-repository mutation, commit or push was performed.
-The parallel supervisor owns all changes under sessions and services/supervisor; its
-remaining integration requirements are recorded below rather than weakening the gates.
+The supervisor is integrated with admission, MCP, quotas, login provisioning and image CI.
+Offline checks preserve the deployment VERIFY gates; no gate was cleared from a render
+or image build.
 
 ## Completed owner fixes
 
@@ -29,28 +30,21 @@ CI/image failures | workflows install gate dependencies, preserve strict scalar 
 The orchestrator must update external common-org/reference/task contracts for corrected
 vendor evidence and optional git identity. Those scratch files remain outside this tree.
 
-## Needs: sessions
+## Sessions integration: fixed
 
-- In `sessions/tests/test-entrypoints.sh`, quote the complete array element
-  `"NO_PROXY=127.0.0.1,localhost"`. ShellCheck SC2054 currently treats its comma as an
-  array separator. Run the workflow's `shellcheck -x` invocation after the change.
-- The parallel supervisor render currently emits supervisor containers from
-  `sessions/*/sts-supervised/k8s/*/statefulset.per-user-tool.tmpl.yaml`, but their image
-  is absent from the generated session shape admission policy. Include the exact
-  configured supervisor image and complete supervised container/volume/token shape
-  in the policy producer, retain unsupervised variants, and add positive/negative
-  admission-shape tests. Do not weaken the image check in `tools/ci/check_contracts.py`.
-- Resolved by the parallel session owner: fixture keys now merge supervisor defaults.
-  The final offline runner passes sessions and supervisor suites. The renderer's
-  forge-identity test discovers and checks both variants. This does not resolve the
-  separate production admission-shape contract above.
+Item | Status | Evidence
+--- | --- | ---
+Quoted NO_PROXY array element | fixed | sessions/tests/test-entrypoints.sh; complete workflow ShellCheck invocation passes
+Supervisor admission shape | fixed | sessions/k8s/aa-session-shape.tmpl.yaml; exact configured image, uid/gid 1000, separate PID namespaces, transcript subPaths, private mounts and four bounded audiences
+Supervisor fixture defaults and variant gating | already satisfied | sessions/tests/test_templates.py and test_supervisor_sidecar.py; enabled/disabled renders and deterministic rerenders pass
+Holder control path | fixed | sessions/k8s/aa-session-exec.tmpl.yaml confines supervisor exec/attach to holder; CLI remains default container; existing holder pods/exec RBAC suffices
 
 ## Phase 2 checks
 
 The local run used Ubuntu and Python 3.12, requirements-dev.txt, Node 22, the pinned
 engine JS lockfile and verified kubeconform/promtool archives. Both backend gate states
-also ran in the backup suite. CI is still blocked only by the excluded session admission
-shape and ShellCheck findings under Needs: sessions.
+also ran in the backup suite. Part B resolves the session admission shape and ShellCheck findings. The final gate
+results supersede the earlier Part A snapshot below; see Status at handover.
 
 Check | Result
 --- | ---
@@ -58,7 +52,7 @@ Example render / all-module fixture render | Both exit 0
 Placeholder lint | Exit 0
 Manifest validation, example | 331 valid, 0 invalid, 0 errors, 0 skipped
 Manifest validation, all modules | 447 valid, 0 invalid, 0 errors, 0 skipped
-Rendered contracts | Both retain 4 errors: supervisor image absent from session shape; excluded owner fix required
+Rendered contracts | Both 0 errors after Part B; supervisor image and policy producer included
 CEL, example / all modules | Both 0 fail
 Promtool, example / all modules | 13 / 20 rendered rule files checked; all applicable tests SUCCESS. Disabled example rule producers explicitly skip their tests
 Deterministic rerender, example / all modules | Both --check exit 0
@@ -66,7 +60,7 @@ Strict synthetic all-module render / rerender | Both exit 0; synthetic pins are 
 Strict example negative | Exit 2 as expected: all-zero artifact pins and automatic home-node selection refused
 Complete offline runner | Exit 0, all 54 suites PASS; individual optional-tool skips remain explicit in output
 Nine image builds | All PASS, local build only, no registry publishing
-ShellCheck -x | One excluded sessions SC2054 warning remains; all owned shell files pass
+ShellCheck -x | All shell files pass after quoting the sessions NO_PROXY entry; generated node preparation scripts also pass
 PowerShell syntax | PASS with local Windows PowerShell parser; pwsh is unavailable locally
 Linkcheck | 0 fail
 Repository sanitizer | 0 fail, 19 warnings from synthetic test dates
@@ -160,9 +154,8 @@ tools/sanitize | PASS |
 
 ## Finding record
 
-The table retains Part A scope: not-applicable supervisor rows describe its original
-snapshot. Phase 2 closes every deferred owner row; parallel supervisor validation is
-tracked separately and is not inferred from Part A findings.
+The table records the final authored tree. Part B rows include the supervisor
+integration and explicit offline evidence; deployment VERIFY remains separate.
 
 Finding | Status | Files / evidence | Outcome / owner
 --- | --- | --- | ---
@@ -176,20 +169,20 @@ R07 | fixed | services/pace/k8s/reader.per-team.tmpl.yaml; services/pace/tests/t
 R08 | fixed | services/pace/render_plugin.py; sessions/render_plugin.py | Endpoint and control-plane overlay ingress peers.
 R09 | fixed | argocd/k8s/apps/users-appset.tmpl.yaml; sessions/suspend/render_plugin.py; docs/runbooks | Replicas ignored/respected; zero-pod suspended quota and scale-to-zero runbook.
 R10 | fixed | sessions/k8s/aa-session-writers.tmpl.yaml | Narrow controller/provisioner exceptions.
-R11 | fixed | sessions/k8s/aa-session-exec.tmpl.yaml | Part A portforward CONNECT guard; Part B socket integration skipped, supervisor absent.
+R11 | fixed | sessions/k8s/aa-session-exec.tmpl.yaml; tools/aa/aa_cli/cli.py | Part B: holder-only private supervisor exec/attach; ticketed break-glass console observation/stop; no new portforward permission.
 R12 | fixed | sessions/docs/exec-guard-webhook.md; sessions/k8s/20-lookup-webhook.tmpl.yaml | VERIFY correction supersedes CONNECT webhook: namespace-ticket VAP, storage-only TLS webhook with https Service port.
 R13 | fixed | tools/ci/rendered_assets.py; cluster/oidc/README.md; ops/audit/README.md; ops/velero/k8s; modules/wazuh/README.md; modules/wazuh/tests/test_assets.py | Native config and incomplete strategic patches validated as exact assets; actual Velero manifests moved to ordinary gated GitOps.
 R14 | fixed | tools/render/aa_render/lint.py; tools/render/tests | Placeholder lint scope excludes fixtures/docs/tests.
 R15 | fixed | tools/ci/run_tests.py; tools/ci/tests | Component cwd and importlib pytest mode.
 R16 | fixed | tools/ci/run_tests.py | Production/test requirements installed separately; hashes preserved. Linux pinned Python dependency suites pass.
 R17 | fixed | sessions/common/bin/aa-mcp-bridge; sessions/tests/test_mcp_bridge.py; mcp/render_plugin.py | Bounded stdio bridge rereads tokens. Pinned CLI deployment VERIFY remains.
-R18 | not applicable | docs/CONTRACTS.md; docs/SUPERVISION.md | Part B: supervisor absent; current spec is holder-only spawn, never break-glass spawn.
-R19 | not applicable | docs/CONTRACTS.md | Part B: absent. Current amended spec preserves separate PID namespaces and same UID, superseding older distinct-UID draft.
-R20 | not applicable | docs/CONTRACTS.md | Part B: absent; transcript-only subPaths documented for future integration.
-R21 | not applicable | docs/CONTRACTS.md | Part B: absent; supervisor image/container/audience policy must land with that build.
-R22 | not applicable | docs/SUPERVISION.md | Part B: absent; no console credentials in session pods; external relay extension documented.
-R23 | not applicable | docs/CONTRACTS.md | Part B: absent; permission shim/managed MCP entry requires supervisor implementation.
-R24 | not applicable | docs/INTEGRATION.md | Part B supervisor proof not run. Example zero digests deliberately fail strict mode.
+R18 | already satisfied | services/supervisor/tests/test_supervisor.py | Part B: full actor/command/session-kind matrix refuses lead, automation and break-glass spawn with seat_interactive_only; holder-only spawn.
+R19 | fixed | sessions/k8s/aa-session-shape.tmpl.yaml; tools/ci/tests/test_contracts.py | Part B: separate PID namespaces and matching uid/gid 1000; default CLI container; no added capabilities or listeners.
+R20 | fixed | sessions/k8s/aa-session-shape.tmpl.yaml; cluster/render_plugin.py; cluster/k8s/login-storage/provisioner.tmpl.yaml | Part B: exact read-only projects/sessions subPaths; node-scoped pre-bound home preparation plus dynamic setup; CLI-only whole claim.
+R21 | fixed | sessions/k8s/aa-session-shape.tmpl.yaml; tools/ci/check_contracts.py | Part B: exact supervisor image, private mounts, four audiences, <=3600 expiry and container restrictions; 64 offline CEL positive/negative cases.
+R22 | fixed | services/supervisor/README.md; services/supervisor/aa_supervisor/notifiers/README.md; docs/SUPERVISION.md | Part B: no console/notifier Secret; credentialed relay explicitly an external org extension; optional named forge Secret remains CLI-only.
+R23 | fixed | mcp/render_plugin.py; mcp/tests/test_render.py; tools/ci/check_contracts.py | Part B: managed aa-permission server, allowlist and hashes for every supervised Claude holder, including no other MCP entitlement.
+R24 | fixed | docs/INTEGRATION.md; tools/ci/tests/test_contracts.py | Part B: full offline runner and both workflow render gate sets pass; enabled/disabled and strict synthetic rerenders pass; strict example deliberately refuses zero pins.
 R25 | fixed | argocd/render_plugin.py; argocd/tests/test_gitops.py; docs/CONTRACTS.md | Raw application groups, prefixed Kubernetes groups; chat uses directory teams.
 R26 | fixed | tools/render/aa_render/model.py; tools/render/tests/test_render.py; org/README.md | username_claim=sub validation and negative test.
 R27 | fixed | tools/render/aa_render; tools/render/tests; tools/render/README.md | Defaults, string comparisons, missing-path false, gated import refusal, collision failure and root-relative registries.
@@ -212,11 +205,11 @@ R43 | fixed | tools/sanitize/scan.py; tools/sanitize/tests; tools/sanitize/READM
 R44 | fixed | tools/render/aa_render/cli.py; monitoring/render_plugin.py; tools/ci/promtool_tests.sh; monitoring/alerts/tests | Plain rule extraction and cross-module suite discovery; Phase 2 promtool executes the production rules and configured test expressions successfully.
 R45 | fixed | tools/ci/validate_manifests.sh | Version normalisation, missing-schema fallback and zero-resource refusal.
 R46 | fixed | tools/ci/lint_cel.py; platform/hardening/cel_guards.py; sessions/tests/test_templates.py; modules/hermes-ops-chat/k8s/admission.tmpl.yaml | Shared optional-field checker; Hermes missing guard repaired. Both production-tree configurations now pass CEL lint; live admission proof remains separate.
-R47 | not applicable | docs/SUPERVISION.md | Part B: supervisor absent; metrics transport awaits its build.
-R48 | not applicable | docs/CONTRACTS.md | Part B: supervisor absent; per-user policy producer awaits its build.
-R49 | not applicable | tools/render/aa_render; docs/CONTRACTS.md | Part B: supervisor variants absent; renderer supports gating semantics.
-R50 | not applicable | docs/CONTRACTS.md | Part B: console egress settings await supervisor build.
-R51 | not applicable | tools/render/aa_render/model.py; tools/render/tests/test_render.py | Part B: supervisor Dockerfile absent, matrix not added. Generic strict C_*_IMAGE zero-digest validation implemented/tested.
+R47 | already satisfied | services/supervisor/aa_supervisor/connector.py; services/supervisor/README.md | Part B: metrics pushed by outbound connector; no TCP listener, Service or scrape ingress.
+R48 | already satisfied | services/supervisor/render_plugin.py; services/supervisor/tests/test_supervisor.py | Part B: per-user supervisor-policy producer with strictest team merge and content hash; contract checker verifies producer/hash.
+R49 | already satisfied | sessions/*/sts-plain/RENDER-IF; sessions/*/sts-supervised/RENDER-IF; sessions/tests/test_supervisor_sidecar.py | Part B: gated variants with exactly one StatefulSet per tool; disabled render emits no sidecar or policy.
+R50 | already satisfied | services/supervisor/render_plugin.py; services/supervisor/tests/test_supervisor.py | Part B: exact console_cidrs/console_port and hook_egress rules; rejects unrestricted/control-plane destinations.
+R51 | fixed | .github/workflows/images.yml; tools/ci/tests/test_workflows.py; tools/render/tests/test_render.py | Part B: ten-image matrix includes supervisor; local supervisor build passes; generic strict C_*_IMAGE zero-digest denial already implemented and tested.
 R52 | fixed | .gitignore; component READMEs | Requested strays removed after useful deployment notes folded into READMEs; .git retained untouched.
 R53 | fixed | modules/wazuh/k8s/namespace.tmpl.yaml; modules/wazuh/overlay/namespace.tmpl.yaml; modules/wazuh/tests/test_audit.py | Prune=false,Delete=false protection on module namespace and overlay patch.
 R54 | fixed | argocd/README.md | Manual bootstrap runbook; advisory Application waves.
@@ -458,3 +451,70 @@ tools/ci/tests/test_workflows.py
 tools/ci/validate_manifests.sh [existing executable]
 tools/render/tests/test_render.py
 ```
+
+## Status at handover
+
+Part B and both sessions integration items are fixed. No commit, push, registry publish,
+live cluster mutation or vendor login was performed. The authored configuration is
+ready for public offline CI; deployment and pinned-runtime VERIFY gates remain closed.
+
+Check | Final offline result
+--- | ---
+Full tools/ci/run_tests.py | 54 suites PASS, no suite failure or dependency skip; optional test prerequisites remain explicit skips (factory Node-absence case and POSIX FIFO on Windows)
+Affected suites after final hardening | cluster, sessions and tools/ci PASS; sessions 76 tests pass on Linux
+Example / all-module renders | PASS, deterministic --check PASS; 331 / 447 manifests valid, 0 invalid/errors/skipped
+Placeholder lint | PASS
+Rendered contract checker | Both 0 errors; supervisor image, policy producer/hash, private mounts/tokens and permission MCP hashes checked
+CEL optional-field lint | Both 0 fail; cel-python 0.4.0 independently evaluated 64 positive/negative shape cases across plain/supervised Claude, Codex and synthetic Kimi, plus CONNECT actor cases
+Promtool | 13 / 20 rendered rule files checked; all applicable tests SUCCESS; disabled optional producers explicitly skipped
+Supervisor disabled | No sidecar, supervisor policy object or aa-permission server; plain variants preserved; --check, contracts and CEL lint PASS
+Strict synthetic all-module render | PASS and deterministic --check PASS; pins are synthetic offline evidence only
+Strict example negative | Expected exit 2 for zero artifact pins, including C_SUPERVISOR_IMAGE, and automatic home-node selection
+ShellCheck -x | Complete workflow invocation PASS; generated node-specific login preparation scripts also PASS
+PowerShell syntax | Windows PowerShell parser PASS; local pwsh unavailable, so the hosted pwsh executable was not exercised
+Supervisor image | Local Docker build PASS; no publishing
+Linkcheck | 0 fail
+Repository sanitizer | 0 fail, 19 existing synthetic-date warnings; rules unchanged
+Scoped CODEX sanitize_selfcheck.py | 0 fail, 0 warn over every touched path
+
+Quota resources include 50m/64Mi requests and 500m/256Mi limits for each permitted pod
+when supervision is enabled. Plain variants receive no GIT_AUTHOR_* or GIT_COMMITTER_*
+additions, per the Part B amendment. Optional registry forge configuration, helper and
+CLI-only mount were already implemented; credential availability remains reported as
+unknown rather than inferred from a named Secret. Pace projection, per-user policies,
+console/hook egress and holder-only spawn were already satisfied and are covered offline.
+The aa sessions supervise wrapper now preserves stdin through the holder's private exec
+path. Dynamic setup and generated pre-bound home scripts create transcript directories;
+actual kubelet ownership and runtime readability remain deployment checks.
+
+Open public VERIFY issues were read with
+`gh issue list -R <public-template-repository> --label kind/verify --json number,title`.
+Issue numbers refer to the public template repository named in the integration task.
+The export sanitization policy excludes literal source-owner names and repository URLs;
+these are recorded by issue number without weakening that policy. None was closed by
+offline evidence:
+
+Deployment evidence still required | Public issue
+--- | ---
+Claude stream-json input/output/verbose, init session ID, permission-prompt tool/name/response, interrupt control and stdio AA_SUPERVISOR_SESSION inheritance | `#17`
+Claude organisation login pin and pinned doctor spelling | `#16`
+Claude managed MCP exclusive control, permission server launch and managed-file behavior | `#15`
+Codex exec --json, stdin, later input/session ID and bridge behavior; remains signal-only | `#18`
+Kimi transcript location and wrapper-managed policy; spawn remains unsupported | `#19`
+CONNECT positive/relevant negative server dry-runs and TokenReview bound pod-name extra | `#20`
+VERIFY 08: VM tmpfs Unix sockets/FIFOs, token rotation, transcript subPath ownership/readability, CLI exclusion from private mounts, tmux argv/literal keys/socket/client-server versions, C-c/kill-pane and pinned tini subreaper; gVisor remains unsupported | `#24`
+API endpoint/Service-IP egress under the deployed CNI | `#22`
+Argo rendered-manifest applications and per-user replica behavior | `#23`
+LiteLLM edition features and live metric behavior | `#21`
+Managed Kubernetes distribution equivalents | `#25`
+Seat usage sources and pacing readings | `#26`
+
+Spawn stays fail-closed behind the reviewed pinned CLI/tmux evidence files. Credentialed
+notifier relays are an organisation extension; no relay or credentials were invented.
+Temporary render/config/evaluator directories and repository-root test scripts were removed.
+Automatic approval review rejected generated dependency/cache cleanup, including a
+checked literal-path retry, with reason "blocked by policy". The ignored
+modules/factory/engine/js/node_modules directory and bytecode caches remain; no gate
+rules were weakened and no source file was removed.
+New generated prepare-login-homes.sh files are invoked with bash and require no authored
+executable-bit change. Existing shell/helper executable requirements are unchanged.

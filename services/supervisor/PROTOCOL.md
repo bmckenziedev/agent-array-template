@@ -26,4 +26,9 @@ The console uses TokenReview with audience `<project>-supervisor`, namespace loo
 
 Every GET and POST carries the projected connector token, read again per request and after a 401. No shared secret exists. Commands arrive through outbound `GET <console_url>/v1/supervisor/commands`; replies and frames use outbound `POST <console_url>/v1/supervisor/events`. The console is trusted to authenticate forwarded human actors. The supervisor checks current policy again for each command. The stream reconnects within 50 minutes, uses capped jittered backoff and resumes with Last-Event-ID and resume_seq. POST acknowledgement is ack_seq.
 
+Only the namespace holder may exec/attach into the supervisor container. Ticketed
+break-glass uses console-authenticated actors for list/output/interrupt/stop and never
+receives local holder-equivalent control. No additional holder RBAC grant is needed
+beyond the existing pods/exec create permission.
+
 The private control socket is `/run/aa-supervisor/control.sock`; only the supervisor mounts that emptyDir. The CLI sees `/run/aa/permission.sock`, which accepts permission.request only. Neither channel binds TCP/UDP or supports port-forward.

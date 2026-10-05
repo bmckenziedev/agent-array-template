@@ -103,6 +103,10 @@ def render(model, emit):
         enabled = {t for t in user["tools"] if model["org"]["vendors"][vendors[t]]["enabled"]}
         for tool in sorted(enabled):
             chosen = [s for s in allowed if tool in s["clients"]]
+            supervised = model["org"].get("components", {}).get("supervisor", {}).get("enabled", False)
+            if tool == "claude" and supervised:
+                chosen = chosen + [{"name": "aa-permission", "transport": "stdio",
+                                    "command": "/usr/local/bin/aa-permission-mcp", "args": [], "env": {}}]
             if tool == "kimi" or not chosen:
                 continue
             if tool == "claude":

@@ -20,12 +20,14 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("login")
     commands.add_parser("whoami")
     sessions = commands.add_parser("sessions").add_subparsers(dest="action", required=True)
-    for verb in ("list", "login", "attach", "logs", "scale"):
+    for verb in ("list", "login", "attach", "logs", "scale", "supervise"):
         sub = sessions.add_parser(verb)
         sub.add_argument("--tool", required=verb != "list")
         sub.add_argument("-n", "--namespace")
-        if verb in ("login", "attach", "logs"):
+        if verb in ("login", "attach", "logs", "supervise"):
             sub.add_argument("--pod")
+        if verb == "supervise":
+            sub.add_argument("supervisor_args", nargs=argparse.REMAINDER)
         if verb == "scale":
             sub.add_argument("replicas", type=int)
             sub.add_argument("--statefulset")
@@ -125,6 +127,14 @@ def upload(identity: kube.Identity, args) -> bytes:
 
 
 def sessions(identity: kube.Identity, args) -> None:
+    if args.action == "supervise":
+        pod = identity.pod(args.tool, args.pod)
+        command = args.supervisor_args
+        if command[:1] == ["--"]:
+            command = command[1:]
+        identity.scoped(["exec", "-i", pod, "-c", "supervisor", "--", "aa-supervise",
+                         *(command or ["list"])], interactive=True)
+        return
     if args.action == "list":
         tools = [args.tool] if args.tool else sorted(identity.user["tools"])
         output([{"tool": tool, "namespace": identity.namespace, "pod": o["metadata"]["name"],

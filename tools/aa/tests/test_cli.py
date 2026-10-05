@@ -131,6 +131,15 @@ class ClientTests(unittest.TestCase):
         self.assertEqual([r["pod"] for r in json.loads(out)], ["a-changing-name"])
         self.assertIn("agent-array.example.org/user=ana,agent-array.example.org/tool=claude", self.calls()[-1])
 
+    def test_supervise_uses_holder_pod_private_container_and_literal_argv(self):
+        rc, _, _ = self.invoke("sessions", "supervise", "--tool", "claude", "--", "list")
+        self.assertEqual(rc, 0)
+        call = self.calls()[-1]
+        self.assertIn("-i", call)
+        self.assertEqual(call[-6:], ["a-changing-name", "-c", "supervisor", "--", "aa-supervise", "list"])
+        self.assertNotIn("port-forward", call)
+        self.assertEqual(self.invoke("sessions", "supervise", "--tool", "claude", "-n", "aa-u-bo")[0], 2)
+
     def test_cross_namespace_refused_before_session_request(self):
         rc, _, err = self.invoke("sessions", "logs", "--tool", "claude", "-n", "aa-u-bo")
         self.assertEqual(rc, 2)

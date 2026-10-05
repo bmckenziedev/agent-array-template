@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from decimal import Decimal, ROUND_CEILING
 from pathlib import Path
 
 from . import yamlsub
@@ -539,6 +540,26 @@ def normalise(root: Path, org_file: Path) -> dict:
         }
         for tk, tv in tier.items():
             uk["TIER_" + up(tk)] = s(tv)
+        if org.get("components", {}).get("supervisor", {}).get("enabled", False):
+            # Reserve sidecar resources for every pod admitted by the tier, including
+            # replicas added later through the holder's scale permission.
+            pods = int(tier["pods"])
+            for field, overhead in (("REQUESTS_CPU", 50), ("LIMITS_CPU", 500)):
+                value = uk["TIER_" + field]
+                milli = Decimal(value[:-1]) if value.endswith("m") else Decimal(value) * 1000
+                total = format(milli + pods * overhead, "f")
+                uk["TIER_" + field] = (total.rstrip("0").rstrip(".") if "." in total else total) + "m"
+            units = {"Ki": 1024, "Mi": 1024**2, "Gi": 1024**3,
+                     "Ti": 1024**4, "Pi": 1024**5, "Ei": 1024**6,
+                     "k": 1000, "M": 1000**2, "G": 1000**3,
+                     "T": 1000**4, "P": 1000**5, "E": 1000**6,
+                     "m": Decimal("0.001")}
+            for field, overhead in (("REQUESTS_MEMORY", 64), ("LIMITS_MEMORY", 256)):
+                value = uk["TIER_" + field]
+                suffix = next((unit for unit in units if value.endswith(unit)), "")
+                amount = Decimal(value[:-len(suffix)] if suffix else value)
+                total = amount * units.get(suffix, 1) + pods * overhead * 1024**2
+                uk["TIER_" + field] = str(total.to_integral_value(rounding=ROUND_CEILING))
         forge = u.get("git") or {}
         uk["USER_GIT_SECRET"] = forge.get("credential_secret", "")
         uk["USER_GIT_VOLUME"] = ""

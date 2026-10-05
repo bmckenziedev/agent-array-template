@@ -131,3 +131,7 @@ authorization, deny filtering, path validation and agent-config stripping** at
 ingest. Client checks improve feedback; server policy and holder RBAC enforce the
 boundary. Neither a local config edit nor a forged upload may authorize an estate.
 Seats are interactive; automation routes through pace API/pool accounts.
+
+`aa sessions supervise --tool <tool> [--pod <pod>] -- <aa-supervise arguments>`
+selects the holder pod and runs the private sidecar CLI through `kubectl exec -i`.
+The default supervisor command is `list`; spawn reads its brief from stdin.

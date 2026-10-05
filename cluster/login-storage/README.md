@@ -4,11 +4,11 @@ A dedicated local-path instance stores each login in a separate retained PVC for
 
 ## Interface
 
-The provisioner lives in `NS_SYSTEM`, uses its own provisioner name, ConfigMaps and service account, and coexists with distribution local-path storage. The nodePathMap has no fallback path and includes only session nodes. StorageClass topology and helper nodeSelector require the role-sessions label. PVCs use ReadWriteOnce: ReadWriteOncePod is CSI-only, and local-path is not CSI. RWO does not serialize multiple pods on the same node; sessions must cap Codex concurrency and replicas at one for each login.
+The provisioner lives in `<project>-login-storage`, uses its own provisioner name, ConfigMaps and service account, and coexists with distribution local-path storage. The nodePathMap has no fallback path and includes only session nodes. StorageClass topology and helper nodeSelector require the role-sessions label. PVCs use ReadWriteOnce: ReadWriteOncePod is CSI-only, and local-path is not CSI. RWO does not serialize multiple pods on the same node; sessions must cap Codex concurrency and replicas at one for each login.
 
 ## Configuration
 
-Uses `LOGIN_HOST_ROOT`, `STORAGE_CLASS_LOGIN`, session nodes, label prefix, API endpoint/Service IPs/port and `NS_SYSTEM`. WaitForFirstConsumer preserves scheduling/node affinity; Retain prevents automatic credential deletion. Login images use UID 1000; setup directories are 0700 owned by 1000. The parent is root-owned 0711. Verify session UID compatibility before deployment.
+Uses `LOGIN_HOST_ROOT`, `STORAGE_CLASS_LOGIN`, session nodes, label prefix, API endpoint/Service IPs/port and the isolated login-storage namespace. WaitForFirstConsumer preserves scheduling/node affinity; Retain prevents automatic credential deletion. Login images use UID 1000; setup directories are 0700 owned by 1000. The parent is root-owned 0711. Verify session UID compatibility before deployment.
 
 ## Secrets
 
@@ -16,7 +16,19 @@ Login files are holder credentials created interactively inside the pod. No Secr
 
 ## Deploy
 
-Run rendered `prepare-login-root.sh --require-encrypted` first; add `--yes` to create the directory. The system namespace must be PSA privileged because helper pods mount hostPath and run as root with CHOWN/DAC_OVERRIDE/FOWNER. Keep warn/audit restricted and pin PSA versions through platform/hardening; this component never creates or relabels the namespace. This relaxation is shared with other system components and requires restrictive RBAC/admission. Helpers need only the selected login path, no host network/PID or privileged container. Provisioner itself is non-root with read-only rootfs and dropped capabilities.
+Run rendered `prepare-login-root.sh --require-encrypted` first; add `--yes` only on
+new isolated adoption nodes. Pre-bound local PVs do not invoke dynamic setup: run
+`bash rendered/files/cluster/node-prep/<node>/prepare-login-homes.sh` on each declared home
+node, inspect the dry-run plan, then add `--yes`. The script requires root, checks the
+node name, refuses symlink ancestors and creates root-owned 0711 parents plus UID/GID
+1000-owned 0700 login/projects/sessions directories. It never copies login material.
+Prepare new directories before session pods mount subPaths; do not run this against
+existing services during adoption. Dynamic setup also pre-creates both transcript dirs.
+
+The dedicated login-storage namespace enforces PSA privileged for helper hostPath and
+CHOWN/DAC_OVERRIDE/FOWNER, with warn/audit restricted and default-deny. Helpers need only
+the selected login path, no host network/PID or privileged container. The provisioner
+is non-root with read-only rootfs and dropped capabilities.
 
 Image versions are pinned to registry manifest digests: [upstream release v0.0.32](https://github.com/rancher/local-path-provisioner/releases/tag/v0.0.32), manifest digest verified directly from Docker Registry; busybox 1.36.1 is also pinned. The upstream release does not publish the image digest in its notes. Revalidate architectures and release pins before adoption.
 

@@ -3,6 +3,7 @@
 import argparse
 import fnmatch
 import json
+import hashlib
 from pathlib import Path
 import re
 
@@ -17,7 +18,7 @@ CLUSTER_KINDS = {"Namespace", "ClusterRole", "ClusterRoleBinding", "StorageClass
 DOCKERFILES = ("sessions/claude/image/Dockerfile", "sessions/codex/image/Dockerfile",
                "sessions/kimi/image/Dockerfile", "portal/panel/Dockerfile",
                "modules/session-jobs/image/Dockerfile", "services/pace/Dockerfile",
-               "services/farm-mcp/Dockerfile", "modules/factory/Dockerfile",
+               "services/farm-mcp/Dockerfile", "services/supervisor/Dockerfile", "modules/factory/Dockerfile",
                "modules/hermes-ops-chat/image/Dockerfile")
 
 
@@ -98,6 +99,94 @@ def pod_specs(doc):
     return [template["spec"]] if "spec" in template else []
 
 
+def supervisor_errors(pod):
+    """Check isolation across the real rendered CLI, sidecar and volumes."""
+    containers = pod.get("containers", [])
+    sidecars = [c for c in containers if c.get("name") == "supervisor"]
+    if not sidecars:
+        return []
+    errors = []
+    cli = next((c for c in containers if c.get("name") in {"claude", "codex", "kimi"}), {})
+    tool = cli.get("name")
+    sidecar = sidecars[0]
+    if len(sidecars) != 1 or not tool:
+        return ["supervisor requires exactly one sidecar and a seat CLI"]
+    if containers[0].get("name") != tool:
+        errors.append("the seat CLI must remain the default container")
+    if pod.get("shareProcessNamespace") is not False:
+        errors.append("supervisor requires separate PID namespaces")
+    security = sidecar.get("securityContext", {})
+    if any(security.get(key) != 1000 for key in ("runAsUser", "runAsGroup")) or any(
+            cli.get("securityContext", {}).get(key, pod.get("securityContext", {}).get(key)) != 1000
+            for key in ("runAsUser", "runAsGroup")):
+        errors.append("supervisor and CLI require uid/gid 1000")
+    if (security.get("readOnlyRootFilesystem") is not True or
+            security.get("allowPrivilegeEscalation") is not False or
+            security.get("runAsNonRoot") is not True or
+            security.get("capabilities", {}).get("drop") != ["ALL"] or
+            security.get("capabilities", {}).get("add") or
+            security.get("seccompProfile", {}).get("type") != "RuntimeDefault" or
+            sidecar.get("ports") or "command" in sidecar or "args" in sidecar):
+        errors.append("supervisor security context or entrypoint differs from the approved shape")
+    volumes = {v["name"]: v for v in pod.get("volumes", [])}
+    mounts = {m["name"]: m for m in sidecar.get("volumeMounts", [])}
+    expected = {"aa-tmux": "/run/aa-tmux", "aa-shared": "/run/aa",
+                "supervisor-run": "/run/aa-supervisor", "supervisor-tmp": "/tmp",
+                "supervisor-policy": "/etc/aa-supervisor",
+                "supervisor-token": "/var/run/agent-array/supervisor-token",
+                "supervisor-hook-token": "/var/run/agent-array/supervisor-hook-token",
+                "pace-token": "/var/run/agent-array/pace-token"}
+    if tool != "kimi":
+        expected["login"] = "/transcripts/" + tool
+    if set(mounts) != set(expected) or any(mounts.get(n, {}).get("mountPath") != p
+                                            for n, p in expected.items()):
+        errors.append("supervisor mounts differ from the transcript/private-control shape")
+    for name in ("supervisor-policy", "supervisor-token", "supervisor-hook-token", "pace-token", "login"):
+        if name in mounts and mounts[name].get("readOnly") is not True:
+            errors.append("supervisor policy, tokens and transcripts must be read-only")
+    if tool != "kimi" and (mounts.get("login", {}).get("subPath") !=
+                           ("projects" if tool == "claude" else "sessions") or
+                           "subPathExpr" in mounts.get("login", {})):
+        errors.append("supervisor login mount must be the exact transcript subPath")
+    for name, size in (("aa-tmux", "8Mi"), ("aa-shared", "16Mi"),
+                       ("supervisor-run", "16Mi"), ("supervisor-tmp", "64Mi")):
+        if volumes.get(name, {}).get("emptyDir") != {"medium": "Memory", "sizeLimit": size}:
+            errors.append("supervisor shared/private volumes require bounded Memory emptyDirs")
+    if volumes.get("supervisor-policy", {}).get("configMap", {}).get("name") != "supervisor-policy":
+        errors.append("supervisor-policy volume references the wrong producer")
+    for container in containers + pod.get("initContainers", []):
+        for mount in container.get("volumeMounts", []):
+            name = mount["name"]
+            if name.startswith("supervisor-") and container["name"] != "supervisor":
+                errors.append("supervisor private storage/tokens mounted outside the sidecar")
+            if name in {"aa-tmux", "aa-shared"} and (container["name"] not in {tool, "supervisor"}
+                    or mount.get("readOnly") or "subPath" in mount or "subPathExpr" in mount):
+                errors.append("shared supervision sockets must be CLI/sidecar-only and writable")
+            if name == "mcp-token" and container["name"] != tool:
+                errors.append("MCP token mounted outside the CLI")
+            if name == "pace-token" and container["name"] not in {tool, "usage", "supervisor"}:
+                errors.append("pace token mounted outside its allowed containers")
+    env = {e["name"]: e.get("value") for e in cli.get("env", [])}
+    for name, value in (("AA_SUPERVISOR", "1"), ("TMUX_TMPDIR", "/run/aa-tmux"), ("TINI_SUBREAPER", "1")):
+        if env.get(name) != value:
+            errors.append("supervised CLI lacks required supervision environment")
+    for name in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
+        if not env.get(name):
+            errors.append("supervised CLI lacks registry Git identity")
+    project = next((e.get("value") for e in sidecar.get("env", []) if e["name"] == "AA_PROJECT"), "")
+    for name, suffix in (("mcp-token", "mcp"), ("pace-token", "pace"),
+                         ("supervisor-token", "supervisor"), ("supervisor-hook-token", "supervisor-hook")):
+        sources = volumes.get(name, {}).get("projected", {}).get("sources", [])
+        token = sources[0].get("serviceAccountToken", {}) if len(sources) == 1 else {}
+        if (not project or token.get("audience") != project + "-" + suffix or
+                not 0 < token.get("expirationSeconds", 0) <= 3600 or token.get("path") != "token"):
+            errors.append("supervisor projected token audience/expiry/path is invalid")
+    for name, volume in volumes.items():
+        if "secret" in volume and name != "git-credential":
+            errors.append("console/notifier Secrets are forbidden in session pods")
+    return sorted(set(errors))
+
+
 def check(tree, root):
     docs = documents(tree)
     errors = []
@@ -106,6 +195,8 @@ def check(tree, root):
     services = [d for _, d in docs if d["kind"] == "Service"]
     configmaps = {(d.get("metadata", {}).get("namespace"), d.get("metadata", {}).get("name"))
                   for _, d in docs if d["kind"] == "ConfigMap"}
+    configs = {(d.get("metadata", {}).get("namespace"), d.get("metadata", {}).get("name")): d
+               for _, d in docs if d["kind"] == "ConfigMap"}
     shapes = "\n".join(json.dumps(d) for _, d in docs if d["kind"] == "ValidatingAdmissionPolicy"
                        and "shape" in d["metadata"]["name"])
     def fail(path, message):
@@ -167,13 +258,30 @@ def check(tree, root):
             if not path.startswith("users/") or "sessions" not in path:
                 continue
             volumes = pod.get("volumes", [])
+            for error in supervisor_errors(pod):
+                fail(path, error)
+            if any(c.get("name") == "supervisor" for c in pod.get("containers", [])):
+                policy = configs.get((namespace, "supervisor-policy"), {}).get("data", {})
+                if policy and hashlib.sha256(policy.get("policy.json", "").encode()).hexdigest() != policy.get("policy.sha256"):
+                    fail(path, "supervisor policy hash does not match its producer")
+                if any(c.get("name") == "claude" for c in pod.get("containers", [])):
+                    data = configs.get((namespace, "claude-mcp"), {}).get("data", {})
+                    entries = json.loads(data.get("managed-mcp.json", "{}" )).get("mcpServers", {})
+                    if entries.get("aa-permission") != {"type": "stdio", "command": "/usr/local/bin/aa-permission-mcp", "args": [], "env": {}}:
+                        fail(path, "supervised Claude lacks the managed aa-permission server")
+                    if {"serverName": "aa-permission"} not in json.loads(data.get("allowed-mcp-servers.json", "[]")):
+                        fail(path, "supervised Claude lacks the aa-permission allowlist entry")
+                    hashes = json.loads(data.get("mcp-rendered.json", "{}" )).get("sha256", {})
+                    if any(hashes.get(key) != hashlib.sha256(data.get(key, "").encode()).hexdigest()
+                           for key in ("managed-mcp.json", "allowed-mcp-servers.json")):
+                        fail(path, "supervised Claude MCP hashes do not match their producer")
             for volume in volumes:
                 producers = [volume["configMap"]] if "configMap" in volume else [
                     s["configMap"] for s in volume.get("projected", {}).get("sources", []) if "configMap" in s]
                 for producer in producers:
                     name = producer["name"]
                     if name in ("claude-policy", "codex-policy", "kimi-policy", "claude-mcp", "codex-mcp",
-                                "context-policy", "org-directory"):
+                                "context-policy", "org-directory", "supervisor-policy"):
                         if (namespace, name) not in configmaps:
                             fail(path, f"ConfigMap {namespace}/{name} has no producer")
             for container in pod.get("containers", []) + pod.get("initContainers", []):

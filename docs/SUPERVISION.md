@@ -15,7 +15,7 @@ Spawned sessions use a sidecar registry and a CLI-container runner: Claude is fu
 | stop | yes | yes | yes | no |
 | permission.decide | yes | no | no | only listed category decider |
 
-Unknown, suspended and offboarded actors are denied before other checks. Holder identity is OIDC-authenticated by the console and re-authorised against current policy. Local `kubectl exec -c supervisor -- aa-supervise` is holder-equivalent because the API server and exec guard admit the holder and ticketed break-glass and audit the exec. A break-glass local exec therefore has holder-equivalent capability, matching existing CLI exec exposure. A pod without AA_USER has null ownership and allows only known ticketed break-glass stop/interrupt.
+Unknown, suspended and offboarded actors are denied before other checks. Holder identity is OIDC-authenticated by the console and re-authorised against current policy. Local `kubectl exec -c supervisor -- aa-supervise` is holder-equivalent; the CONNECT guard admits only the namespace holder to that container and audits the exec. Ticketed break-glass uses authenticated console actors for observation, interrupt and stop; it cannot enter the private control path. Existing CLI break-glass exec remains an audited administrative trust boundary. A pod without AA_USER has null ownership and allows only known ticketed break-glass stop/interrupt.
 
 ## Permission routing
 
@@ -47,7 +47,7 @@ Git identity comes only from registry env: slug name, USER_EMAIL email, USER_GIT
 
 An empty console_url disables the connector. Otherwise outbound HTTPS SSE receives commands and JSON POST emits hello, responses, output and metrics. The receiver verifies the projected `<project>-supervisor` token, namespace labels and pod binding with [console_ref/verify.py](../services/supervisor/console_ref/verify.py). Tokens are re-read per request and after 401. The console is trusted to authenticate human actors; the supervisor re-authorises every command. There is no shared connector secret, port-forward, inbound Service or metrics listener.
 
-Notifier and work-item adapter modules expose Plugin(config, ctx). Their context offers only audit and redacted bounded TLS post_json. Credentialed delivery uses an external relay that TokenReviews the distinct supervisor-hook token. The policy hook shares this path. Delivery failures do not extend human timeouts.
+Notifier and work-item adapter modules expose Plugin(config, ctx). Their context offers only audit and redacted bounded TLS post_json. Credentialed delivery requires an organisation extension: this template ships no credentialed relay. The external relay TokenReviews the distinct supervisor-hook token. The policy hook shares this path. Delivery failures do not extend human timeouts.
 
 console_cidrs/console_port and hook_egress configure exact per-user egress. Unrestricted CIDRs and API-server IP coverage are rejected. NetworkPolicy is per pod, so the CLI can also reach allowed peers: every receiver must authenticate every request. Organisations needing hostname-level control can use an authenticated egress gateway with exact upstream allowlists. Pace egress is already supplied by session infrastructure.
 

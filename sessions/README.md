@@ -36,8 +36,14 @@ require the webhook.
 
 The CLI, policy init container, snapshot receiver (`estate`) and Codex usage reporter have distinct
 mounts. Estate never mounts a login claim. Usage receives only the Codex `sessions` subdirectory
-read-only. Projected tokens have MCP or pace audiences, expire within one hour and mount only in
-their allowed containers.
+read-only. Projected tokens have exactly MCP, pace, supervisor or supervisor-hook audiences and
+expire within one hour. MCP tokens are CLI-only; pace tokens serve CLI, Codex usage and
+supervisor; both supervisor tokens are sidecar-only. The holder ClusterRole already
+grants pods/exec create. Only the holder may exec/attach into supervisor; ticketed
+break-glass uses the authenticated console for supervisor observation and stop.
+`aa sessions supervise --tool claude -- list` wraps the holder exec path without a
+port-forward grant. Tier quotas include sidecar requests and limits for every permitted
+pod; the provisioner creates projects/sessions with CLI ownership before subPath mounts.
 
 ### MCP and context consumption
 

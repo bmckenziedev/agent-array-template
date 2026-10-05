@@ -19,10 +19,15 @@ spec:
   validations:
   - expression: has(namespaceObject.metadata.annotations) && '{{LABEL_PREFIX}}/oidc-sub' in namespaceObject.metadata.annotations
       && (request.userInfo.username == '{{OIDC_USERNAME_PREFIX}}' + namespaceObject.metadata.annotations['{{LABEL_PREFIX}}/oidc-sub']
-      || (has(request.userInfo.groups) && '{{OIDC_GROUP_BREAKGLASS}}' in request.userInfo.groups
-      && '{{LABEL_PREFIX}}/breakglass-ticket' in namespaceObject.metadata.annotations
-      && namespaceObject.metadata.annotations['{{LABEL_PREFIX}}/breakglass-ticket'] != ''))
+      || (has(request.userInfo.groups) && '{{OIDC_GROUP_BREAKGLASS}}' in request.userInfo.groups && '{{LABEL_PREFIX}}/breakglass-ticket'
+      in namespaceObject.metadata.annotations && namespaceObject.metadata.annotations['{{LABEL_PREFIX}}/breakglass-ticket']
+      != ''))
     message: Only the holder or ticketed break-glass may connect to a session.
+  - expression: request.subResource == 'portforward' || !has(object.container) || object.container != 'supervisor'
+      || (has(namespaceObject.metadata.annotations) && '{{LABEL_PREFIX}}/oidc-sub' in namespaceObject.metadata.annotations
+      && request.userInfo.username == '{{OIDC_USERNAME_PREFIX}}' + namespaceObject.metadata.annotations['{{LABEL_PREFIX}}/oidc-sub'])
+    message: Only the namespace holder may exec or attach to the holder-equivalent private supervisor control
+      path; break-glass uses authenticated console observation/stop commands.
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
