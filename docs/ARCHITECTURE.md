@@ -106,6 +106,8 @@ duplicating router entries can multiply apparent concurrency beyond physical slo
 
 ## Trust boundaries and data flow
 
+[Session supervision](SUPERVISION.md) uses a private Unix control socket and a shared request-only permission socket. Holder-only spawning, separate PID namespaces, transcript-only mounts and redacted outbound frames preserve personal-seat boundaries; the console authenticates forwarded actors and every command is re-authorised in the pod.
+
 ```mermaid
 flowchart TB
   subgraph Human[Human boundary]

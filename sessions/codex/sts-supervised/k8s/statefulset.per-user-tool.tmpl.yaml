@@ -1,0 +1,421 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: '{{TOOL_STS_NAME}}'
+  labels:
+    app.kubernetes.io/name: '{{TOOL_STS_NAME}}'
+    app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+    app.kubernetes.io/component: sessions
+    '{{LABEL_PREFIX}}/user': '{{USER_SLUG}}'
+    '{{LABEL_PREFIX}}/team': '{{USER_PRIMARY_TEAM}}'
+    '{{LABEL_PREFIX}}/tool': '{{TOOL}}'
+    '{{LABEL_PREFIX}}/account': '{{TOOL_ACCOUNT_ID}}'
+  namespace: '{{USER_NS}}'
+spec:
+  replicas: {{TOOL_REPLICAS}}
+  serviceName: '{{TOOL_STS_NAME}}'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: '{{TOOL_STS_NAME}}'
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: '{{TOOL_STS_NAME}}'
+        app.kubernetes.io/part-of: '{{PROJECT_NAME}}'
+        app.kubernetes.io/component: sessions
+        '{{LABEL_PREFIX}}/user': '{{USER_SLUG}}'
+        '{{LABEL_PREFIX}}/team': '{{USER_PRIMARY_TEAM}}'
+        '{{LABEL_PREFIX}}/tool': '{{TOOL}}'
+        '{{LABEL_PREFIX}}/account': '{{TOOL_ACCOUNT_ID}}'
+      annotations:
+        kubectl.kubernetes.io/default-container: codex
+    spec:
+      runtimeClassName: '{{RUNTIME_CLASS_VM}}'
+      priorityClassName: aa-session
+      serviceAccountName: session
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      shareProcessNamespace: false
+      nodeSelector:
+        kubernetes.io/hostname: '{{TOOL_HOME_NODE}}'
+        '{{LABEL_PREFIX}}/role-sessions': 'true'
+        '{{LABEL_PREFIX}}/runtime-{{RUNTIME_CLASS_VM}}': 'true'
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+      - name: '{{REGISTRY_PULL_SECRET}}'
+      initContainers:
+      - name: policy-merge
+        image: '{{TOOL_IMAGE}}'
+        command:
+        - /usr/local/bin/aa-policy-merge
+        - --tool
+        - codex
+        - --base
+        - /policy/base
+        - --mcp
+        - /policy/mcp
+        - --out
+        - /etc/codex
+        env: []
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: '2'
+            memory: 4Gi
+        volumeMounts:
+        - name: base
+          mountPath: /policy/base
+          readOnly: true
+        - name: mcp
+          mountPath: /policy/mcp
+          readOnly: true
+        - name: policy
+          mountPath: /etc/codex
+      containers:
+      - name: codex
+        image: '{{TOOL_IMAGE}}'
+        env:
+        - name: AA_SUPERVISOR
+          value: '1'
+        - name: TMUX_TMPDIR
+          value: '/run/aa-tmux'
+        - name: TINI_SUBREAPER
+          value: '1'
+        - name: GIT_AUTHOR_NAME
+          value: '{{USER_SLUG}}'
+        - name: GIT_COMMITTER_NAME
+          value: '{{USER_SLUG}}'
+        - name: GIT_AUTHOR_EMAIL
+          value: '{{USER_EMAIL}}'
+        - name: GIT_COMMITTER_EMAIL
+          value: '{{USER_EMAIL}}'
+{{USER_GIT_ENV}}
+        - name: HOME
+          value: /home/codex
+        - name: AA_TOOL
+          value: codex
+        - name: AA_USER
+          value: '{{USER_SLUG}}'
+        - name: AA_TEAM
+          value: '{{USER_PRIMARY_TEAM}}'
+        - name: AA_ACCOUNT
+          value: '{{TOOL_ACCOUNT_ID}}'
+        - name: AA_NODE
+          value: '{{TOOL_HOME_NODE_SHORT}}'
+        - name: AA_MAX_SESSIONS
+          value: '{{TOOL_MAX_SESSIONS}}'
+        - name: AA_LEASE_FAIL_CLOSED
+          value: '{{SESSION_LEASE_FAIL_CLOSED}}'
+        - name: AA_PACE_URL
+          value: http://pace.{{NS_SYSTEM}}.svc:8080
+        - name: AA_LOGIN_STORAGE
+          value: '{{LOGIN_STORAGE}}'
+        - name: AA_PERMISSION_MODE
+          value: '{{USER_PERMISSION_MODE}}'
+        - name: AA_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: CODEX_HOME
+          value: /home/codex/.codex
+        - name: AA_HOME_NODE
+          value: '{{TOOL_HOME_NODE_SHORT}}'
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: '2'
+            memory: 4Gi
+        volumeMounts:
+        - name: aa-tmux
+          mountPath: /run/aa-tmux
+        - name: aa-shared
+          mountPath: /run/aa
+{{USER_GIT_MOUNT}}
+        - name: home
+          mountPath: /home/codex
+        - name: login
+          mountPath: /home/codex/.codex
+        - name: tmp
+          mountPath: /tmp
+        - name: work
+          mountPath: /work
+        - name: snap
+          mountPath: /work/snap
+          readOnly: true
+        - name: policy
+          mountPath: /etc/codex
+          readOnly: true
+        - name: mcp-token
+          mountPath: /var/run/agent-array/mcp-token
+          readOnly: true
+        - name: pace-token
+          mountPath: /var/run/agent-array/pace-token
+          readOnly: true
+        args:
+        - codex
+      - name: estate
+        image: '{{TOOL_IMAGE}}'
+        command:
+        - /usr/local/bin/aa-snapshot
+        - serve
+        env:
+        - name: AA_TOOL
+          value: codex
+        - name: AA_SNAP_ROOT
+          value: /work/snap
+        - name: AA_SNAP_REQUIRE_TMPFS
+          value: '1'
+        - name: AA_CONTEXT_POLICY
+          value: /etc/aa-context/estates.json
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: '2'
+            memory: 4Gi
+        volumeMounts:
+        - name: snap
+          mountPath: /work/snap
+        - name: estate-tmp
+          mountPath: /tmp
+        - name: context
+          mountPath: /etc/aa-context
+          readOnly: true
+      - name: usage
+        image: '{{TOOL_IMAGE}}'
+        command:
+        - /usr/local/bin/aa-usage-report
+        - --loop
+        - '{{C_SESSIONS_USAGE_REPORT_INTERVAL_S}}'
+        env:
+        - name: AA_TOOL
+          value: codex
+        - name: AA_USER
+          value: '{{USER_SLUG}}'
+        - name: AA_TEAM
+          value: '{{USER_PRIMARY_TEAM}}'
+        - name: AA_ACCOUNT
+          value: '{{TOOL_ACCOUNT_ID}}'
+        - name: AA_PACE_URL
+          value: http://pace.{{NS_SYSTEM}}.svc:8080
+        - name: CODEX_HOME
+          value: /usage
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: '2'
+            memory: 4Gi
+        volumeMounts:
+        - name: login
+          mountPath: /usage/sessions
+          readOnly: true
+          subPath: sessions
+        - name: pace-token
+          mountPath: /var/run/agent-array/pace-token
+          readOnly: true
+      - name: supervisor
+        image: '{{C_SUPERVISOR_IMAGE}}'
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        env:
+        - name: AA_USER
+          value: '{{USER_SLUG}}'
+        - name: AA_TEAM
+          value: '{{USER_PRIMARY_TEAM}}'
+        - name: AA_TOOL
+          value: '{{TOOL}}'
+        - name: AA_ACCOUNT
+          value: '{{TOOL_ACCOUNT_ID}}'
+        - name: AA_PERMISSION_MODE
+          value: '{{USER_PERMISSION_MODE}}'
+        - name: AA_LEASE_FAIL_CLOSED
+          value: '{{SESSION_LEASE_FAIL_CLOSED}}'
+        - name: AA_PACE_URL
+          value: http://pace.{{NS_SYSTEM}}.svc:8080
+        - name: AA_MAX_SESSIONS
+          value: '{{TOOL_MAX_SESSIONS}}'
+        - name: AA_USER_EMAIL
+          value: '{{USER_EMAIL}}'
+        - name: AA_USER_GITHUB
+          value: '{{USER_GITHUB}}'
+        - name: AA_PROJECT
+          value: '{{PROJECT_NAME}}'
+        - name: AA_SUPERVISOR_POLICY
+          value: /etc/aa-supervisor/policy.json
+        - name: AA_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: aa-tmux
+          mountPath: /run/aa-tmux
+        - name: aa-shared
+          mountPath: /run/aa
+        - name: supervisor-run
+          mountPath: /run/aa-supervisor
+        - name: supervisor-tmp
+          mountPath: /tmp
+        - name: supervisor-policy
+          mountPath: /etc/aa-supervisor
+          readOnly: true
+        - name: supervisor-token
+          mountPath: /var/run/agent-array/supervisor-token
+          readOnly: true
+        - name: supervisor-hook-token
+          mountPath: /var/run/agent-array/supervisor-hook-token
+          readOnly: true
+        - name: pace-token
+          mountPath: /var/run/agent-array/pace-token
+          readOnly: true
+        - name: login
+          mountPath: /transcripts/codex
+          subPath: sessions
+          readOnly: true
+      volumes:
+{{USER_GIT_VOLUME}}
+      - name: login
+        persistentVolumeClaim:
+          claimName: '{{TOOL_HOME_CLAIM}}'
+      - name: base
+        configMap:
+          name: codex-policy
+      - name: mcp
+        configMap:
+          name: codex-mcp
+          optional: true
+      - name: context
+        configMap:
+          name: context-policy
+          optional: true
+      - name: home
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi
+      - name: tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 2Gi
+      - name: work
+        emptyDir:
+          medium: Memory
+          sizeLimit: 8Gi
+      - name: snap
+        emptyDir:
+          medium: Memory
+          sizeLimit: 4Gi
+      - name: estate-tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 64Mi
+      - name: policy
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Mi
+      - name: mcp-token
+        projected:
+          defaultMode: 292
+          sources:
+          - serviceAccountToken:
+              audience: '{{PROJECT_NAME}}-mcp'
+              expirationSeconds: 3600
+              path: token
+      - name: pace-token
+        projected:
+          defaultMode: 292
+          sources:
+          - serviceAccountToken:
+              audience: '{{PROJECT_NAME}}-pace'
+              expirationSeconds: 3600
+              path: token
+      - name: aa-tmux
+        emptyDir:
+          medium: Memory
+          sizeLimit: 8Mi
+      - name: aa-shared
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Mi
+      - name: supervisor-run
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Mi
+      - name: supervisor-tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 64Mi
+      - name: supervisor-policy
+        configMap:
+          name: supervisor-policy
+          optional: true
+      - name: supervisor-token
+        projected:
+          defaultMode: 292
+          sources:
+          - serviceAccountToken:
+              audience: '{{PROJECT_NAME}}-supervisor'
+              expirationSeconds: 3600
+              path: token
+      - name: supervisor-hook-token
+        projected:
+          defaultMode: 292
+          sources:
+          - serviceAccountToken:
+              audience: '{{PROJECT_NAME}}-supervisor-hook'
+              expirationSeconds: 3600
+              path: token

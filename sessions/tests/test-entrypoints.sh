@@ -66,3 +66,24 @@ for tool in claude codex kimi; do
   run_refusal 'login directory must exist'
   echo "PASS $tool entrypoint credential, policy hash and login directory refusals"
 done
+
+# Supervised socket placement is inherited by every tmux invocation.
+cat > "$tmp/bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "${TMUX_TMPDIR:?}/tmux-1000/default $*" >> "${AA_TEST_TMUX_LOG:?}"
+case "$1" in has-session) exit 1 ;; esac
+EOF
+for stub in entrypoint-check python3 aa-kimi-config mkdir; do
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$tmp/bin/$stub"
+done
+chmod +x "$tmp/bin/"*
+for tool in claude codex kimi; do
+  log="$tmp/$tool-tmux.log"
+  env -i PATH="$tmp/bin:$PATH" AA_SUPERVISOR=1 TINI_SUBREAPER=1 \
+    TMUX_TMPDIR="$tmp/aa-tmux" AA_TEST_TMUX_LOG="$log" \
+    bash "$root/$tool/image/bin/entrypoint.sh" "$tool"
+  grep -q "$tmp/aa-tmux/tmux-1000/default" "$log"
+  grep -q 'new-session' "$log"
+  echo "PASS $tool supervised tmux socket environment"
+done

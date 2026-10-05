@@ -3,6 +3,7 @@
 import json
 import re
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import yaml
@@ -53,6 +54,8 @@ OPTIONAL = {
 
 
 def subst(text, keys):
+    defaults = yaml.safe_load((ROOT.parent / "services/supervisor/org.component.defaults.yaml").read_text())["defaults"]
+    keys = {**{"C_SUPERVISOR_" + name.upper(): str(value) for name, value in defaults.items()}, **keys}
     return KEY_RE.sub(lambda m: keys[m[1]], text)
 
 
@@ -64,7 +67,7 @@ def optional_guard_errors(expression):
     return shared.reads(expression)
 
 
-def rendered():
+def rendered(enabled=True):
     keys = dict(FIXTURE["keys"])
     defaults = yaml.safe_load((ROOT / "org.component.defaults.yaml").read_text())[
         "defaults"
@@ -72,7 +75,17 @@ def rendered():
     keys.update(
         {"C_SESSIONS_" + name.upper(): str(value) for name, value in defaults.items()}
     )
+    sup_defaults = yaml.safe_load((ROOT.parent / "services/supervisor/org.component.defaults.yaml").read_text())["defaults"]
+    keys.update({"C_SUPERVISOR_" + name.upper(): str(value) for name, value in sup_defaults.items()})
+    model = json.loads(json.dumps(FIXTURE))
+    model["org"].setdefault("components", {})["supervisor"] = {"enabled": enabled}
+    import sys
+    sys.path.insert(0, str(ROOT.parent / "tools/render"))
+    from aa_render.templates import condition
     for path in sorted(ROOT.rglob("*.tmpl.yaml")):
+        if any((parent / "RENDER-IF").exists() and not condition((parent / "RENDER-IF").read_text(), model)
+               for parent in path.parents if parent == ROOT or ROOT in parent.parents):
+            continue
         match = re.search(r"\.per-([a-z-]+)\.tmpl", path.name)
         entities = FIXTURE["entities"][match[1].replace("-", "_")] if match else [{}]
         for entity in entities:
@@ -242,3 +255,12 @@ class Templates(unittest.TestCase):
             for line in path.read_text().splitlines():
                 if "kubernetes.io/hostname:" in line:
                     self.assertIn("{{TOOL_HOME_NODE}}", line)
+
+
+class PlainTemplates(Templates):
+    """Repeat the existing assertions with the plain RENDER-IF variant."""
+    def setUp(self):
+        original = rendered
+        gate = patch(__name__ + ".rendered", side_effect=lambda: original(False))
+        gate.start()
+        self.addCleanup(gate.stop)

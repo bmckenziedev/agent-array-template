@@ -66,6 +66,7 @@ flowchart LR
 
 | Goal | Guide |
 |---|---|
+| Supervise sessions and route permission requests | [Session supervision](docs/SUPERVISION.md) |
 | Planes, concepts and trust boundaries | [Architecture](docs/ARCHITECTURE.md) |
 | Evaluate, bootstrap and migrate | [Adoption](docs/ADOPTION.md) |
 | Manage people, accounts and limits | [Multi-user](docs/MULTI-USER.md) |

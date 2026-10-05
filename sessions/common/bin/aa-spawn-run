@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Foreground child runner. Signals only its own child; never PID 1."""
+import argparse
+import json
+import os
+import signal
+import stat
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+# Reviewed build-time gates, never runtime flags. Update only with pinned evidence.
+VERIFIED = {"claude": False, "codex": False, "claude_permission": False}
+
+
+def checked_open(path, flags, fifo=False):
+    path = Path(path).absolute()
+    directory = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for part in path.parts[1:-1]:
+            following = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+            os.close(directory)
+            directory = following
+        fd = os.open(path.name, flags | os.O_NOFOLLOW, 0o600, dir_fd=directory)
+    finally:
+        os.close(directory)
+    mode = os.fstat(fd).st_mode
+    if not (stat.S_ISFIFO(mode) if fifo else stat.S_ISREG(mode)):
+        os.close(fd)
+        raise ValueError("unsafe file type")
+    return fd
+
+
+def command(tool, mode, routing=False):
+    if tool == "claude":
+        if mode not in {"default", "acceptEdits", "bypassPermissions"}:
+            raise ValueError("unsupported permission mode")
+        result = ["claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
+                  "--verbose", "--permission-mode", mode]
+        if routing:
+            result += ["--permission-prompt-tool", "mcp__aa-permission__approve"]
+        return result
+    if tool == "codex":
+        return ["codex", "exec", "--json", "-"]
+    raise ValueError("unsupported tool")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dir", required=True)
+    parser.add_argument("--tool", choices=["claude", "codex"], required=True)
+    args = parser.parse_args(argv)
+    directory = Path(args.dir)
+    # A shared UID can modify shared files; type checks are required on every open.
+    if directory.is_symlink() or not directory.is_dir() or not str(directory.resolve()).startswith("/run/aa/spawn-"):
+        return 1
+    cwd = Path.cwd().resolve()
+    if cwd != Path("/work") and Path("/work") not in cwd.parents:
+        return 1
+    # VERIFY markers block launch until an admin records pinned CLI evidence.
+    if not VERIFIED[args.tool]:
+        return 1
+    metadata_fd = checked_open(directory / "out/runner.json", os.O_RDONLY)
+    try:
+        metadata = json.loads(os.read(metadata_fd, 4097))
+        grace = metadata["stop_grace_s"]
+        if not isinstance(grace, int) or isinstance(grace, bool) or grace < 0:
+            return 1
+    finally:
+        os.close(metadata_fd)
+    fifo_fd = checked_open(directory / "input", os.O_RDONLY, fifo=True)
+    try:
+        output_fd = checked_open(directory / "out/events.jsonl", os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+        try:
+            env = dict(os.environ, AA_SUPERVISOR_SESSION=directory.name)
+            return run_child(command(args.tool, env.get("AA_PERMISSION_MODE", "default"),
+                             VERIFIED["claude_permission"]), fifo_fd, output_fd, env, grace)
+        finally:
+            os.close(output_fd)
+    finally:
+        os.close(fifo_fd)
+
+
+def run_child(argv, fifo_fd, output_fd, env, grace=10):
+    child = None
+    old = {}
+    deadline = None
+    try:
+        child = subprocess.Popen(argv,
+            stdin=fifo_fd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+        def terminate(_signum, _frame):
+            nonlocal deadline
+            if child.poll() is None:
+                child.terminate()
+                deadline = time.monotonic() + grace
+        for sig in [signal.SIGHUP, signal.SIGTERM, signal.SIGINT]:
+            old[sig] = signal.signal(sig, terminate)
+        # The runner's output is local to the CLI container, never a sidecar egress path.
+        import selectors
+        selector = selectors.DefaultSelector()
+        selector.register(child.stdout, selectors.EVENT_READ)
+        buffer = b""
+        try:
+            stream_live = True
+            while child.poll() is None or stream_live:
+                if deadline and time.monotonic() >= deadline:
+                    child.kill()
+                    break
+                for key, _ in selector.select(0.2):
+                    data = os.read(key.fileobj.fileno(), 65536)
+                    if not data:
+                        selector.unregister(key.fileobj)
+                        stream_live = False
+                        continue
+                    os.write(output_fd, data)
+                    buffer += data
+                    while b"\n" in buffer:
+                        line, buffer = buffer.split(b"\n", 1)
+                        try:
+                            event = json.loads(line)
+                            content = event.get("message", {}).get("content", [])
+                            text = event.get("result") or "\n".join(
+                                c.get("text", "") for c in content if isinstance(c, dict)
+                            ) or event.get("type", "event")
+                        except (ValueError, AttributeError, TypeError):
+                            text = "event"
+                        print(str(text), flush=True)
+            child.wait()
+        finally:
+            selector.close()
+        return child.returncode
+    finally:
+        if child is not None and child.poll() is None:
+            child.terminate()
+            try:
+                child.wait(timeout=grace)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait()
+        for sig, handler in old.items():
+            signal.signal(sig, handler)
+        if child is not None and child.stdout is not None:
+            child.stdout.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

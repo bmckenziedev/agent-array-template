@@ -22,6 +22,8 @@ exit.
 
 ### Object model
 
+The optional [session supervision sidecar](../docs/SUPERVISION.md) adds holder control, redacted output and permission routing through Unix sockets. It shares the CLI uid and a dedicated Memory tmux socket volume while retaining separate PID namespaces, transcript-only login mounts and a private control mount. Automation may observe or stop, never spawn or type.
+
 A namespace has kind `user-sessions`, user and team labels and an OIDC subject annotation. A holder
 RoleBinding references that subject. Each enabled `(user, tool)` has a policy ConfigMap, one
 StatefulSet pinned to its home node and a login PVC labelled with the same user and tool. The seat

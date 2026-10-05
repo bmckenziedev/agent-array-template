@@ -1,0 +1,49 @@
+scope: components
+name: supervisor
+defaults:
+  enabled: true
+  image: ghcr.io/example-org/agent-array-supervisor:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  console_url: ''
+  console_cidrs: []
+  console_port: 443
+  hook_egress: []
+  metrics_push_s: 60
+  automation_identities: []
+  leads_can_view: false
+  drive_discovered: true
+  spawn_refused_accounts: []
+  spawn_refused_users: []
+  spawn_advisory_margin_pct: 10
+  spawn_advisory_stale_s: 3600
+  input_max_bytes: 16384
+  input_max_per_minute: 30
+  stops_per_minute_session: 6
+  stops_per_minute_user: 20
+  stop_grace_s: 10
+  permission_tiers:
+    read: auto
+    write-workspace: auto
+    network: policy
+    money: human
+    outside-contact: human
+    irreversible: human
+    access-change: human
+  policy_may_allow: []
+  deciders:
+    read: []
+    write-workspace: []
+    network: []
+    money: []
+    outside-contact: []
+    irreversible: []
+    access-change: []
+  classify_extra: []
+  team_policies: {}
+  policy_hook_url: ''
+  policy_hook_timeout_s: 10
+  human_timeout_s: 600
+  hook_input_max_bytes: 4096
+  notifiers:
+  - {type: log}
+  work_item_adapters: []
+  redact_extra_patterns: []

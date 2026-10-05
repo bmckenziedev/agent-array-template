@@ -1,0 +1,1611 @@
+{
+  "version": 1,
+  "org": {
+    "version": 1,
+    "project": {
+      "name": "agent-array",
+      "label_prefix": "agent-array.example.org",
+      "image_prefix": "agent-array"
+    },
+    "org": {
+      "name": "Example Org",
+      "domain": "example.org",
+      "timezone": "UTC",
+      "security_contact": "security@example.org"
+    },
+    "github": {
+      "org": "example-org",
+      "repo": "agent-array",
+      "git_remote": "git@github.com:example-org/agent-array.git",
+      "revision": "main",
+      "platform_team_handle": "@example-org/platform"
+    },
+    "registry": {
+      "host": "ghcr.io",
+      "namespace": "example-org",
+      "pull_secret": "registry-pull"
+    },
+    "images": {
+      "session-claude": {
+        "tag": "0.1.0",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "session-codex": {
+        "tag": "0.1.0",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "session-kimi": {
+        "tag": "0.1.0",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "panel": {
+        "tag": "0.1.0",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "session-runner": {
+        "tag": "0.1.0",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "pace": {
+        "tag": "0.1.0",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "farm-mcp": {
+        "tag": "0.1.0",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "factory": {
+        "tag": "0.1.0",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "hermes-chat": {
+        "tag": "0.1.0",
+        "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    "cluster": {
+      "distribution": "k3s",
+      "version": "v1.36.5+k3s1",
+      "provider": "bare-metal",
+      "cni": "kube-router",
+      "apiserver": {
+        "endpoint_ips": [
+          "100.64.0.10"
+        ],
+        "port": 6443,
+        "service_ip": "10.43.0.1",
+        "url": "https://100.64.0.10:6443"
+      },
+      "cidrs": {
+        "pod": "10.42.0.0/16",
+        "service": "10.43.0.0/16",
+        "overlay": "100.64.0.0/10",
+        "private": [
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "192.168.0.0/16"
+        ],
+        "session_egress_deny_extra": []
+      },
+      "dns_service_ip": "10.43.0.10",
+      "storage": {
+        "default_class": "local-path",
+        "login_class": "agent-array-login-local",
+        "login_host_root": "/var/lib/agent-array/logins",
+        "login_storage": "disk"
+      },
+      "runtime_classes": {
+        "vm": "kata",
+        "gvisor": "gvisor",
+        "gpu": "nvidia"
+      }
+    },
+    "namespaces": {
+      "system": "agent-array-system",
+      "llm": "agent-array-llm",
+      "mcp": "agent-array-mcp",
+      "portal": "agent-array-portal",
+      "factory": "agent-array-factory",
+      "models": "agent-array-models",
+      "egress": "agent-array-egress",
+      "session_jobs": "agent-array-jobs",
+      "ops": "agent-array-ops",
+      "monitoring": "monitoring",
+      "argocd": "argocd",
+      "user_prefix": "aa-u-"
+    },
+    "nodes": [
+      {
+        "name": "node-a",
+        "short": "node-a",
+        "roles": [
+          "control-plane",
+          "sessions"
+        ],
+        "overlay_ip": "100.64.0.10",
+        "public_ip": "203.0.113.10",
+        "runtime_classes": [
+          "kata"
+        ],
+        "lan_ip": null,
+        "gpu": null,
+        "labels": {}
+      },
+      {
+        "name": "node-b",
+        "short": "node-b",
+        "roles": [
+          "worker",
+          "sessions",
+          "factory",
+          "ci"
+        ],
+        "overlay_ip": "100.64.0.11",
+        "public_ip": "203.0.113.11",
+        "runtime_classes": [
+          "kata",
+          "gvisor"
+        ],
+        "lan_ip": null,
+        "gpu": null,
+        "labels": {}
+      },
+      {
+        "name": "gpu-a",
+        "short": "gpu-a",
+        "roles": [
+          "gpu"
+        ],
+        "overlay_ip": "100.64.0.12",
+        "lan_ip": "198.51.100.12",
+        "runtime_classes": [
+          "nvidia"
+        ],
+        "gpu": {
+          "model": "example-24gb",
+          "vram_gb": 24,
+          "count": 1
+        },
+        "public_ip": null,
+        "labels": {}
+      }
+    ],
+    "network": {
+      "overlay": "tailscale",
+      "tailscale": {
+        "tailnet": "example.ts.net",
+        "node_tag": "tag:k8s-node"
+      },
+      "access": {
+        "kind": "oidc-proxy",
+        "cloudflare_team": "example"
+      }
+    },
+    "identity": {
+      "oidc": {
+        "issuer_url": "https://idp.example.org",
+        "client_id": "agent-array",
+        "username_claim": "sub",
+        "username_prefix": "oidc:",
+        "groups_claim": "groups",
+        "groups_prefix": "oidc:"
+      },
+      "groups": {
+        "platform_admin": "aa-platform-admins",
+        "auditor": "aa-auditors",
+        "breakglass": "aa-breakglass"
+      }
+    },
+    "hostnames": {
+      "panel": "panel.example.org",
+      "argocd": "argocd.example.org",
+      "grafana": "grafana.example.org",
+      "headlamp": "k8s.example.org",
+      "wazuh": "wazuh.example.org",
+      "mcp": "mcp.example.org"
+    },
+    "alerting": {
+      "default_receiver": "platform-oncall",
+      "receivers": [
+        {
+          "name": "platform-oncall",
+          "kind": "webhook",
+          "secret": "alertmanager-receivers",
+          "key": "platform_oncall_url"
+        }
+      ],
+      "quiet_hours": {
+        "start": "22:00",
+        "end": "07:00",
+        "timezone": "UTC"
+      },
+      "heartbeat": {
+        "enabled": true,
+        "secret": "alertmanager-receivers",
+        "key": "heartbeat_url"
+      }
+    },
+    "backup": {
+      "kind": "restic-sftp",
+      "schedule": "03:15",
+      "restic": {
+        "sftp_host": "backup.example.org",
+        "sftp_user": "agent-array-backup",
+        "sftp_port": 22,
+        "repository_path": "/agent-array",
+        "secret": "backup-restic"
+      },
+      "never_back_up": [
+        "/var/lib/agent-array/logins"
+      ]
+    },
+    "vendors": {
+      "anthropic": {
+        "enabled": true,
+        "tool": "claude",
+        "cli_version": "2.1.285",
+        "org_uuid": "00000000-0000-0000-0000-000000000000",
+        "egress": "public-443"
+      },
+      "openai": {
+        "enabled": true,
+        "tool": "codex",
+        "cli_version": "0.160.0",
+        "workspace_id": "00000000-0000-0000-0000-000000000000",
+        "egress": "public-443"
+      },
+      "moonshot": {
+        "enabled": false,
+        "tool": "kimi",
+        "cli_version": "2.1.1",
+        "egress": "gateway"
+      },
+      "local": {
+        "enabled": true
+      }
+    },
+    "sessions": {
+      "default_tier": "standard",
+      "tiers": {
+        "standard": {
+          "pods": 4,
+          "statefulsets": 3,
+          "pvcs": 3,
+          "requests_cpu": "4",
+          "requests_memory": "16Gi",
+          "limits_cpu": "12",
+          "limits_memory": "48Gi",
+          "max_replicas_per_tool": 1
+        },
+        "power": {
+          "pods": 8,
+          "statefulsets": 3,
+          "pvcs": 3,
+          "requests_cpu": "8",
+          "requests_memory": "32Gi",
+          "limits_cpu": "24",
+          "limits_memory": "96Gi",
+          "max_replicas_per_tool": 2
+        }
+      },
+      "idle_stop_minutes": 120,
+      "lease_fail_closed": false
+    },
+    "policy": {
+      "data_classes": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ],
+      "permission_modes_allowed": [
+        "default",
+        "acceptEdits",
+        "bypassPermissions"
+      ],
+      "default_permission_mode": "default"
+    },
+    "files": {
+      "teams": "org/teams.example.yaml",
+      "users": "org/users.example.yaml",
+      "accounts": "org/accounts.example.yaml",
+      "estates": "org/estates.example.yaml",
+      "mcp_registry": "mcp/registry.example.yaml",
+      "context_sources": "mcp/context-sources.example.yaml"
+    },
+    "modules": {
+      "factory": {
+        "enabled": false
+      },
+      "gpu-lanes": {
+        "enabled": false
+      },
+      "session-jobs": {
+        "enabled": false
+      },
+      "pkg-mirror": {
+        "enabled": false
+      },
+      "wazuh": {
+        "enabled": false
+      },
+      "hostwatch": {
+        "enabled": false
+      },
+      "seccomp-gvisor": {
+        "enabled": false
+      },
+      "hostguard": {
+        "enabled": false
+      },
+      "hermes-ops-chat": {
+        "enabled": false
+      },
+      "workstation-lane": {
+        "enabled": false,
+        "window_start": "19:00",
+        "window_stop": "08:00",
+        "drain_minutes": 5,
+        "timezone": "UTC"
+      },
+      "arc-ci": {
+        "enabled": false,
+        "runner_light": "arc-light",
+        "runner_heavy": "arc-heavy"
+      },
+      "k3s-baremetal": {
+        "enabled": false
+      },
+      "k3s-maintenance": {
+        "enabled": false
+      }
+    },
+    "components": {}
+  },
+  "teams": [
+    {
+      "id": "payments",
+      "idp_group": "aa-team-payments",
+      "leads": [
+        "ana"
+      ],
+      "weight": 3,
+      "session_tier": "standard",
+      "permission_mode": "default",
+      "data_classes_allowed": [
+        "public",
+        "internal",
+        "confidential"
+      ],
+      "vendors_allowed": {
+        "public": [
+          "anthropic",
+          "openai",
+          "local"
+        ],
+        "internal": [
+          "anthropic",
+          "openai",
+          "local"
+        ],
+        "confidential": [
+          "anthropic",
+          "local"
+        ],
+        "restricted": [
+          "local"
+        ]
+      },
+      "mcp_servers": [
+        "factory",
+        "farm",
+        "tickets"
+      ],
+      "context_sources": [
+        "estate-snapshot",
+        "estate-index",
+        "tickets"
+      ],
+      "litellm": {
+        "models": [
+          "local-coder",
+          "local-coder-small",
+          "claude-api-standard"
+        ],
+        "max_budget_usd": 1500,
+        "budget_duration": "30d",
+        "tpm_limit": 2000000,
+        "rpm_limit": 600,
+        "task_budget_usd": {
+          "standard": 5,
+          "bulk": 2
+        }
+      },
+      "factory": {
+        "max_inflight_per_lane": 1,
+        "queue_priority_ceiling": 50
+      },
+      "pools": [
+        "acct-anthropic-api-payments",
+        "acct-local-gpu"
+      ]
+    },
+    {
+      "id": "platform",
+      "idp_group": "aa-team-platform",
+      "leads": [
+        "bo"
+      ],
+      "weight": 2,
+      "session_tier": "power",
+      "permission_mode": "acceptEdits",
+      "data_classes_allowed": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ],
+      "vendors_allowed": {
+        "public": [
+          "anthropic",
+          "openai",
+          "local"
+        ],
+        "internal": [
+          "anthropic",
+          "openai",
+          "local"
+        ],
+        "confidential": [
+          "anthropic",
+          "local"
+        ],
+        "restricted": [
+          "local"
+        ]
+      },
+      "mcp_servers": [
+        "factory",
+        "farm",
+        "arrayops"
+      ],
+      "context_sources": [
+        "estate-snapshot",
+        "estate-index"
+      ],
+      "litellm": {
+        "models": [
+          "local-coder",
+          "local-coder-small",
+          "openai-api-standard"
+        ],
+        "max_budget_usd": 3000,
+        "budget_duration": "30d",
+        "tpm_limit": 4000000,
+        "rpm_limit": 1200,
+        "task_budget_usd": {
+          "standard": 10,
+          "bulk": 3
+        }
+      },
+      "factory": {
+        "max_inflight_per_lane": 2,
+        "queue_priority_ceiling": 100
+      },
+      "pools": [
+        "acct-openai-api-shared",
+        "acct-local-gpu"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "slug": "ana",
+      "oidc_sub": "00u1example0ana0000",
+      "email": "ana@example.org",
+      "github": "ana-example",
+      "teams": [
+        "payments"
+      ],
+      "primary_team": "payments",
+      "tier": null,
+      "status": "active",
+      "tools": {
+        "claude": {
+          "account": "acct-claude-seat-ana",
+          "home_node": "node-a",
+          "replicas": 1
+        },
+        "codex": {
+          "account": "acct-chatgpt-seat-ana",
+          "home_node": "node-b",
+          "replicas": 1
+        }
+      }
+    },
+    {
+      "slug": "bo",
+      "oidc_sub": "00u1example0bo00000",
+      "email": "bo@example.org",
+      "github": "bo-example",
+      "teams": [
+        "platform",
+        "payments"
+      ],
+      "primary_team": "platform",
+      "tier": null,
+      "status": "active",
+      "tools": {
+        "claude": {
+          "account": "acct-claude-seat-bo",
+          "home_node": "node-b",
+          "replicas": 2
+        }
+      }
+    },
+    {
+      "slug": "cy",
+      "oidc_sub": "00u1example0cy00000",
+      "email": "cy@example.org",
+      "github": "cy-example",
+      "teams": [
+        "payments"
+      ],
+      "primary_team": "payments",
+      "tier": null,
+      "status": "suspended",
+      "tools": {
+        "claude": {
+          "account": "acct-claude-seat-cy",
+          "home_node": "auto",
+          "replicas": 1
+        }
+      }
+    }
+  ],
+  "tombstones": [
+    "old-user"
+  ],
+  "accounts": {
+    "default_policy": {
+      "cap_pct": 80,
+      "reserve_pct": 20,
+      "min_session_spacing_s": 30
+    },
+    "plans": [
+      {
+        "id": "claude-team-premium",
+        "vendor": "anthropic",
+        "type": "seat"
+      },
+      {
+        "id": "chatgpt-business",
+        "vendor": "openai",
+        "type": "seat"
+      },
+      {
+        "id": "anthropic-api",
+        "vendor": "anthropic",
+        "type": "api"
+      },
+      {
+        "id": "openai-api",
+        "vendor": "openai",
+        "type": "api"
+      },
+      {
+        "id": "local-lanes",
+        "vendor": "local",
+        "type": "pool"
+      }
+    ],
+    "accounts": [
+      {
+        "id": "acct-claude-seat-ana",
+        "vendor": "anthropic",
+        "type": "seat",
+        "plan": "claude-team-premium",
+        "holder": "ana",
+        "max_concurrent_sessions": 3,
+        "windows": [
+          "5h",
+          "weekly"
+        ],
+        "usage_source": "manual",
+        "timezone": "UTC",
+        "owner_team": null,
+        "shared_with": [],
+        "policy": {},
+        "secret": null,
+        "litellm_models": []
+      },
+      {
+        "id": "acct-chatgpt-seat-ana",
+        "vendor": "openai",
+        "type": "seat",
+        "plan": "chatgpt-business",
+        "holder": "ana",
+        "max_concurrent_sessions": 1,
+        "windows": [
+          "weekly"
+        ],
+        "daily_cap_pct_of_week": 20,
+        "usage_source": "codex-rollout",
+        "timezone": "UTC",
+        "owner_team": null,
+        "shared_with": [],
+        "policy": {},
+        "secret": null,
+        "litellm_models": []
+      },
+      {
+        "id": "acct-claude-seat-bo",
+        "vendor": "anthropic",
+        "type": "seat",
+        "plan": "claude-team-premium",
+        "holder": "bo",
+        "max_concurrent_sessions": 3,
+        "windows": [
+          "5h",
+          "weekly"
+        ],
+        "usage_source": "manual",
+        "timezone": "UTC",
+        "policy": {
+          "cap_pct": 90,
+          "reserve_pct": 10
+        },
+        "owner_team": null,
+        "shared_with": [],
+        "secret": null,
+        "litellm_models": []
+      },
+      {
+        "id": "acct-claude-seat-cy",
+        "vendor": "anthropic",
+        "type": "seat",
+        "plan": "claude-team-premium",
+        "holder": "cy",
+        "max_concurrent_sessions": 3,
+        "windows": [
+          "5h",
+          "weekly"
+        ],
+        "usage_source": "manual",
+        "timezone": "UTC",
+        "owner_team": null,
+        "shared_with": [],
+        "policy": {},
+        "secret": null,
+        "litellm_models": []
+      },
+      {
+        "id": "acct-anthropic-api-payments",
+        "vendor": "anthropic",
+        "type": "api",
+        "plan": "anthropic-api",
+        "owner_team": "payments",
+        "secret": {
+          "namespace": "llm",
+          "name": "llm-provider-anthropic-payments",
+          "key": "api_key"
+        },
+        "litellm_models": [
+          "claude-api-standard"
+        ],
+        "budget_usd_per_month": 1200,
+        "windows": [
+          "monthly"
+        ],
+        "usage_source": "litellm",
+        "holder": null,
+        "shared_with": [],
+        "max_concurrent_sessions": null,
+        "policy": {},
+        "timezone": "UTC"
+      },
+      {
+        "id": "acct-openai-api-shared",
+        "vendor": "openai",
+        "type": "api",
+        "plan": "openai-api",
+        "owner_team": "platform",
+        "shared_with": [
+          "payments"
+        ],
+        "secret": {
+          "namespace": "llm",
+          "name": "llm-provider-openai-shared",
+          "key": "api_key"
+        },
+        "litellm_models": [
+          "openai-api-standard"
+        ],
+        "budget_usd_per_month": 800,
+        "windows": [
+          "monthly"
+        ],
+        "usage_source": "litellm",
+        "holder": null,
+        "max_concurrent_sessions": null,
+        "policy": {},
+        "timezone": "UTC"
+      },
+      {
+        "id": "acct-local-gpu",
+        "vendor": "local",
+        "type": "pool",
+        "plan": "local-lanes",
+        "owner_team": "platform",
+        "shared_with": [
+          "*"
+        ],
+        "litellm_models": [
+          "local-coder",
+          "local-coder-small"
+        ],
+        "windows": [],
+        "usage_source": "litellm",
+        "holder": null,
+        "max_concurrent_sessions": null,
+        "policy": {},
+        "secret": null,
+        "timezone": "UTC"
+      }
+    ]
+  },
+  "estates": {
+    "deny_globs": [
+      "*secret*",
+      "*.pem",
+      "*.key",
+      "*-NDA*"
+    ],
+    "estates": [
+      {
+        "id": "payments-core",
+        "owner_team": "payments",
+        "data_class": "confidential",
+        "repos": [
+          "github.com/example-org/payments-api",
+          "github.com/example-org/payments-ledger"
+        ],
+        "snapshot_targets": [
+          "claude"
+        ]
+      },
+      {
+        "id": "platform-infra",
+        "owner_team": "platform",
+        "data_class": "internal",
+        "repos": [
+          "github.com/example-org/infra-modules"
+        ],
+        "snapshot_targets": [
+          "claude",
+          "codex"
+        ]
+      }
+    ]
+  },
+  "mcp_registry": {
+    "servers": [
+      {
+        "name": "factory",
+        "description": "estate code index and local factory (read tools + submit)",
+        "transport": "stdio",
+        "command": "/opt/factory/venv/bin/python",
+        "args": [
+          "-m",
+          "factory_mcp"
+        ],
+        "image_layer": "factory",
+        "env": {
+          "FACTORY_SNAP_ROOT": "/work/snap",
+          "FACTORY_INDEX_ROOT": "/work/index"
+        },
+        "auth": "none",
+        "clients": [
+          "claude",
+          "codex"
+        ],
+        "allowed_teams": [
+          "*"
+        ],
+        "context_tags": [
+          "code-index",
+          "estate"
+        ],
+        "tool_timeout_s": 960,
+        "tools_readonly": [
+          "find_untested",
+          "dependents_of",
+          "impact",
+          "results"
+        ],
+        "server_egress": []
+      },
+      {
+        "name": "farm",
+        "description": "fleet status, local-model calls and batch dispatch under the caller's team accounts",
+        "transport": "http",
+        "service": {
+          "namespace_ref": "system",
+          "name": "farm-mcp",
+          "port": 8080,
+          "path": "/mcp"
+        },
+        "auth": "pod-identity",
+        "clients": [
+          "claude",
+          "codex"
+        ],
+        "allowed_teams": [
+          "*"
+        ],
+        "context_tags": [
+          "dispatch"
+        ],
+        "tool_timeout_s": 300,
+        "env": {},
+        "args": [],
+        "server_egress": [],
+        "tools_readonly": []
+      },
+      {
+        "name": "tickets",
+        "description": "read-only issue tracker search (example of a deployed third-party server)",
+        "transport": "http",
+        "deploy": {
+          "image": "registry.example.org/mcp/tickets@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "port": 8080,
+          "path": "/mcp"
+        },
+        "auth": "pod-identity",
+        "clients": [
+          "claude",
+          "codex"
+        ],
+        "allowed_teams": [
+          "payments"
+        ],
+        "context_tags": [
+          "tickets"
+        ],
+        "tool_timeout_s": 120,
+        "server_egress": [
+          {
+            "host": "tickets.example.org",
+            "port": 443
+          }
+        ],
+        "server_secret": {
+          "name": "mcp-tickets-upstream",
+          "key": "token"
+        },
+        "env": {},
+        "args": [],
+        "tools_readonly": []
+      },
+      {
+        "name": "arrayops",
+        "description": "read-only cluster/alert queries for the ops chat module",
+        "transport": "stdio",
+        "command": "/opt/arrayops/arrayops-mcp",
+        "args": [
+          "--read-only"
+        ],
+        "image_layer": "arrayops",
+        "auth": "none",
+        "clients": [
+          "hermes"
+        ],
+        "allowed_teams": [
+          "platform"
+        ],
+        "context_tags": [
+          "ops"
+        ],
+        "tool_timeout_s": 60,
+        "env": {},
+        "server_egress": [],
+        "tools_readonly": []
+      }
+    ]
+  },
+  "context_sources": {
+    "sources": [
+      {
+        "name": "estate-snapshot",
+        "kind": "code-snapshot",
+        "delivery": "push",
+        "estates_from": "estates",
+        "ttl_hours": {
+          "default": 12,
+          "max": 24
+        },
+        "allowed_teams": [
+          "*"
+        ],
+        "tags": [
+          "code"
+        ]
+      },
+      {
+        "name": "estate-index",
+        "kind": "code-index",
+        "delivery": "mcp",
+        "served_by": "factory",
+        "builds_from": "estate-snapshot",
+        "languages": [
+          "js",
+          "ts"
+        ],
+        "allowed_teams": [
+          "*"
+        ],
+        "tags": [
+          "code"
+        ]
+      },
+      {
+        "name": "tickets",
+        "kind": "tickets",
+        "delivery": "mcp",
+        "served_by": "tickets",
+        "allowed_teams": [
+          "payments"
+        ],
+        "tags": [
+          "tickets"
+        ]
+      }
+    ]
+  },
+  "keys": {
+    "ACCESS_KIND": "oidc-proxy",
+    "ALERT_DEFAULT_RECEIVER": "platform-oncall",
+    "ALERT_QUIET_END": "07:00",
+    "ALERT_QUIET_START": "22:00",
+    "ALERT_QUIET_TZ": "UTC",
+    "ALERT_RECEIVERS_JSON": "[{\"key\":\"platform_oncall_url\",\"kind\":\"webhook\",\"name\":\"platform-oncall\",\"secret\":\"alertmanager-receivers\"}]",
+    "APISERVER_ENDPOINT_IP": "100.64.0.10",
+    "APISERVER_ENDPOINT_IPS_JSON": "[\"100.64.0.10\"]",
+    "APISERVER_PORT": "6443",
+    "APISERVER_SERVICE_IP": "10.43.0.1",
+    "APISERVER_URL": "https://100.64.0.10:6443",
+    "BACKUP_EXCLUDE_JSON": "[\"/var/lib/agent-array/logins\"]",
+    "BACKUP_KIND": "restic-sftp",
+    "BACKUP_REPOSITORY_PATH": "/agent-array",
+    "BACKUP_SCHEDULE": "03:15",
+    "BACKUP_SECRET": "backup-restic",
+    "BACKUP_SFTP_HOST": "backup.example.org",
+    "BACKUP_SFTP_PORT": "22",
+    "BACKUP_SFTP_USER": "agent-array-backup",
+    "CF_ACCESS_TEAM": "example",
+    "CLAUDE_CLI_VERSION": "2.1.285",
+    "CLAUDE_EGRESS": "public-443",
+    "CLAUDE_ORG_UUID": "00000000-0000-0000-0000-000000000000",
+    "CLUSTER_DISTRIBUTION": "k3s",
+    "CLUSTER_DNS_IP": "10.43.0.10",
+    "CNI": "kube-router",
+    "CODEOWNERS_PLATFORM": "@example-org/platform",
+    "CODEX_CLI_VERSION": "0.160.0",
+    "CODEX_EGRESS": "public-443",
+    "CODEX_WORKSPACE_ID": "00000000-0000-0000-0000-000000000000",
+    "DATA_CLASSES_JSON": "[\"public\",\"internal\",\"confidential\",\"restricted\"]",
+    "DEFAULT_PERMISSION_MODE": "default",
+    "GIT_REVISION": "main",
+    "GROUP_AUDITOR": "aa-auditors",
+    "GROUP_BREAKGLASS": "aa-breakglass",
+    "GROUP_PLATFORM_ADMIN": "aa-platform-admins",
+    "HEARTBEAT_ENABLED": "true",
+    "HEARTBEAT_SECRET": "alertmanager-receivers",
+    "HEARTBEAT_SECRET_KEY": "heartbeat_url",
+    "HOSTING_PROVIDER": "bare-metal",
+    "HOST_ARGOCD": "argocd.example.org",
+    "HOST_GRAFANA": "grafana.example.org",
+    "HOST_HEADLAMP": "k8s.example.org",
+    "HOST_MCP": "mcp.example.org",
+    "HOST_PANEL": "panel.example.org",
+    "HOST_WAZUH": "wazuh.example.org",
+    "IMAGE_FACTORY": "ghcr.io/example-org/agent-array-factory:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "IMAGE_FARM_MCP": "ghcr.io/example-org/agent-array-farm-mcp:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "IMAGE_HERMES_CHAT": "ghcr.io/example-org/agent-array-hermes-chat:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "IMAGE_PACE": "ghcr.io/example-org/agent-array-pace:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "IMAGE_PANEL": "ghcr.io/example-org/agent-array-panel:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "IMAGE_PREFIX": "agent-array",
+    "IMAGE_REPO_BASE": "ghcr.io/example-org/agent-array",
+    "IMAGE_SESSION_CLAUDE": "ghcr.io/example-org/agent-array-session-claude:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "IMAGE_SESSION_CODEX": "ghcr.io/example-org/agent-array-session-codex:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "IMAGE_SESSION_KIMI": "ghcr.io/example-org/agent-array-session-kimi:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "IMAGE_SESSION_RUNNER": "ghcr.io/example-org/agent-array-session-runner:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "K8S_VERSION": "v1.36.5+k3s1",
+    "KIMI_CLI_VERSION": "2.1.1",
+    "KIMI_EGRESS": "gateway",
+    "LABEL_PREFIX": "agent-array.example.org",
+    "LBRACE2": "{{",
+    "LOGIN_HOST_ROOT": "/var/lib/agent-array/logins",
+    "LOGIN_STORAGE": "disk",
+    "MCP_SERVER_NAMES_JSON": "[\"arrayops\",\"factory\",\"farm\",\"tickets\"]",
+    "M_ARC_CI_ENABLED": "false",
+    "M_ARC_CI_RUNNER_HEAVY": "arc-heavy",
+    "M_ARC_CI_RUNNER_LIGHT": "arc-light",
+    "M_FACTORY_ENABLED": "false",
+    "M_GPU_LANES_ENABLED": "false",
+    "M_HERMES_OPS_CHAT_ENABLED": "false",
+    "M_HOSTGUARD_ENABLED": "false",
+    "M_HOSTWATCH_ENABLED": "false",
+    "M_K3S_BAREMETAL_ENABLED": "false",
+    "M_K3S_MAINTENANCE_ENABLED": "false",
+    "M_PKG_MIRROR_ENABLED": "false",
+    "M_SECCOMP_GVISOR_ENABLED": "false",
+    "M_SESSION_JOBS_ENABLED": "false",
+    "M_WAZUH_ENABLED": "false",
+    "M_WORKSTATION_LANE_DRAIN_MINUTES": "5",
+    "M_WORKSTATION_LANE_ENABLED": "false",
+    "M_WORKSTATION_LANE_TIMEZONE": "UTC",
+    "M_WORKSTATION_LANE_WINDOW_START": "19:00",
+    "M_WORKSTATION_LANE_WINDOW_STOP": "08:00",
+    "NODE_PUBLIC_IPS_JSON": "[\"203.0.113.10/32\",\"203.0.113.11/32\"]",
+    "NS_ARGOCD": "argocd",
+    "NS_EGRESS": "agent-array-egress",
+    "NS_FACTORY": "agent-array-factory",
+    "NS_LLM": "agent-array-llm",
+    "NS_MCP": "agent-array-mcp",
+    "NS_MODELS": "agent-array-models",
+    "NS_MONITORING": "monitoring",
+    "NS_OPS": "agent-array-ops",
+    "NS_PORTAL": "agent-array-portal",
+    "NS_SESSION_JOBS": "agent-array-jobs",
+    "NS_SYSTEM": "agent-array-system",
+    "OIDC_CLIENT_ID": "agent-array",
+    "OIDC_GROUPS_CLAIM": "groups",
+    "OIDC_GROUPS_PREFIX": "oidc:",
+    "OIDC_GROUP_AUDITOR": "oidc:aa-auditors",
+    "OIDC_GROUP_BREAKGLASS": "oidc:aa-breakglass",
+    "OIDC_GROUP_PLATFORM_ADMIN": "oidc:aa-platform-admins",
+    "OIDC_ISSUER_URL": "https://idp.example.org",
+    "OIDC_USERNAME_CLAIM": "sub",
+    "OIDC_USERNAME_PREFIX": "oidc:",
+    "ORG_DOMAIN": "example.org",
+    "ORG_GITHUB_ORG": "example-org",
+    "ORG_GITHUB_REPO": "agent-array",
+    "ORG_GIT_REMOTE": "git@github.com:example-org/agent-array.git",
+    "ORG_NAME": "Example Org",
+    "ORG_TIMEZONE": "UTC",
+    "OVERLAY_CIDR": "100.64.0.0/10",
+    "OVERLAY_KIND": "tailscale",
+    "PACE_CAP_PCT": "80",
+    "PACE_MIN_SESSION_SPACING_S": "30",
+    "PACE_RESERVE_PCT": "20",
+    "PERMISSION_MODES_ALLOWED_JSON": "[\"default\",\"acceptEdits\",\"bypassPermissions\"]",
+    "POD_CIDR": "10.42.0.0/16",
+    "PRIVATE_CIDRS_JSON": "[\"10.0.0.0/8\",\"172.16.0.0/12\",\"192.168.0.0/16\"]",
+    "PROJECT_NAME": "agent-array",
+    "REGISTRY_HOST": "ghcr.io",
+    "REGISTRY_NAMESPACE": "example-org",
+    "REGISTRY_PULL_SECRET": "registry-pull",
+    "RUNTIME_CLASS_GPU": "nvidia",
+    "RUNTIME_CLASS_GVISOR": "gvisor",
+    "RUNTIME_CLASS_VM": "kata",
+    "SECURITY_CONTACT": "security@example.org",
+    "SERVICE_CIDR": "10.43.0.0/16",
+    "SESSION_DEFAULT_TIER": "standard",
+    "SESSION_EGRESS_DENY_CIDRS_JSON": "[\"10.0.0.0/8\",\"172.16.0.0/12\",\"192.168.0.0/16\",\"100.64.0.0/10\",\"127.0.0.0/8\",\"169.254.0.0/16\",\"203.0.113.10/32\",\"203.0.113.11/32\"]",
+    "SESSION_IDLE_STOP_MINUTES": "120",
+    "SESSION_LEASE_FAIL_CLOSED": "false",
+    "SESSION_NODES_JSON": "[\"node-a\",\"node-b\"]",
+    "STORAGE_CLASS_DEFAULT": "local-path",
+    "STORAGE_CLASS_LOGIN": "agent-array-login-local",
+    "TAILNET_NAME": "example.ts.net",
+    "TEAM_IDS_JSON": "[\"payments\",\"platform\"]",
+    "TS_TAG_NODES": "tag:k8s-node",
+    "USER_NS_PREFIX": "aa-u-",
+    "USER_SLUGS_JSON": "[\"ana\",\"bo\",\"cy\"]",
+    "VENDOR_ANTHROPIC_ENABLED": "true",
+    "VENDOR_LOCAL_ENABLED": "true",
+    "VENDOR_MOONSHOT_ENABLED": "false",
+    "VENDOR_OPENAI_ENABLED": "true"
+  },
+  "entities": {
+    "user": [
+      {
+        "ENTITY_ID": "ana",
+        "USER_SLUG": "ana",
+        "USER_NS": "aa-u-ana",
+        "USER_OIDC_SUB": "00u1example0ana0000",
+        "USER_OIDC_SUBJECT": "oidc:00u1example0ana0000",
+        "USER_EMAIL": "ana@example.org",
+        "USER_GITHUB": "ana-example",
+        "USER_TEAMS_JSON": "[\"payments\"]",
+        "USER_PRIMARY_TEAM": "payments",
+        "USER_TIER": "standard",
+        "USER_STATUS": "active",
+        "USER_SUSPENDED": "false",
+        "USER_PERMISSION_MODE": "default",
+        "USER_DATA_CLASSES_JSON": "[\"public\",\"internal\",\"confidential\"]",
+        "USER_MCP_SERVERS_JSON": "[\"factory\",\"farm\",\"tickets\"]",
+        "USER_CONTEXT_SOURCES_JSON": "[\"estate-index\",\"estate-snapshot\",\"tickets\"]",
+        "USER_TOOLS_JSON": "[\"claude\",\"codex\"]",
+        "TIER_PODS": "4",
+        "TIER_STATEFULSETS": "3",
+        "TIER_PVCS": "3",
+        "TIER_REQUESTS_CPU": "4",
+        "TIER_REQUESTS_MEMORY": "16Gi",
+        "TIER_LIMITS_CPU": "12",
+        "TIER_LIMITS_MEMORY": "48Gi",
+        "TIER_MAX_REPLICAS_PER_TOOL": "1"
+      },
+      {
+        "ENTITY_ID": "bo",
+        "USER_SLUG": "bo",
+        "USER_NS": "aa-u-bo",
+        "USER_OIDC_SUB": "00u1example0bo00000",
+        "USER_OIDC_SUBJECT": "oidc:00u1example0bo00000",
+        "USER_EMAIL": "bo@example.org",
+        "USER_GITHUB": "bo-example",
+        "USER_TEAMS_JSON": "[\"platform\",\"payments\"]",
+        "USER_PRIMARY_TEAM": "platform",
+        "USER_TIER": "power",
+        "USER_STATUS": "active",
+        "USER_SUSPENDED": "false",
+        "USER_PERMISSION_MODE": "acceptEdits",
+        "USER_DATA_CLASSES_JSON": "[\"public\",\"internal\",\"confidential\",\"restricted\"]",
+        "USER_MCP_SERVERS_JSON": "[\"arrayops\",\"factory\",\"farm\",\"tickets\"]",
+        "USER_CONTEXT_SOURCES_JSON": "[\"estate-index\",\"estate-snapshot\",\"tickets\"]",
+        "USER_TOOLS_JSON": "[\"claude\"]",
+        "TIER_PODS": "8",
+        "TIER_STATEFULSETS": "3",
+        "TIER_PVCS": "3",
+        "TIER_REQUESTS_CPU": "8",
+        "TIER_REQUESTS_MEMORY": "32Gi",
+        "TIER_LIMITS_CPU": "24",
+        "TIER_LIMITS_MEMORY": "96Gi",
+        "TIER_MAX_REPLICAS_PER_TOOL": "2"
+      },
+      {
+        "ENTITY_ID": "cy",
+        "USER_SLUG": "cy",
+        "USER_NS": "aa-u-cy",
+        "USER_OIDC_SUB": "00u1example0cy00000",
+        "USER_OIDC_SUBJECT": "oidc:00u1example0cy00000",
+        "USER_EMAIL": "cy@example.org",
+        "USER_GITHUB": "cy-example",
+        "USER_TEAMS_JSON": "[\"payments\"]",
+        "USER_PRIMARY_TEAM": "payments",
+        "USER_TIER": "standard",
+        "USER_STATUS": "suspended",
+        "USER_SUSPENDED": "true",
+        "USER_PERMISSION_MODE": "default",
+        "USER_DATA_CLASSES_JSON": "[\"public\",\"internal\",\"confidential\"]",
+        "USER_MCP_SERVERS_JSON": "[\"factory\",\"farm\",\"tickets\"]",
+        "USER_CONTEXT_SOURCES_JSON": "[\"estate-index\",\"estate-snapshot\",\"tickets\"]",
+        "USER_TOOLS_JSON": "[\"claude\"]",
+        "TIER_PODS": "4",
+        "TIER_STATEFULSETS": "3",
+        "TIER_PVCS": "3",
+        "TIER_REQUESTS_CPU": "4",
+        "TIER_REQUESTS_MEMORY": "16Gi",
+        "TIER_LIMITS_CPU": "12",
+        "TIER_LIMITS_MEMORY": "48Gi",
+        "TIER_MAX_REPLICAS_PER_TOOL": "1"
+      }
+    ],
+    "user_tool": [
+      {
+        "ENTITY_ID": "ana/claude",
+        "USER_SLUG": "ana",
+        "USER_NS": "aa-u-ana",
+        "USER_OIDC_SUB": "00u1example0ana0000",
+        "USER_OIDC_SUBJECT": "oidc:00u1example0ana0000",
+        "USER_EMAIL": "ana@example.org",
+        "USER_GITHUB": "ana-example",
+        "USER_TEAMS_JSON": "[\"payments\"]",
+        "USER_PRIMARY_TEAM": "payments",
+        "USER_TIER": "standard",
+        "USER_STATUS": "active",
+        "USER_SUSPENDED": "false",
+        "USER_PERMISSION_MODE": "default",
+        "USER_DATA_CLASSES_JSON": "[\"public\",\"internal\",\"confidential\"]",
+        "USER_MCP_SERVERS_JSON": "[\"factory\",\"farm\",\"tickets\"]",
+        "USER_CONTEXT_SOURCES_JSON": "[\"estate-index\",\"estate-snapshot\",\"tickets\"]",
+        "USER_TOOLS_JSON": "[\"claude\",\"codex\"]",
+        "TIER_PODS": "4",
+        "TIER_STATEFULSETS": "3",
+        "TIER_PVCS": "3",
+        "TIER_REQUESTS_CPU": "4",
+        "TIER_REQUESTS_MEMORY": "16Gi",
+        "TIER_LIMITS_CPU": "12",
+        "TIER_LIMITS_MEMORY": "48Gi",
+        "TIER_MAX_REPLICAS_PER_TOOL": "1",
+        "TOOL": "claude",
+        "TOOL_VENDOR": "anthropic",
+        "TOOL_ACCOUNT_ID": "acct-claude-seat-ana",
+        "TOOL_HOME_NODE": "node-a",
+        "TOOL_HOME_NODE_SHORT": "node-a",
+        "TOOL_REPLICAS": "1",
+        "TOOL_STS_NAME": "claude-node-a",
+        "TOOL_HOME_CLAIM": "claude-home-node-a",
+        "TOOL_IMAGE": "ghcr.io/example-org/agent-array-session-claude:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "TOOL_MAX_SESSIONS": "3"
+      },
+      {
+        "ENTITY_ID": "ana/codex",
+        "USER_SLUG": "ana",
+        "USER_NS": "aa-u-ana",
+        "USER_OIDC_SUB": "00u1example0ana0000",
+        "USER_OIDC_SUBJECT": "oidc:00u1example0ana0000",
+        "USER_EMAIL": "ana@example.org",
+        "USER_GITHUB": "ana-example",
+        "USER_TEAMS_JSON": "[\"payments\"]",
+        "USER_PRIMARY_TEAM": "payments",
+        "USER_TIER": "standard",
+        "USER_STATUS": "active",
+        "USER_SUSPENDED": "false",
+        "USER_PERMISSION_MODE": "default",
+        "USER_DATA_CLASSES_JSON": "[\"public\",\"internal\",\"confidential\"]",
+        "USER_MCP_SERVERS_JSON": "[\"factory\",\"farm\",\"tickets\"]",
+        "USER_CONTEXT_SOURCES_JSON": "[\"estate-index\",\"estate-snapshot\",\"tickets\"]",
+        "USER_TOOLS_JSON": "[\"claude\",\"codex\"]",
+        "TIER_PODS": "4",
+        "TIER_STATEFULSETS": "3",
+        "TIER_PVCS": "3",
+        "TIER_REQUESTS_CPU": "4",
+        "TIER_REQUESTS_MEMORY": "16Gi",
+        "TIER_LIMITS_CPU": "12",
+        "TIER_LIMITS_MEMORY": "48Gi",
+        "TIER_MAX_REPLICAS_PER_TOOL": "1",
+        "TOOL": "codex",
+        "TOOL_VENDOR": "openai",
+        "TOOL_ACCOUNT_ID": "acct-chatgpt-seat-ana",
+        "TOOL_HOME_NODE": "node-b",
+        "TOOL_HOME_NODE_SHORT": "node-b",
+        "TOOL_REPLICAS": "1",
+        "TOOL_STS_NAME": "codex-node-b",
+        "TOOL_HOME_CLAIM": "codex-home-node-b",
+        "TOOL_IMAGE": "ghcr.io/example-org/agent-array-session-codex:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "TOOL_MAX_SESSIONS": "1"
+      },
+      {
+        "ENTITY_ID": "bo/claude",
+        "USER_SLUG": "bo",
+        "USER_NS": "aa-u-bo",
+        "USER_OIDC_SUB": "00u1example0bo00000",
+        "USER_OIDC_SUBJECT": "oidc:00u1example0bo00000",
+        "USER_EMAIL": "bo@example.org",
+        "USER_GITHUB": "bo-example",
+        "USER_TEAMS_JSON": "[\"platform\",\"payments\"]",
+        "USER_PRIMARY_TEAM": "platform",
+        "USER_TIER": "power",
+        "USER_STATUS": "active",
+        "USER_SUSPENDED": "false",
+        "USER_PERMISSION_MODE": "acceptEdits",
+        "USER_DATA_CLASSES_JSON": "[\"public\",\"internal\",\"confidential\",\"restricted\"]",
+        "USER_MCP_SERVERS_JSON": "[\"arrayops\",\"factory\",\"farm\",\"tickets\"]",
+        "USER_CONTEXT_SOURCES_JSON": "[\"estate-index\",\"estate-snapshot\",\"tickets\"]",
+        "USER_TOOLS_JSON": "[\"claude\"]",
+        "TIER_PODS": "8",
+        "TIER_STATEFULSETS": "3",
+        "TIER_PVCS": "3",
+        "TIER_REQUESTS_CPU": "8",
+        "TIER_REQUESTS_MEMORY": "32Gi",
+        "TIER_LIMITS_CPU": "24",
+        "TIER_LIMITS_MEMORY": "96Gi",
+        "TIER_MAX_REPLICAS_PER_TOOL": "2",
+        "TOOL": "claude",
+        "TOOL_VENDOR": "anthropic",
+        "TOOL_ACCOUNT_ID": "acct-claude-seat-bo",
+        "TOOL_HOME_NODE": "node-b",
+        "TOOL_HOME_NODE_SHORT": "node-b",
+        "TOOL_REPLICAS": "2",
+        "TOOL_STS_NAME": "claude-node-b",
+        "TOOL_HOME_CLAIM": "claude-home-node-b",
+        "TOOL_IMAGE": "ghcr.io/example-org/agent-array-session-claude:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "TOOL_MAX_SESSIONS": "3"
+      },
+      {
+        "ENTITY_ID": "cy/claude",
+        "USER_SLUG": "cy",
+        "USER_NS": "aa-u-cy",
+        "USER_OIDC_SUB": "00u1example0cy00000",
+        "USER_OIDC_SUBJECT": "oidc:00u1example0cy00000",
+        "USER_EMAIL": "cy@example.org",
+        "USER_GITHUB": "cy-example",
+        "USER_TEAMS_JSON": "[\"payments\"]",
+        "USER_PRIMARY_TEAM": "payments",
+        "USER_TIER": "standard",
+        "USER_STATUS": "suspended",
+        "USER_SUSPENDED": "true",
+        "USER_PERMISSION_MODE": "default",
+        "USER_DATA_CLASSES_JSON": "[\"public\",\"internal\",\"confidential\"]",
+        "USER_MCP_SERVERS_JSON": "[\"factory\",\"farm\",\"tickets\"]",
+        "USER_CONTEXT_SOURCES_JSON": "[\"estate-index\",\"estate-snapshot\",\"tickets\"]",
+        "USER_TOOLS_JSON": "[\"claude\"]",
+        "TIER_PODS": "4",
+        "TIER_STATEFULSETS": "3",
+        "TIER_PVCS": "3",
+        "TIER_REQUESTS_CPU": "4",
+        "TIER_REQUESTS_MEMORY": "16Gi",
+        "TIER_LIMITS_CPU": "12",
+        "TIER_LIMITS_MEMORY": "48Gi",
+        "TIER_MAX_REPLICAS_PER_TOOL": "1",
+        "TOOL": "claude",
+        "TOOL_VENDOR": "anthropic",
+        "TOOL_ACCOUNT_ID": "acct-claude-seat-cy",
+        "TOOL_HOME_NODE": "node-a",
+        "TOOL_HOME_NODE_SHORT": "node-a",
+        "TOOL_REPLICAS": "0",
+        "TOOL_STS_NAME": "claude-node-a",
+        "TOOL_HOME_CLAIM": "claude-home-node-a",
+        "TOOL_IMAGE": "ghcr.io/example-org/agent-array-session-claude:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "TOOL_MAX_SESSIONS": "3"
+      }
+    ],
+    "team": [
+      {
+        "ENTITY_ID": "payments",
+        "TEAM_ID": "payments",
+        "TEAM_IDP_GROUP": "aa-team-payments",
+        "TEAM_OIDC_GROUP": "oidc:aa-team-payments",
+        "TEAM_WEIGHT": "3",
+        "TEAM_SESSION_TIER": "standard",
+        "TEAM_PERMISSION_MODE": "default",
+        "TEAM_LEADS_JSON": "[\"ana\"]",
+        "TEAM_MEMBERS_JSON": "[\"ana\",\"bo\",\"cy\"]",
+        "TEAM_DATA_CLASSES_JSON": "[\"public\",\"internal\",\"confidential\"]",
+        "TEAM_VENDORS_ALLOWED_JSON": "{\"confidential\":[\"anthropic\",\"local\"],\"internal\":[\"anthropic\",\"openai\",\"local\"],\"public\":[\"anthropic\",\"openai\",\"local\"],\"restricted\":[\"local\"]}",
+        "TEAM_MCP_SERVERS_JSON": "[\"factory\",\"farm\",\"tickets\"]",
+        "TEAM_CONTEXT_SOURCES_JSON": "[\"estate-snapshot\",\"estate-index\",\"tickets\"]",
+        "TEAM_POOLS_JSON": "[\"acct-anthropic-api-payments\",\"acct-local-gpu\"]",
+        "TEAM_LITELLM_MODELS_JSON": "[\"local-coder\",\"local-coder-small\",\"claude-api-standard\"]",
+        "TEAM_LITELLM_MAX_BUDGET_USD": "1500",
+        "TEAM_LITELLM_BUDGET_DURATION": "30d",
+        "TEAM_LITELLM_TPM": "2000000",
+        "TEAM_LITELLM_RPM": "600",
+        "TEAM_TASK_BUDGET_JSON": "{\"bulk\":2,\"standard\":5}",
+        "TEAM_FACTORY_MAX_INFLIGHT_PER_LANE": "1",
+        "TEAM_FACTORY_PRIORITY_CEILING": "50"
+      },
+      {
+        "ENTITY_ID": "platform",
+        "TEAM_ID": "platform",
+        "TEAM_IDP_GROUP": "aa-team-platform",
+        "TEAM_OIDC_GROUP": "oidc:aa-team-platform",
+        "TEAM_WEIGHT": "2",
+        "TEAM_SESSION_TIER": "power",
+        "TEAM_PERMISSION_MODE": "acceptEdits",
+        "TEAM_LEADS_JSON": "[\"bo\"]",
+        "TEAM_MEMBERS_JSON": "[\"bo\"]",
+        "TEAM_DATA_CLASSES_JSON": "[\"public\",\"internal\",\"confidential\",\"restricted\"]",
+        "TEAM_VENDORS_ALLOWED_JSON": "{\"confidential\":[\"anthropic\",\"local\"],\"internal\":[\"anthropic\",\"openai\",\"local\"],\"public\":[\"anthropic\",\"openai\",\"local\"],\"restricted\":[\"local\"]}",
+        "TEAM_MCP_SERVERS_JSON": "[\"factory\",\"farm\",\"arrayops\"]",
+        "TEAM_CONTEXT_SOURCES_JSON": "[\"estate-snapshot\",\"estate-index\"]",
+        "TEAM_POOLS_JSON": "[\"acct-openai-api-shared\",\"acct-local-gpu\"]",
+        "TEAM_LITELLM_MODELS_JSON": "[\"local-coder\",\"local-coder-small\",\"openai-api-standard\"]",
+        "TEAM_LITELLM_MAX_BUDGET_USD": "3000",
+        "TEAM_LITELLM_BUDGET_DURATION": "30d",
+        "TEAM_LITELLM_TPM": "4000000",
+        "TEAM_LITELLM_RPM": "1200",
+        "TEAM_TASK_BUDGET_JSON": "{\"bulk\":3,\"standard\":10}",
+        "TEAM_FACTORY_MAX_INFLIGHT_PER_LANE": "2",
+        "TEAM_FACTORY_PRIORITY_CEILING": "100"
+      }
+    ],
+    "node": [
+      {
+        "ENTITY_ID": "node-a",
+        "NODE_NAME": "node-a",
+        "NODE_SHORT": "node-a",
+        "NODE_ROLES_JSON": "[\"control-plane\",\"sessions\"]",
+        "NODE_OVERLAY_IP": "100.64.0.10",
+        "NODE_PUBLIC_IP": "203.0.113.10",
+        "NODE_LAN_IP": "",
+        "NODE_RUNTIME_CLASSES_JSON": "[\"kata\"]",
+        "NODE_LABELS_JSON": "{}",
+        "NODE_IS_SESSION": "true",
+        "NODE_IS_GPU": "false",
+        "NODE_GPU_MODEL": "",
+        "NODE_GPU_VRAM_GB": "",
+        "NODE_GPU_COUNT": ""
+      },
+      {
+        "ENTITY_ID": "node-b",
+        "NODE_NAME": "node-b",
+        "NODE_SHORT": "node-b",
+        "NODE_ROLES_JSON": "[\"worker\",\"sessions\",\"factory\",\"ci\"]",
+        "NODE_OVERLAY_IP": "100.64.0.11",
+        "NODE_PUBLIC_IP": "203.0.113.11",
+        "NODE_LAN_IP": "",
+        "NODE_RUNTIME_CLASSES_JSON": "[\"kata\",\"gvisor\"]",
+        "NODE_LABELS_JSON": "{}",
+        "NODE_IS_SESSION": "true",
+        "NODE_IS_GPU": "false",
+        "NODE_GPU_MODEL": "",
+        "NODE_GPU_VRAM_GB": "",
+        "NODE_GPU_COUNT": ""
+      },
+      {
+        "ENTITY_ID": "gpu-a",
+        "NODE_NAME": "gpu-a",
+        "NODE_SHORT": "gpu-a",
+        "NODE_ROLES_JSON": "[\"gpu\"]",
+        "NODE_OVERLAY_IP": "100.64.0.12",
+        "NODE_PUBLIC_IP": "",
+        "NODE_LAN_IP": "198.51.100.12",
+        "NODE_RUNTIME_CLASSES_JSON": "[\"nvidia\"]",
+        "NODE_LABELS_JSON": "{}",
+        "NODE_IS_SESSION": "false",
+        "NODE_IS_GPU": "true",
+        "NODE_GPU_MODEL": "example-24gb",
+        "NODE_GPU_VRAM_GB": "24",
+        "NODE_GPU_COUNT": "1"
+      }
+    ],
+    "mcp": [
+      {
+        "ENTITY_ID": "tickets",
+        "MCP_NAME": "tickets",
+        "MCP_DESCRIPTION": "read-only issue tracker search (example of a deployed third-party server)",
+        "MCP_IMAGE": "registry.example.org/mcp/tickets@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "MCP_PORT": "8080",
+        "MCP_PATH": "/mcp",
+        "MCP_APP_LABEL": "mcp-tickets",
+        "MCP_SERVICE_NAME": "mcp-tickets",
+        "MCP_AUTH": "pod-identity",
+        "MCP_ALLOWED_TEAMS_JSON": "[\"payments\"]",
+        "MCP_SERVER_EGRESS_JSON": "[{\"host\":\"tickets.example.org\",\"port\":443}]",
+        "MCP_SERVER_SECRET_NAME": "mcp-tickets-upstream",
+        "MCP_SERVER_SECRET_KEY": "token",
+        "MCP_TOOL_TIMEOUT_S": "120"
+      }
+    ],
+    "account": [
+      {
+        "ENTITY_ID": "acct-claude-seat-ana",
+        "ACCOUNT_ID": "acct-claude-seat-ana",
+        "ACCOUNT_VENDOR": "anthropic",
+        "ACCOUNT_TYPE": "seat",
+        "ACCOUNT_PLAN": "claude-team-premium",
+        "ACCOUNT_HOLDER": "ana",
+        "ACCOUNT_OWNER_TEAM": "",
+        "ACCOUNT_SHARED_WITH_JSON": "[]",
+        "ACCOUNT_MAX_CONCURRENT_SESSIONS": "3",
+        "ACCOUNT_CAP_PCT": "80",
+        "ACCOUNT_RESERVE_PCT": "20",
+        "ACCOUNT_WINDOWS_JSON": "[\"5h\",\"weekly\"]",
+        "ACCOUNT_USAGE_SOURCE": "manual",
+        "ACCOUNT_SECRET_NAMESPACE": "",
+        "ACCOUNT_SECRET_NAME": "",
+        "ACCOUNT_SECRET_KEY": "",
+        "ACCOUNT_LITELLM_MODELS_JSON": "[]"
+      },
+      {
+        "ENTITY_ID": "acct-chatgpt-seat-ana",
+        "ACCOUNT_ID": "acct-chatgpt-seat-ana",
+        "ACCOUNT_VENDOR": "openai",
+        "ACCOUNT_TYPE": "seat",
+        "ACCOUNT_PLAN": "chatgpt-business",
+        "ACCOUNT_HOLDER": "ana",
+        "ACCOUNT_OWNER_TEAM": "",
+        "ACCOUNT_SHARED_WITH_JSON": "[]",
+        "ACCOUNT_MAX_CONCURRENT_SESSIONS": "1",
+        "ACCOUNT_CAP_PCT": "80",
+        "ACCOUNT_RESERVE_PCT": "20",
+        "ACCOUNT_WINDOWS_JSON": "[\"weekly\"]",
+        "ACCOUNT_USAGE_SOURCE": "codex-rollout",
+        "ACCOUNT_SECRET_NAMESPACE": "",
+        "ACCOUNT_SECRET_NAME": "",
+        "ACCOUNT_SECRET_KEY": "",
+        "ACCOUNT_LITELLM_MODELS_JSON": "[]"
+      },
+      {
+        "ENTITY_ID": "acct-claude-seat-bo",
+        "ACCOUNT_ID": "acct-claude-seat-bo",
+        "ACCOUNT_VENDOR": "anthropic",
+        "ACCOUNT_TYPE": "seat",
+        "ACCOUNT_PLAN": "claude-team-premium",
+        "ACCOUNT_HOLDER": "bo",
+        "ACCOUNT_OWNER_TEAM": "",
+        "ACCOUNT_SHARED_WITH_JSON": "[]",
+        "ACCOUNT_MAX_CONCURRENT_SESSIONS": "3",
+        "ACCOUNT_CAP_PCT": "90",
+        "ACCOUNT_RESERVE_PCT": "10",
+        "ACCOUNT_WINDOWS_JSON": "[\"5h\",\"weekly\"]",
+        "ACCOUNT_USAGE_SOURCE": "manual",
+        "ACCOUNT_SECRET_NAMESPACE": "",
+        "ACCOUNT_SECRET_NAME": "",
+        "ACCOUNT_SECRET_KEY": "",
+        "ACCOUNT_LITELLM_MODELS_JSON": "[]"
+      },
+      {
+        "ENTITY_ID": "acct-claude-seat-cy",
+        "ACCOUNT_ID": "acct-claude-seat-cy",
+        "ACCOUNT_VENDOR": "anthropic",
+        "ACCOUNT_TYPE": "seat",
+        "ACCOUNT_PLAN": "claude-team-premium",
+        "ACCOUNT_HOLDER": "cy",
+        "ACCOUNT_OWNER_TEAM": "",
+        "ACCOUNT_SHARED_WITH_JSON": "[]",
+        "ACCOUNT_MAX_CONCURRENT_SESSIONS": "3",
+        "ACCOUNT_CAP_PCT": "80",
+        "ACCOUNT_RESERVE_PCT": "20",
+        "ACCOUNT_WINDOWS_JSON": "[\"5h\",\"weekly\"]",
+        "ACCOUNT_USAGE_SOURCE": "manual",
+        "ACCOUNT_SECRET_NAMESPACE": "",
+        "ACCOUNT_SECRET_NAME": "",
+        "ACCOUNT_SECRET_KEY": "",
+        "ACCOUNT_LITELLM_MODELS_JSON": "[]"
+      },
+      {
+        "ENTITY_ID": "acct-anthropic-api-payments",
+        "ACCOUNT_ID": "acct-anthropic-api-payments",
+        "ACCOUNT_VENDOR": "anthropic",
+        "ACCOUNT_TYPE": "api",
+        "ACCOUNT_PLAN": "anthropic-api",
+        "ACCOUNT_HOLDER": "",
+        "ACCOUNT_OWNER_TEAM": "payments",
+        "ACCOUNT_SHARED_WITH_JSON": "[]",
+        "ACCOUNT_MAX_CONCURRENT_SESSIONS": "",
+        "ACCOUNT_CAP_PCT": "80",
+        "ACCOUNT_RESERVE_PCT": "20",
+        "ACCOUNT_WINDOWS_JSON": "[\"monthly\"]",
+        "ACCOUNT_USAGE_SOURCE": "litellm",
+        "ACCOUNT_SECRET_NAMESPACE": "agent-array-llm",
+        "ACCOUNT_SECRET_NAME": "llm-provider-anthropic-payments",
+        "ACCOUNT_SECRET_KEY": "api_key",
+        "ACCOUNT_LITELLM_MODELS_JSON": "[\"claude-api-standard\"]"
+      },
+      {
+        "ENTITY_ID": "acct-openai-api-shared",
+        "ACCOUNT_ID": "acct-openai-api-shared",
+        "ACCOUNT_VENDOR": "openai",
+        "ACCOUNT_TYPE": "api",
+        "ACCOUNT_PLAN": "openai-api",
+        "ACCOUNT_HOLDER": "",
+        "ACCOUNT_OWNER_TEAM": "platform",
+        "ACCOUNT_SHARED_WITH_JSON": "[\"payments\"]",
+        "ACCOUNT_MAX_CONCURRENT_SESSIONS": "",
+        "ACCOUNT_CAP_PCT": "80",
+        "ACCOUNT_RESERVE_PCT": "20",
+        "ACCOUNT_WINDOWS_JSON": "[\"monthly\"]",
+        "ACCOUNT_USAGE_SOURCE": "litellm",
+        "ACCOUNT_SECRET_NAMESPACE": "agent-array-llm",
+        "ACCOUNT_SECRET_NAME": "llm-provider-openai-shared",
+        "ACCOUNT_SECRET_KEY": "api_key",
+        "ACCOUNT_LITELLM_MODELS_JSON": "[\"openai-api-standard\"]"
+      },
+      {
+        "ENTITY_ID": "acct-local-gpu",
+        "ACCOUNT_ID": "acct-local-gpu",
+        "ACCOUNT_VENDOR": "local",
+        "ACCOUNT_TYPE": "pool",
+        "ACCOUNT_PLAN": "local-lanes",
+        "ACCOUNT_HOLDER": "",
+        "ACCOUNT_OWNER_TEAM": "platform",
+        "ACCOUNT_SHARED_WITH_JSON": "[\"*\"]",
+        "ACCOUNT_MAX_CONCURRENT_SESSIONS": "",
+        "ACCOUNT_CAP_PCT": "80",
+        "ACCOUNT_RESERVE_PCT": "20",
+        "ACCOUNT_WINDOWS_JSON": "[]",
+        "ACCOUNT_USAGE_SOURCE": "litellm",
+        "ACCOUNT_SECRET_NAMESPACE": "",
+        "ACCOUNT_SECRET_NAME": "",
+        "ACCOUNT_SECRET_KEY": "",
+        "ACCOUNT_LITELLM_MODELS_JSON": "[\"local-coder\",\"local-coder-small\"]"
+      }
+    ]
+  },
+  "warnings": [
+    "images.session-claude: all-zero digest (refused by --strict)",
+    "images.session-codex: all-zero digest (refused by --strict)",
+    "images.session-kimi: all-zero digest (refused by --strict)",
+    "images.panel: all-zero digest (refused by --strict)",
+    "images.session-runner: all-zero digest (refused by --strict)",
+    "images.pace: all-zero digest (refused by --strict)",
+    "images.farm-mcp: all-zero digest (refused by --strict)",
+    "images.factory: all-zero digest (refused by --strict)",
+    "images.hermes-chat: all-zero digest (refused by --strict)",
+    "user cy/claude: home_node auto -> node-a; pin it in users.yaml"
+  ]
+}

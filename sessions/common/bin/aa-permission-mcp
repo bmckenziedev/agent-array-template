@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""Bounded stdio MCP permission bridge. Missing or malformed replies deny."""
+import json
+import os
+import socket
+import sys
+import uuid
+
+MAX_BYTES = 65536
+
+
+def approve(arguments, socket_factory=socket.socket):
+    denial = {"behavior": "deny", "message": "permission unavailable"}
+    session = os.environ.get("AA_SUPERVISOR_SESSION")
+    if not session:
+        return denial
+    request = {"command": "permission.request", "session_id": session,
+               "request_id": str(uuid.uuid4()), "tool": arguments.get("tool_name", ""),
+               "arguments": arguments.get("input", {}), "summary": arguments.get("tool_name", "")}
+    raw = (json.dumps(request) + "\n").encode()
+    if len(raw) > MAX_BYTES:
+        return denial
+    try:
+        with socket_factory(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+            conn.settimeout(610)
+            conn.connect("/run/aa/permission.sock")
+            conn.sendall(raw)
+            data = b""
+            while b"\n" not in data and len(data) <= MAX_BYTES:
+                part = conn.recv(MAX_BYTES)
+                if not part:
+                    break
+                data += part
+            if len(data) > MAX_BYTES:
+                return denial
+            reply = json.loads(data)
+            if reply.get("decision") == "allow":
+                # VERIFY pinned Claude permission-prompt-tool response contract before activation.
+                return {"behavior": "allow", "updatedInput": arguments.get("input", {})}
+    except (OSError, ValueError, AttributeError):
+        pass
+    return denial
+
+
+def dispatch(message):
+    method = message.get("method")
+    if method == "initialize":
+        return {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}},
+                "serverInfo": {"name": "aa-permission", "version": "0.1.0"}}
+    if method == "tools/list":
+        return {"tools": [{"name": "approve", "description": "Request supervised permission",
+            "inputSchema": {"type": "object", "properties": {
+                "tool_name": {"type": "string"}, "input": {"type": "object"}},
+                "required": ["tool_name", "input"]}}]}
+    if method == "tools/call" and message.get("params", {}).get("name") == "approve":
+        result = approve(message["params"].get("arguments", {}))
+        return {"content": [{"type": "text", "text": json.dumps(result)}]}
+    if method == "ping":
+        return {}
+    raise ValueError("unknown method")
+
+
+def main():
+    while True:
+        line = sys.stdin.buffer.readline(MAX_BYTES + 1)
+        if not line:
+            return 0
+        if len(line) > MAX_BYTES or not line.endswith(b"\n"):
+            return 1
+        try:
+            message = json.loads(line)
+            if "id" not in message:
+                continue
+            try:
+                reply = {"jsonrpc": "2.0", "id": message["id"], "result": dispatch(message)}
+            except (ValueError, KeyError, TypeError):
+                reply = {"jsonrpc": "2.0", "id": message["id"],
+                         "error": {"code": -32601, "message": "request refused"}}
+            sys.stdout.write(json.dumps(reply) + "\n")
+            sys.stdout.flush()
+        except (ValueError, UnicodeError, TypeError):
+            return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

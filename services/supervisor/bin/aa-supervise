@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Holder exec client. Exit 0 succeeds; 1 refuses; 2 is a usage error."""
+import argparse
+import json
+import socket
+import sys
+from aa_supervisor.egress import Egress
+
+EGRESS = Egress()
+
+
+class RedactedParser(argparse.ArgumentParser):
+    def _print_message(self, message, file=None):
+        if message:
+            EGRESS.send({"message": message})
+
+
+def main(argv=None):
+    parser = RedactedParser(description=__doc__)
+    sub = parser.add_subparsers(dest="verb", required=True)
+    sub.add_parser("list")
+    sub.add_parser("metrics")
+    spawn = sub.add_parser("spawn")
+    spawn.add_argument("--tool", choices=["claude", "codex", "kimi"], required=True)
+    spawn.add_argument("--cwd", default="/work")
+    spawn.add_argument("--estate-id")
+    spawn.add_argument("--work-item", type=json.loads)
+    spawn.add_argument("--brief-stdin", action="store_true", help="read the brief from stdin (default)")
+    for verb in ["input", "interrupt", "stop", "tail", "link"]:
+        cmd = sub.add_parser(verb)
+        cmd.add_argument("id")
+        if verb == "input":
+            cmd.add_argument("text")
+        if verb in ["interrupt", "stop"]:
+            cmd.add_argument("--reason", required=True)
+            cmd.add_argument("--emergency", action="store_true")
+        if verb == "link":
+            cmd.add_argument("--session-id", required=True)
+            cmd.add_argument("--work-item", type=json.loads, required=True)
+    decide = sub.add_parser("decide")
+    decide.add_argument("request_id")
+    decide.add_argument("decision", choices=["allow", "deny"])
+    args = vars(parser.parse_args(argv))
+    verb = args.pop("verb")
+    args["command"] = {"tail": "sessions.output", "decide": "permission.decide",
+                        "metrics": "metrics"}.get(verb, "sessions." + verb)
+    if verb == "spawn":
+        args.pop("brief_stdin", None)
+        raw = sys.stdin.buffer.read(65537)
+        try:
+            if len(raw) > 65536:
+                raise ValueError("brief too large")
+            args["brief"] = raw.decode("utf-8", "strict")
+        except (ValueError, UnicodeError):
+            EGRESS.send({"error": "gate_rejected"})
+            return 1
+    args["actor"] = {"kind": "local"}
+    args["protocol_version"] = 1
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+            conn.settimeout(30)
+            conn.connect("/run/aa-supervisor/control.sock")
+            EGRESS.send(args, socket=conn)
+            data = b""
+            while b"\n" not in data and len(data) <= 65536:
+                part = conn.recv(65536)
+                if not part:
+                    break
+                data += part
+            result = json.loads(data)
+            EGRESS.send(result)
+            return 1 if "error" in result else 0
+    except (OSError, ValueError, AttributeError):
+        EGRESS.send({"error": "policy_unavailable"})
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
