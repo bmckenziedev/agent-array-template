@@ -69,6 +69,7 @@ flowchart LR
 | Supervise sessions and route permission requests | [Session supervision](docs/SUPERVISION.md) |
 | Planes, concepts and trust boundaries | [Architecture](docs/ARCHITECTURE.md) |
 | Evaluate, bootstrap and migrate | [Adoption](docs/ADOPTION.md) |
+| Try it on a disposable local cluster | [Local demo](docs/DEMO.md) |
 | Manage people, accounts and limits | [Multi-user](docs/MULTI-USER.md) |
 | Connect tools and context | [MCP and context](docs/MCP-AND-CONTEXT.md) |
 | Assess threats and residual risk | [Threat model](docs/SECURITY.md) |
