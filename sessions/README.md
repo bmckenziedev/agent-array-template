@@ -4,6 +4,8 @@ Sessions host official vendor CLIs in Kata microVMs. Each user owns one namespac
 StatefulSet, seat account and home-node login claim for each enabled tool. Isolation, managed
 policy, admission and default-deny egress remain mandatory.
 
+Decision record: [0014: Namespace per user with label-bound admission](../docs/adr/0014-namespace-per-user.md).
+
 ## Interface
 
 The holder uses `aa sessions`, `aa work remote`, snapshots and Kubernetes exec through OIDC. Session
@@ -78,6 +80,8 @@ Component defaults are `claude_mcp_mode: managed-file` (`C_SESSIONS_CLAUDE_MCP_M
 release pins; Dockerfile ARG defaults retain those pins and npm lock files stay unchanged.
 
 ### Permission modes
+
+Decision record: [0020: Permission mode per team](../docs/adr/0020-team-permission-modes.md).
 
 Teams choose `default`, `acceptEdits`, `plan` or an explicitly authorised bypass mode through
 `USER_PERMISSION_MODE`, mapped to each CLI's native policy. VERIFY the mapping on every pinned

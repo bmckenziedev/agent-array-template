@@ -2,6 +2,8 @@
 
 Reject identifying text, credentials and forbidden artifacts before publication.
 
+Decision record: [0022: Hashed sanitization inventory](../../docs/adr/0022-hashed-sanitization-inventory.md).
+
 ## Interface
 
 `python tools/sanitize/scan.py --root . [--warn-as-fail] [--json]`.
