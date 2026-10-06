@@ -2,6 +2,8 @@
 
 A dedicated local-path instance stores each login in a separate retained PVC for one (user, tool, node). Logins are never copied between nodes or backed up because refresh-token rotation and account isolation make credential sharing unsafe.
 
+Decision record: [0015: Node-local encrypted login storage](../../docs/adr/0015-node-local-encrypted-login-storage.md).
+
 ## Interface
 
 The provisioner lives in `<project>-login-storage`, uses its own provisioner name, ConfigMaps and service account, and coexists with distribution local-path storage. The nodePathMap has no fallback path and includes only session nodes. StorageClass topology and helper nodeSelector require the role-sessions label. PVCs use ReadWriteOnce: ReadWriteOncePod is CSI-only, and local-path is not CSI. RWO does not serialize multiple pods on the same node; sessions must cap Codex concurrency and replicas at one for each login.

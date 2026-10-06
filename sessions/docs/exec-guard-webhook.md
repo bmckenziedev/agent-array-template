@@ -7,6 +7,8 @@ during the export build.
 
 ## Exec, attach and port-forward
 
+Decision record: [0021: CONNECT admission guard for session access](../../docs/adr/0021-connect-exec-guard.md).
+
 The `aa-session-exec` ValidatingAdmissionPolicy handles CONNECT directly; no CONNECT
 webhook is required. It matches `pods/exec`, `pods/attach` and `pods/portforward` only
 in namespaces labelled `<label-prefix>/kind: user-sessions`. Namespace annotations
