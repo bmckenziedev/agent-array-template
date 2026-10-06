@@ -2,6 +2,8 @@
 
 LiteLLM routes organisation API accounts and optional local GPU pools. Teams own budgets and model allowlists; short-lived task keys attribute spend to both the submitting user and team. Subscription seats remain interactive vendor sessions.
 
+Decision record: [0016: Vendor seat and API account model](../docs/adr/0016-vendor-seat-and-api-account-model.md).
+
 ## Interface
 
 ClusterIP `litellm` exposes the gateway on port 4000 in `NS_LLM`. `litellm-pg:5432` stores keys and spend, and `litellm-redis:6379` coordinates counters. The stdlib render plugin emits a ConfigMap, the complete Deployment, `files/llm/provider-env.json` and `files/llm/teams.json`. JSON is valid YAML; Kubernetes templates use JSON syntax to preserve types.

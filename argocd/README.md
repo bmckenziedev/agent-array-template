@@ -2,6 +2,8 @@
 
 The app-of-apps deploys reviewed rendered manifests. Raw templates, host scripts, Helm values and login data never enter its sync paths.
 
+Decision record: [0013: Rendered output layout for GitOps](../docs/adr/0013-rendered-output-layout.md).
+
 ## Interface
 
 The root points to `rendered/global/argocd/k8s/apps`. Each source under rendered/global is manifests only, with recurse and `*.yaml`. users and MCP ApplicationSets generate Applications from reviewed rendered directories, preserve resources when a generated Application disappears, and automate sync with prune/selfHeal. No namespace resources-finalizer is added.
