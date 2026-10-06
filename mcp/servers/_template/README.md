@@ -4,6 +4,8 @@ This template supplies a minimal stdlib streamable HTTP MCP implementation and a
 pod-identity boundary. Replace `example_read` with an adapter to an organization's internal API;
 all returned text remains untrusted data.
 
+Decision record: [0018: No central MCP gateway in v1](../../../docs/adr/0018-no-central-mcp-gateway-v1.md).
+
 ## Interface
 
 POST `/mcp` accepts JSON-RPC `initialize`, `tools/list`, `tools/call` and `ping`.

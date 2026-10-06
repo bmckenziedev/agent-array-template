@@ -92,6 +92,10 @@ arc-ci, k3s-baremetal and k3s-maintenance. Each starts disabled and uses
 
 ## Licence and disclosure
 
+Decision record: [0011: Fresh export tree without source history](docs/adr/0011-fresh-export-tree-without-history.md).
+
+Decision record: [0025: Apache-2.0 licence as a placeholder](docs/adr/0025-license-placeholder.md).
+
 The copyright holder and adopting organisation must confirm the Apache-2.0 licence choice
 before publishing. Complete [NOTICE](NOTICE) and [disclosure](SECURITY.md) placeholders.
 See [LICENSE](LICENSE) and [changelog](CHANGELOG.md).

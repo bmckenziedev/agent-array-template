@@ -2,6 +2,8 @@
 
 Discover component tests and validate rendered manifests, admission expressions and documentation.
 
+Decision record: [0024: Action and tool checksum pinning](../../docs/adr/0024-action-and-checksum-pinning.md).
+
 ## Interface
 
 `python tools/ci/run_tests.py [--list] [--only GLOB]` discovers each component's

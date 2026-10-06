@@ -4,6 +4,8 @@ The registries describe capabilities and context delivery. Team entitlements det
 capabilities reach a user session. Configuration is managed, deterministic and free of
 credential values; upstream credentials remain in server pods.
 
+Decision record: [0017: MCP pod identity in v1](../docs/adr/0017-mcp-pod-identity-v1.md).
+
 ## Interface
 
 `render_plugin.py` exposes `PLUGIN_NAME = "mcp"` and `render(model, emit)`. It consumes the
