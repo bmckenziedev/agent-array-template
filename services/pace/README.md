@@ -2,6 +2,8 @@
 
 Pace coordinates account usage and session leases across users. Subscription seats stay interactive; automation routes only to team API accounts and pools. State survives service restarts on a SQLite PVC.
 
+Decision record: [0019: Pace as a lease service](../../docs/adr/0019-pace-lease-service.md).
+
 ## Interface
 
 The ClusterIP Service `pace` listens on port 8080. The HTTP implementation uses Python 3.10 or later and the standard library. JSON endpoints follow the platform contract:
