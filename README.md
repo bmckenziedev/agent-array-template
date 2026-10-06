@@ -69,6 +69,7 @@ flowchart LR
 | Supervise sessions and route permission requests | [Session supervision](docs/SUPERVISION.md) |
 | Planes, concepts and trust boundaries | [Architecture](docs/ARCHITECTURE.md) |
 | Evaluate, bootstrap and migrate | [Adoption](docs/ADOPTION.md) |
+| Try it on a disposable local cluster | [Local demo](docs/DEMO.md) |
 | Manage people, accounts and limits | [Multi-user](docs/MULTI-USER.md) |
 | Connect tools and context | [MCP and context](docs/MCP-AND-CONTEXT.md) |
 | Assess threats and residual risk | [Threat model](docs/SECURITY.md) |
@@ -91,6 +92,10 @@ arc-ci, k3s-baremetal and k3s-maintenance. Each starts disabled and uses
 `modules.<name>.enabled`; enable individually after verification.
 
 ## Licence and disclosure
+
+Decision record: [0011: Fresh export tree without source history](docs/adr/0011-fresh-export-tree-without-history.md).
+
+Decision record: [0025: Apache-2.0 licence as a placeholder](docs/adr/0025-license-placeholder.md).
 
 The copyright holder and adopting organisation must confirm the Apache-2.0 licence choice
 before publishing. Complete [NOTICE](NOTICE) and [disclosure](SECURITY.md) placeholders.

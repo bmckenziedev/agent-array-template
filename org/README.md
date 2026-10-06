@@ -3,6 +3,8 @@
 One reviewed configuration surface defines the platform directory, infrastructure settings and policy.
 The renderer consumes this data and component defaults; secrets appear only as references by name and key.
 
+Decision record: [0012: Single organisation configuration surface](../docs/adr/0012-single-org-config-surface.md).
+
 ## Interface
 
 Copy each `org/*.example.yaml` to the corresponding file without `.example`, copy the MCP example files,

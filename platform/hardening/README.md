@@ -2,6 +2,8 @@
 
 Namespace ownership, PSA, default-deny networking and guarded admission are generated from the organisation model. Argo manages rendered manifests; this component is the sole owner of Namespace objects for org namespace keys and Kubernetes built-in namespaces.
 
+Decision record: [0023: Namespace ownership](../../docs/adr/0023-namespace-ownership.md).
+
 ## Interface
 
 `render_plugin.py` exposes `PLUGIN_NAME = "hardening"` and `render(model, emit)`. It emits Namespace and NetworkPolicy objects beneath `global/platform/hardening/k8s/`. Static admission and repo-server templates render beside them. Per-user namespaces belong to sessions; optional module namespaces belong to their module.
