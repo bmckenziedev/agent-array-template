@@ -85,7 +85,7 @@ jobs:
           [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
           mkdir -p digests
           printf '  %s: {tag: "sha-%s", digest: "%s"}\n' "$NAME" "$COMMIT" "$DIGEST" > "digests/$NAME.yaml"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.present.outputs.exists == 'true' && env.PUBLISH_IMAGES == 'true'
         with:
           name: digest-${{ matrix.name }}
@@ -111,7 +111,7 @@ jobs:
             cat image-digests.yaml
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: image-digests
           path: image-digests.yaml
